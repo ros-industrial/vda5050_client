@@ -83,7 +83,7 @@ PreSendContext make_ready_context()
 {
   return PreSendContext{
     vda5050_core::types::ConnectionState::ONLINE, make_ready_state(),
-    AGVState::AVAILABLE};
+    std::nullopt, AGVState::AVAILABLE, nullptr};
 }
 
 }  // namespace

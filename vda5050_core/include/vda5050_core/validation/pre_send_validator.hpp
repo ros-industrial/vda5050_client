@@ -22,8 +22,10 @@
 #include <optional>
 
 #include "vda5050_core/errors/validation_result.hpp"
+#include "vda5050_core/layout/graph.hpp"
 #include "vda5050_core/master/agv.hpp"
 #include "vda5050_core/types/connection_state.hpp"
+#include "vda5050_core/types/factsheet.hpp"
 #include "vda5050_core/types/state.hpp"
 
 namespace vda5050_core::validation {
@@ -33,7 +35,9 @@ struct PreSendContext
 {
   vda5050_core::types::ConnectionState connection_status;
   std::optional<vda5050_core::types::State> last_state;
+  std::optional<vda5050_core::types::Factsheet> last_factsheet;
   vda5050_core::master::AGVState operational_state;
+  vda5050_core::layout::Graph::ConstPtr loaded_graph;
 };
 
 /// \brief AGV-readiness gate before publish (connection, mode, position).

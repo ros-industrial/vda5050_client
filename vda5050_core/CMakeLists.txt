@@ -293,6 +293,11 @@ if(BUILD_TESTING)
     test/master/test_unit_connection_event_detector.cpp
   )
   target_link_libraries(test_master_detectors vda5050_core::master)
+
+  ament_add_gmock(test_master_event_strategy
+    test/master/test_unit_event_detection_strategy.cpp
+  )
+  target_link_libraries(test_master_event_strategy vda5050_core::master)
 endif()
 
 # Install linter macro

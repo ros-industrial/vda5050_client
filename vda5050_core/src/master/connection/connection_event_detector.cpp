@@ -18,7 +18,8 @@
 
 #include "vda5050_core/master/connection/connection_event_detector.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core {
+namespace master {
 
 ConnectionEventKind detect_connection_transition(
   const std::optional<vda5050_core::types::Connection>& prev,
@@ -44,4 +45,5 @@ ConnectionEventKind detect_connection_transition(
   return ConnectionEventKind::NONE;
 }
 
-}  // namespace vda5050_core::master
+}  // namespace master
+}  // namespace vda5050_core

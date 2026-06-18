@@ -20,7 +20,8 @@
 
 #include <algorithm>
 
-namespace vda5050_core::master {
+namespace vda5050_core {
+namespace master {
 namespace event {
 
 namespace {
@@ -118,4 +119,5 @@ bool loads_changed(
 }
 
 }  // namespace event
-}  // namespace vda5050_core::master
+}  // namespace master
+}  // namespace vda5050_core

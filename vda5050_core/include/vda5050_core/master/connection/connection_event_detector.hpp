@@ -23,7 +23,8 @@
 
 #include "vda5050_core/types/connection.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core {
+namespace master {
 
 // CONNECTIONBROKEN = broker last-will (unexpected drop); OFFLINE = graceful.
 enum class ConnectionEventKind
@@ -40,6 +41,7 @@ ConnectionEventKind detect_connection_transition(
   const std::optional<vda5050_core::types::Connection>& prev,
   const vda5050_core::types::Connection& curr);
 
-}  // namespace vda5050_core::master
+}  // namespace master
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__MASTER__CONNECTION__CONNECTION_EVENT_DETECTOR_HPP_

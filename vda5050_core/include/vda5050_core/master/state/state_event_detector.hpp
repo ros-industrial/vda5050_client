@@ -27,7 +27,8 @@
 #include "vda5050_core/types/error.hpp"
 #include "vda5050_core/types/state.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core {
+namespace master {
 namespace event {
 
 /// A node the AGV reports as reached (lastNodeId + lastNodeSequenceId).
@@ -75,6 +76,7 @@ bool loads_changed(
   const vda5050_core::types::State& curr);
 
 }  // namespace event
-}  // namespace vda5050_core::master
+}  // namespace master
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__MASTER__STATE__STATE_EVENT_DETECTOR_HPP_

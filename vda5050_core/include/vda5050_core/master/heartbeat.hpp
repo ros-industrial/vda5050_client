@@ -25,10 +25,17 @@
 #include <mutex>
 #include <string>
 #include <thread>
-#include "vda5050_core/logger/logger.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core {
 
+namespace master {
+
+/// \brief Heartbeat listener lifecycle states
+///
+/// State transitions:
+///   STOPPED -> RUNNING (via start_connection_heartbeat())
+///   RUNNING -> STOPPING (via stop_connection_heartbeat())
+///   STOPPING -> STOPPED (when cleanup completes)
 enum class HeartbeatState
 {
   STOPPED,  // Not running, safe to destroy or restart
@@ -54,14 +61,27 @@ public:
   HeartbeatListener(HeartbeatListener&&) = delete;
   HeartbeatListener& operator=(HeartbeatListener&&) = delete;
 
+  /// \brief Start the heartbeat listener thread
   void start_connection_heartbeat();
+
+  /// \brief Stop the heartbeat listener thread
   void stop_connection_heartbeat();
+
+  /// \brief Notify that a heartbeat was received
   void received_connection();
+
+  /// \brief Get the timestamp of the last received heartbeat
   std::chrono::steady_clock::time_point get_last_connection_report();
+
+  /// \brief Get the current heartbeat listener state
+  ///
+  /// \return HeartbeatState enum value
   HeartbeatState get_state();
 
-  // virtual for testing (override to inject time / interval)
+  /// \brief Get the current time (virtual for testing)
   virtual std::chrono::steady_clock::time_point get_current_time();
+
+  /// \brief Get the check interval (virtual for testing)
   virtual int get_check_interval();
 
 protected:
@@ -86,6 +106,7 @@ private:
   std::function<void()> disconnection_callback_;
 };
 
-}  // namespace vda5050_core::master
+}  // namespace master
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__MASTER__HEARTBEAT_HPP_

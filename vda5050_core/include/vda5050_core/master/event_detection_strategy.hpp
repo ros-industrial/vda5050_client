@@ -101,17 +101,9 @@ struct ConnectionChangedEvent
 class EventDetectionStrategy : public execution::StrategyInterface
 {
 public:
-  void init(std::shared_ptr<execution::ContextInterface> context) override
-  {
-    context->provider()->on<StateUpdate>(
-      [this](std::shared_ptr<StateUpdate> update) {
-        engine()->notify(update);
-      });
-    context->provider()->on<ConnectionUpdate>(
-      [this](std::shared_ptr<ConnectionUpdate> update) {
-        engine()->notify(update);
-      });
-  }
+  // Updates are read directly via context->get_update<>() in step(); this
+  // strategy never suspends, so there is nothing to register on the engine.
+  void init(std::shared_ptr<execution::ContextInterface>) override {}
 
   void step(std::shared_ptr<execution::ContextInterface> context) override
   {

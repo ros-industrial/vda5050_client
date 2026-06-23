@@ -26,7 +26,9 @@
 namespace vda5050_core {
 namespace master {
 
-// CONNECTIONBROKEN = broker last-will (unexpected drop); OFFLINE = graceful.
+/// \brief Kind of connection-state transition detected.
+///
+/// CONNECTIONBROKEN = broker last-will (unexpected drop); OFFLINE = graceful.
 enum class ConnectionEventKind
 {
   NONE,
@@ -35,7 +37,7 @@ enum class ConnectionEventKind
   CONNECTIONBROKEN,
 };
 
-/// Edge-detect a connection-state transition; non-NONE only on a change
+/// \brief Edge-detect a connection-state transition; non-NONE only on a change
 /// (or first message). Sustained states return NONE.
 ConnectionEventKind detect_connection_transition(
   const std::optional<vda5050_core::types::Connection>& prev,

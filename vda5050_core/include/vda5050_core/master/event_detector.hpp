@@ -44,6 +44,7 @@ namespace master {
 // it came from; value-bearing ones also carry the new value so a consumer
 // needn't re-read cached state (NewBaseRequest is a pure edge, no value).
 
+/// \brief A node the AGV newly reported as reached.
 struct NodeReachedUpdate
 : execution::Initialize<NodeReachedUpdate, execution::UpdateBase>
 {
@@ -55,6 +56,7 @@ struct NodeReachedUpdate
   }
 };
 
+/// \brief Errors that appeared and/or cleared since the previous State.
 struct ErrorsChangedUpdate
 : execution::Initialize<ErrorsChangedUpdate, execution::UpdateBase>
 {
@@ -68,6 +70,7 @@ struct ErrorsChangedUpdate
   }
 };
 
+/// \brief The AGV's connection state changed (or first report).
 struct ConnectionChangedUpdate
 : execution::Initialize<ConnectionChangedUpdate, execution::UpdateBase>
 {
@@ -79,6 +82,7 @@ struct ConnectionChangedUpdate
   }
 };
 
+/// \brief The AGV's operating mode changed.
 struct OperatingModeChangedUpdate
 : execution::Initialize<OperatingModeChangedUpdate, execution::UpdateBase>
 {
@@ -90,6 +94,7 @@ struct OperatingModeChangedUpdate
   }
 };
 
+/// \brief The AGV's paused flag changed.
 struct PausedChangedUpdate
 : execution::Initialize<PausedChangedUpdate, execution::UpdateBase>
 {
@@ -100,6 +105,7 @@ struct PausedChangedUpdate
   }
 };
 
+/// \brief The AGV's driving flag changed.
 struct DrivingChangedUpdate
 : execution::Initialize<DrivingChangedUpdate, execution::UpdateBase>
 {
@@ -111,6 +117,7 @@ struct DrivingChangedUpdate
   }
 };
 
+/// \brief The AGV raised a new-base request (rising edge).
 struct NewBaseRequestUpdate
 : execution::Initialize<NewBaseRequestUpdate, execution::UpdateBase>
 {
@@ -118,6 +125,7 @@ struct NewBaseRequestUpdate
   explicit NewBaseRequestUpdate(std::string id) : agv_id(std::move(id)) {}
 };
 
+/// \brief The AGV's load set changed.
 struct LoadsChangedUpdate
 : execution::Initialize<LoadsChangedUpdate, execution::UpdateBase>
 {
@@ -129,11 +137,13 @@ struct LoadsChangedUpdate
   }
 };
 
-/// Per-AGV transition detector over the State / Connection messages of a single
-/// AGV. Each on_state / on_connection call diffs against the previously seen
-/// message and pushes one update per transition through the shared provider,
-/// tagged with this AGV's id. The first message of each kind only seeds the
-/// baseline (a Connection ONLINE is itself the CONNECTED transition).
+/// \brief Per-AGV transition detector over a single AGV's State / Connection
+/// messages.
+///
+/// Each on_state / on_connection call diffs against the previously seen message
+/// and pushes one update per transition through the shared provider, tagged
+/// with this AGV's id. The first message of each kind only seeds the baseline
+/// (a Connection ONLINE is itself the CONNECTED transition).
 ///
 /// One AGV's messages must be delivered in arrival order: concurrent calls are
 /// race-free (the snapshot is mutex-guarded) but transition order across them
@@ -141,10 +151,21 @@ struct LoadsChangedUpdate
 class EventDetector
 {
 public:
+  /// \brief Construct a detector that publishes this AGV's transitions.
+  ///
+  /// \param agv_id Id stamped on every update this detector publishes.
+  /// \param provider Shared provider the transition updates are pushed through.
   EventDetector(
     std::string agv_id, std::shared_ptr<execution::Provider> provider);
 
+  /// \brief Diff a newly received State and publish an update per transition.
+  ///
+  /// \param state Latest State message for this AGV.
   void on_state(const types::State& state);
+
+  /// \brief Diff a newly received Connection and publish on a state change.
+  ///
+  /// \param connection Latest Connection message for this AGV.
   void on_connection(const types::Connection& connection);
 
 private:

@@ -31,46 +31,49 @@ namespace vda5050_core {
 namespace master {
 namespace event {
 
-/// A node the AGV reports as reached (lastNodeId + lastNodeSequenceId).
+/// \brief A node the AGV reports as reached (lastNodeId + lastNodeSequenceId).
 struct ReachedNode
 {
   std::string node_id;
   uint32_t sequence_id;
 };
 
-/// Node just reached: lastNodeId/sequence advanced vs prev; else nullopt.
+/// \brief Node just reached: lastNodeId/sequence advanced vs prev; else nullopt.
 std::optional<ReachedNode> newly_reached_node(
   const vda5050_core::types::State& prev,
   const vda5050_core::types::State& curr);
 
-/// Errors in curr but not prev.
+/// \brief Errors in curr but not prev.
 std::vector<vda5050_core::types::Error> errors_appeared(
   const vda5050_core::types::State& prev,
   const vda5050_core::types::State& curr);
 
-/// Errors in prev but no longer in curr.
+/// \brief Errors in prev but no longer in curr.
 std::vector<vda5050_core::types::Error> errors_resolved(
   const vda5050_core::types::State& prev,
   const vda5050_core::types::State& curr);
 
-/// Rising edge: new_base_request false → true (absent = false).
+/// \brief Rising edge: new_base_request false → true (absent = false).
 bool new_base_requested(
   const vda5050_core::types::State& prev,
   const vda5050_core::types::State& curr);
 
+/// \brief curr.operating_mode != prev.operating_mode.
 bool mode_changed(
   const vda5050_core::types::State& prev,
   const vda5050_core::types::State& curr);
 
-/// curr.paused != prev.paused (absent = false).
+/// \brief curr.paused != prev.paused (absent = false).
 bool paused_changed(
   const vda5050_core::types::State& prev,
   const vda5050_core::types::State& curr);
 
+/// \brief curr.driving != prev.driving.
 bool driving_changed(
   const vda5050_core::types::State& prev,
   const vda5050_core::types::State& curr);
 
+/// \brief curr.loads != prev.loads.
 bool loads_changed(
   const vda5050_core::types::State& prev,
   const vda5050_core::types::State& curr);

@@ -151,7 +151,7 @@ target_include_directories(vda5050_execution
 )
 
 # Master
-file(GLOB_RECURSE master_srcs "src/master/*.cpp")
+file(GLOB_RECURSE master_srcs CONFIGURE_DEPENDS "src/master/*.cpp")
 add_library(vda5050_master SHARED ${master_srcs})
 vda5050_configure_target_alias(
   TARGET vda5050_master
@@ -294,10 +294,10 @@ if(BUILD_TESTING)
   )
   target_link_libraries(test_master_detectors vda5050_core::master)
 
-  ament_add_gmock(test_master_event_strategy
-    test/master/test_unit_event_detection_strategy.cpp
+  ament_add_gmock(test_master_event_detector
+    test/master/test_unit_event_detector.cpp
   )
-  target_link_libraries(test_master_event_strategy vda5050_core::master)
+  target_link_libraries(test_master_event_detector vda5050_core::master)
 endif()
 
 # Install linter macro

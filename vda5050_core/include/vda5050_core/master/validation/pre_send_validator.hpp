@@ -19,30 +19,24 @@
 #ifndef VDA5050_CORE__MASTER__VALIDATION__PRE_SEND_VALIDATOR_HPP_
 #define VDA5050_CORE__MASTER__VALIDATION__PRE_SEND_VALIDATOR_HPP_
 
-#include <memory>
 #include <optional>
 
 #include "vda5050_core/master/agv.hpp"
-#include "vda5050_core/master/map/map.hpp"
 #include "vda5050_core/order_utils/validation_result.hpp"
 #include "vda5050_core/types/connection_state.hpp"
-#include "vda5050_core/types/factsheet.hpp"
 #include "vda5050_core/types/state.hpp"
 
 namespace vda5050_core::master {
 
-// AGV-readiness gate before publish.
-
-// Lock-free AGV snapshot captured once; serves the whole publish chain.
+/// \brief Lock-free AGV snapshot captured once; serves the whole publish chain.
 struct PreSendContext
 {
   vda5050_core::types::ConnectionState connection_status;
   std::optional<vda5050_core::types::State> last_state;
-  std::optional<vda5050_core::types::Factsheet> last_factsheet;
   AGVState operational_state;
-  std::shared_ptr<const Map> loaded_map;
 };
 
+/// \brief AGV-readiness gate before publish (connection, mode, position).
 vda5050_core::order_utils::ValidationResult validate_pre_send(
   const PreSendContext& ctx);
 

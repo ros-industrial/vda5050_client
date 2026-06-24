@@ -347,16 +347,8 @@ if(BUILD_TESTING)
   ament_add_gmock(test_master_validation
     test/master/test_unit_schema_validator.cpp
     test/master/test_unit_pre_send_validator.cpp
-    test/master/test_unit_factsheet_alignment.cpp
   )
   target_link_libraries(test_master_validation vda5050_core::master)
-
-  ament_add_gmock(test_master_map
-    test/master/test_unit_map_loader.cpp
-  )
-  target_link_libraries(test_master_map vda5050_core::master)
-  target_compile_definitions(test_master_map PRIVATE
-    VDA5050_CORE__MASTER__SAMPLE_MAP_PATH="${CMAKE_CURRENT_SOURCE_DIR}/test/master/data/sample_map.json")
 
   ament_add_gmock(test_layout_loader
     test/layout/test_unit_loader.cpp

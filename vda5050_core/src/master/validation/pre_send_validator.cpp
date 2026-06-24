@@ -55,17 +55,6 @@ vda5050_core::order_utils::ValidationResult validate_pre_send(
       vda5050_core::errors::PreSendValidationError, description, {}));
   };
 
-  // No-map gate: can't validate node/edge ids without a loaded topology.
-  if (ctx.loaded_map == nullptr)
-  {
-    res.errors.push_back(vda5050_core::errors::create_error(
-      vda5050_core::errors::MapValidationError,
-      "Master has no map loaded — call load_map_from_config() before "
-      "publishing.",
-      {}));
-    return res;
-  }
-
   if (ctx.connection_status != vda5050_core::types::ConnectionState::ONLINE)
   {
     add_error("AGV connection_status is not ONLINE");

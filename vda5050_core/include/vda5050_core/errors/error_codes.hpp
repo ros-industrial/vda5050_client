@@ -31,7 +31,6 @@ inline const std::string OrderUpdateError = "orderUpdateError";
 inline const std::string ValidationError = "validationError";
 inline const std::string SchemaValidationError = "schemaValidationError";
 inline const std::string PreSendValidationError = "preSendValidationError";
-inline const std::string MapValidationError = "mapValidationError";
 
 // Reference key string for vda5050_types::ErrorReference::key
 inline const std::string RefOrderId = "orderId";

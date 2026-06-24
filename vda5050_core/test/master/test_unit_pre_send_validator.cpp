@@ -18,11 +18,9 @@
 
 #include <gtest/gtest.h>
 
-#include <memory>
 #include <string>
 
 #include "vda5050_core/errors/error_codes.hpp"
-#include "vda5050_core/master/map/map.hpp"
 #include "vda5050_core/master/validation/pre_send_validator.hpp"
 
 namespace {
@@ -80,24 +78,12 @@ vda5050_core::types::State make_ready_state()
   return s;
 }
 
-// Minimal in-memory map satisfying the no-map gate.
-std::shared_ptr<const Map> make_minimal_map()
-{
-  Map m;
-  m.info.map_id = "test_map";
-  m.info.map_version = "1.0";
-  return std::make_shared<const Map>(std::move(m));
-}
-
-// Builds a PreSendContext that satisfies all readiness checks AND the
-// no-map gate. Tests that exercise the no-map gate explicitly clear
-// `loaded_map` after calling this.
+// Builds a PreSendContext that satisfies all readiness checks.
 PreSendContext make_ready_context()
 {
   return PreSendContext{
     vda5050_core::types::ConnectionState::ONLINE, make_ready_state(),
-    std::nullopt /* last_factsheet — not used by PreSend */,
-    AGVState::AVAILABLE, make_minimal_map()};
+    AGVState::AVAILABLE};
 }
 
 }  // namespace
@@ -305,42 +291,6 @@ TEST(PreSendValidatorTest, MultipleErrorsAccumulate)
   EXPECT_TRUE(AnyErrorMentions(res, "connection_status"));
   EXPECT_TRUE(AnyErrorMentions(res, "operating_mode"));
   EXPECT_TRUE(AnyErrorMentions(res, "position"));
-}
-
-// ============================================================================
-// No-map gate
-// ============================================================================
-//
-// The master must reject every Order / InstantActions if no topology map
-// has been loaded. Without a map, downstream traversability map-integrity
-// checks have no truth source and AGVs would silently accept node ids
-// that are not in the warehouse. Hard-reject is the correct posture.
-
-TEST(PreSendValidatorTest, NoMapLoadedRejectedAndShortCircuits)
-{
-  auto ctx = make_ready_context();
-  ctx.loaded_map = nullptr;
-  auto res = validate_pre_send(ctx);
-  EXPECT_FALSE(static_cast<bool>(res));
-  // Only the no-map error fires — remaining checks are short-circuited.
-  ASSERT_EQ(res.errors.size(), 1u);
-  EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::MapValidationError);
-}
-
-TEST(PreSendValidatorTest, NoMapLoadedShortCircuitsBeforeOtherErrors)
-{
-  // Even with multiple other failures, no-map should be the only error
-  // surfaced — fail-fast on missing config.
-  auto ctx = make_ready_context();
-  ctx.loaded_map = nullptr;
-  ctx.connection_status = vda5050_core::types::ConnectionState::OFFLINE;
-  ctx.last_state->operating_mode = vda5050_core::types::OperatingMode::MANUAL;
-  auto res = validate_pre_send(ctx);
-  EXPECT_FALSE(static_cast<bool>(res));
-  ASSERT_EQ(res.errors.size(), 1u);
-  EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::MapValidationError);
 }
 
 }  // namespace vda5050_core::master::test

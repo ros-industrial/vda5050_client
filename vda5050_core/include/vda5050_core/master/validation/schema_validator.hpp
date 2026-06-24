@@ -29,23 +29,27 @@
 
 namespace vda5050_core::master {
 
-// Structural field checks on a typed message (version, non-empty ids).
-
+/// \brief Structural field checks on an Order (version, non-empty ids).
 vda5050_core::order_utils::ValidationResult validate_order_schema(
   const vda5050_core::types::Order& order);
 
+/// \brief Structural field checks on an InstantActions message.
 vda5050_core::order_utils::ValidationResult validate_instant_actions_schema(
   const vda5050_core::types::InstantActions& actions);
 
+/// \brief Structural field checks on a State message.
 vda5050_core::order_utils::ValidationResult validate_state_schema(
   const vda5050_core::types::State& state);
 
+/// \brief Structural field checks on a Connection message.
 vda5050_core::order_utils::ValidationResult validate_connection_schema(
   const vda5050_core::types::Connection& connection);
 
+/// \brief Structural field checks on a Factsheet message.
 vda5050_core::order_utils::ValidationResult validate_factsheet_schema(
   const vda5050_core::types::Factsheet& factsheet);
 
+/// \brief Structural field checks on a Visualization message.
 vda5050_core::order_utils::ValidationResult validate_visualization_schema(
   const vda5050_core::types::Visualization& visualization);
 

@@ -246,7 +246,9 @@ std::size_t VDA5050Master::offboard_agv_batch(
   // AGV::stop() joins the queue thread; gather under the lock and
   // stop outside, same as offboard_agv().
   std::vector<std::shared_ptr<AGV>> to_stop;
+  std::vector<std::string> offboarded_ids;
   to_stop.reserve(keys.size());
+  offboarded_ids.reserve(keys.size());
   {
     std::lock_guard<std::mutex> lock(agv_mutex_);
     for (const auto& key : keys)
@@ -257,6 +259,7 @@ std::size_t VDA5050Master::offboard_agv_batch(
       if (it == agvs_.end()) continue;
       if (it->second) to_stop.push_back(std::move(it->second));
       agvs_.erase(it);
+      offboarded_ids.push_back(agv_id);
     }
   }
 
@@ -276,6 +279,11 @@ std::size_t VDA5050Master::offboard_agv_batch(
 
   VDA5050_INFO(
     "[VDA5050Master] offboard_agv_batch: offboarded={}", to_stop.size());
+
+  for (const auto& agv_id : offboarded_ids)
+  {
+    on_offboard(agv_id);
+  }
   return to_stop.size();
 }
 
@@ -342,6 +350,7 @@ void VDA5050Master::offboard_agv(
   }
 
   VDA5050_INFO("[VDA5050Master] Offboarded AGV: {}", agv_id);
+  on_offboard(agv_id);
 }
 
 void VDA5050Master::record_assignment(
@@ -869,6 +878,8 @@ void VDA5050Master::on_state_resumed(const std::string& /*agv_id*/) {}
 void VDA5050Master::on_broker_disconnected() {}
 
 void VDA5050Master::on_broker_reconnected() {}
+
+void VDA5050Master::on_offboard(const std::string& /*agv_id*/) {}
 
 // ============================================================================
 // Master-broker connection state

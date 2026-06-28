@@ -655,6 +655,23 @@ public:
   /// Default impl is empty.
   virtual void on_broker_reconnected();
 
+  // ============================================================================
+  // Offboard event trigger
+  // ============================================================================
+
+  /// \brief Fired after an AGV is removed via `offboard_agv` or
+  ///        `offboard_agv_batch`.
+  ///
+  /// The AGV has already been erased from the registry, stopped, and
+  /// its assignment cleared before this virtual is dispatched. Use it
+  /// to release any per-AGV resources a subclass holds (ROS 2
+  /// publishers, dashboards, etc.). Not fired when offboard is a no-op
+  /// (AGV was not onboarded). Default impl is empty.
+  ///
+  /// Threading: invoked on the caller's thread, after all master locks
+  /// are released.
+  virtual void on_offboard(const std::string& agv_id);
+
 private:
   // ============================================================================
   // Internal AGV lookup

@@ -234,4 +234,82 @@ TEST_F(OnboardBatchTest, GetOnboardedAgvs_ReflectsSingleAndBatchOnboard)
   EXPECT_TRUE(roster_contains(roster, "OTHER", "BOT01"));
 }
 
+namespace {
+
+// Records every on_offboard dispatch so the hook's firing can be asserted.
+class RecordingMaster : public VDA5050Master
+{
+public:
+  using VDA5050Master::VDA5050Master;
+
+  void on_offboard(const std::string& agv_id) override
+  {
+    offboarded.push_back(agv_id);
+  }
+
+  std::vector<std::string> offboarded;
+};
+
+class OffboardHookTest : public ::testing::Test
+{
+protected:
+  std::shared_ptr<MockMqttClient> mock_;
+  std::shared_ptr<RecordingMaster> master_;
+
+  void SetUp() override
+  {
+    mock_ = std::make_shared<MockMqttClient>();
+    EXPECT_CALL(*mock_, connect()).Times(::testing::AnyNumber());
+    EXPECT_CALL(*mock_, disconnect()).Times(::testing::AnyNumber());
+    EXPECT_CALL(*mock_, connected())
+      .Times(::testing::AnyNumber())
+      .WillRepeatedly(::testing::Return(true));
+    EXPECT_CALL(*mock_, subscribe(::testing::_, ::testing::_, ::testing::_))
+      .Times(::testing::AnyNumber());
+    EXPECT_CALL(*mock_, unsubscribe(::testing::_))
+      .Times(::testing::AnyNumber());
+    EXPECT_CALL(
+      *mock_, set_will(::testing::_, ::testing::_, ::testing::_, ::testing::_))
+      .Times(::testing::AnyNumber());
+    EXPECT_CALL(
+      *mock_, publish(::testing::_, ::testing::_, ::testing::_, ::testing::_))
+      .Times(::testing::AnyNumber());
+    master_ = std::make_shared<RecordingMaster>(mock_);
+  }
+
+  bool fired(const std::string& agv_id) const
+  {
+    return std::find(
+             master_->offboarded.begin(), master_->offboarded.end(), agv_id) !=
+           master_->offboarded.end();
+  }
+};
+
+}  // namespace
+
+TEST_F(OffboardHookTest, OffboardAgv_FiresOnOffboardWithAgvId)
+{
+  master_->onboard_agv("ACME", "AGV01");
+  master_->offboard_agv("ACME", "AGV01");
+  ASSERT_EQ(master_->offboarded.size(), 1u);
+  EXPECT_EQ(master_->offboarded.front(), "ACME/AGV01");
+}
+
+TEST_F(OffboardHookTest, OffboardAgv_NoOpDoesNotFireHook)
+{
+  master_->offboard_agv("ACME", "GHOST");
+  EXPECT_TRUE(master_->offboarded.empty());
+}
+
+TEST_F(OffboardHookTest, OffboardBatch_FiresHookPerOffboardedAgv)
+{
+  master_->onboard_agv("ACME", "AGV01");
+  master_->onboard_agv("ACME", "AGV02");
+  master_->offboard_agv_batch(
+    {{"ACME", "AGV01"}, {"ACME", "AGV02"}, {"ACME", "GHOST"}});
+  ASSERT_EQ(master_->offboarded.size(), 2u);
+  EXPECT_TRUE(fired("ACME/AGV01"));
+  EXPECT_TRUE(fired("ACME/AGV02"));
+}
+
 }  // namespace vda5050_core::master::test

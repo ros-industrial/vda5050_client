@@ -323,7 +323,8 @@ TEST(CapabilityValidatorTest, OrderSkipsCapabilityChecksWhenNoFactsheet)
   unsupported.blocking_type = vda5050_core::types::BlockingType::NONE;
   order.nodes.front().actions = {unsupported};
   auto res = validate_capability(ctx, order);
-  EXPECT_TRUE(static_cast<bool>(res));
+  EXPECT_TRUE(static_cast<bool>(res));  // valid — skip is advisory, not FATAL
+  EXPECT_EQ(res.warnings().size(), 1u);
 }
 
 TEST(
@@ -339,7 +340,8 @@ TEST(
   a.blocking_type = vda5050_core::types::BlockingType::NONE;
   ia.actions = {a};
   auto res = validate_capability(ctx, ia);
-  EXPECT_TRUE(static_cast<bool>(res));
+  EXPECT_TRUE(static_cast<bool>(res));  // valid — skip is advisory, not FATAL
+  EXPECT_EQ(res.warnings().size(), 1u);
 }
 
 // ============================================================================

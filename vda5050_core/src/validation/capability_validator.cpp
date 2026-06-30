@@ -25,7 +25,6 @@
 
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
-#include "vda5050_core/logger/logger.hpp"
 
 namespace vda5050_core::master {
 
@@ -145,10 +144,11 @@ ValidationResult validate_capability(
 
   if (!ctx.last_factsheet.has_value())
   {
-    VDA5050_WARN(
-      "[capability] No factsheet cached for order '{}'; skipping capability "
-      "checks.",
-      order.order_id);
+    res.errors.push_back(create_error(
+      CapabilityValidationError,
+      "No factsheet cached; capability checks skipped.",
+      {{::vda5050_core::errors::RefOrderId, order.order_id}},
+      vda5050_core::types::ErrorLevel::WARNING));
     return res;
   }
 
@@ -188,9 +188,10 @@ ValidationResult validate_capability(
 
   if (!ctx.last_factsheet.has_value())
   {
-    VDA5050_WARN(
-      "[capability] No factsheet cached; skipping instant-action capability "
-      "checks.");
+    res.errors.push_back(create_error(
+      CapabilityValidationError,
+      "No factsheet cached; instant-action capability checks skipped.", {},
+      vda5050_core::types::ErrorLevel::WARNING));
     return res;
   }
 

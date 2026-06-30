@@ -119,8 +119,10 @@ TEST(TraversabilityValidatorTest, OrderHappyPathOnNode)
   auto ctx = make_ctx(make_state_on_node("N0"), make_factsheet());
   auto order = make_minimal_order();
   auto res = validate_traversability(ctx, order);
-  EXPECT_TRUE(static_cast<bool>(res));
-  EXPECT_TRUE(res.errors.empty());
+  EXPECT_TRUE(static_cast<bool>(res));  // valid — no FATAL errors
+  EXPECT_FALSE(res.has_fatal());
+  // No layout loaded => graph-integrity skipped, reported as an advisory.
+  EXPECT_EQ(res.warnings().size(), 1u);
 }
 
 TEST(TraversabilityValidatorTest, OrderHappyPathByPositionWithinDeviation)
@@ -405,13 +407,19 @@ TEST(TraversabilityValidatorTest, GraphIntegrity_NodeMapIdMismatch_Rejects)
 
 TEST(TraversabilityValidatorTest, GraphIntegrity_SkippedWhenNoGraph_Accepts)
 {
-  // Null graph → integrity checks skipped (logged), not rejected.
+  // Null graph → integrity checks skipped, surfaced as a WARNING (not FATAL),
+  // so the result stays valid.
   auto ctx = make_ctx(make_state_on_node("N0"), make_factsheet());
   auto order = make_minimal_order();
   order.edges.push_back(make_order_edge("ANY", "N0", "N1"));
 
   auto res = validate_traversability(ctx, order);
   EXPECT_TRUE(static_cast<bool>(res));
+  EXPECT_FALSE(res.has_fatal());
+  ASSERT_EQ(res.warnings().size(), 1u);
+  EXPECT_NE(
+    res.warnings().front().error_description->find("No layout loaded"),
+    std::string::npos);
 }
 
 }  // namespace vda5050_core::master::test

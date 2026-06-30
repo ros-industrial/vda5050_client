@@ -200,7 +200,8 @@ TEST(ProtocolLimitsValidatorTest, OrderSkipsLimitChecksWhenNoFactsheet)
   n2.released = true;
   order.nodes.push_back(n2);
   auto res = validate_protocol_limits(ctx, order);
-  EXPECT_TRUE(static_cast<bool>(res));
+  EXPECT_TRUE(static_cast<bool>(res));  // valid — skip is advisory, not FATAL
+  EXPECT_EQ(res.warnings().size(), 1u);
 }
 
 // ============================================================================

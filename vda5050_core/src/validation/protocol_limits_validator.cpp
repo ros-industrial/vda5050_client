@@ -27,7 +27,6 @@
 
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
-#include "vda5050_core/logger/logger.hpp"
 
 namespace vda5050_core::master {
 
@@ -70,10 +69,10 @@ ValidationResult validate_protocol_limits(
 
   if (!ctx.last_factsheet.has_value())
   {
-    VDA5050_WARN(
-      "[protocol_limits] No factsheet cached for order '{}'; skipping "
-      "array-limit checks.",
-      order.order_id);
+    res.errors.push_back(create_error(
+      ProtocolLimitError, "No factsheet cached; array-limit checks skipped.",
+      {{::vda5050_core::errors::RefOrderId, order.order_id}},
+      vda5050_core::types::ErrorLevel::WARNING));
     return res;
   }
 
@@ -125,9 +124,10 @@ ValidationResult validate_protocol_limits(
 
   if (!ctx.last_factsheet.has_value())
   {
-    VDA5050_WARN(
-      "[protocol_limits] No factsheet cached; skipping instant-action "
-      "array-limit checks.");
+    res.errors.push_back(create_error(
+      ProtocolLimitError,
+      "No factsheet cached; instant-action array-limit checks skipped.", {},
+      vda5050_core::types::ErrorLevel::WARNING));
     return res;
   }
 

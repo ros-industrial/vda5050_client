@@ -25,7 +25,6 @@
 
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
-#include "vda5050_core/logger/logger.hpp"
 
 namespace vda5050_core::master {
 
@@ -190,10 +189,11 @@ ValidationResult validate_traversability(
   }
   else
   {
-    VDA5050_WARN(
-      "[traversability] No layout loaded; skipping graph-integrity checks for "
-      "order '{}'.",
-      order.order_id);
+    res.errors.push_back(create_error(
+      TraversabilityValidationError,
+      "No layout loaded; graph-integrity checks skipped.",
+      {{::vda5050_core::errors::RefOrderId, order.order_id}},
+      vda5050_core::types::ErrorLevel::WARNING));
   }
 
   return res;

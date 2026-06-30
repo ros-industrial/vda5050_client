@@ -33,6 +33,9 @@ inline const std::string ContentValidationError = "contentValidationError";
 inline const std::string PreSendValidationError = "preSendValidationError";
 inline const std::string TraversabilityValidationError =
   "traversabilityValidationError";
+inline const std::string CapabilityValidationError =
+  "capabilityValidationError";
+inline const std::string ProtocolLimitError = "protocolLimitError";
 inline const std::string ActionBlockedByDrivingError =
   "actionBlockedByDrivingError";
 inline const std::string HardActionBlockedError = "hardActionBlockedError";

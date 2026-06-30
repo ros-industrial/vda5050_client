@@ -18,7 +18,6 @@
 
 #include "vda5050_core/master/validation/traversability_validator.hpp"
 
-#include <algorithm>
 #include <cmath>
 #include <functional>
 #include <string>
@@ -35,100 +34,10 @@ namespace {
 using ::vda5050_core::errors::create_error;
 using ::vda5050_core::errors::TraversabilityValidationError;
 using ::vda5050_core::order_utils::ValidationResult;
-using ::vda5050_core::types::AGVAction;
 using ::vda5050_core::types::ErrorReference;
 
 using AddErrorFn =
   std::function<void(const std::string&, std::vector<ErrorReference>)>;
-
-const AGVAction* find_agv_action(
-  const vda5050_core::types::Factsheet& fs, const std::string& action_type)
-{
-  const auto& actions = fs.protocol_features.agv_actions;
-  auto it = std::find_if(
-    actions.begin(), actions.end(),
-    [&](const AGVAction& a) { return a.action_type == action_type; });
-  return (it == actions.end()) ? nullptr : &(*it);
-}
-
-void validate_action_against_factsheet(
-  const vda5050_core::types::Action& action,
-  vda5050_core::types::ActionScope expected_scope,
-  const vda5050_core::types::Factsheet& factsheet, const AddErrorFn& add_error)
-{
-  const AGVAction* agv_action = find_agv_action(factsheet, action.action_type);
-  if (agv_action == nullptr)
-  {
-    add_error(
-      "Action.action_type '" + action.action_type +
-        "' is not supported by AGV (not present in factsheet.agv_actions).",
-      {});
-    return;
-  }
-
-  const auto& scopes = agv_action->action_scopes;
-  if (std::find(scopes.begin(), scopes.end(), expected_scope) == scopes.end())
-  {
-    add_error(
-      "Action.action_type '" + action.action_type +
-        "' does not declare the required scope for its placement.",
-      {});
-  }
-
-  if (agv_action->blocking_types.has_value())
-  {
-    const auto& supported = agv_action->blocking_types.value();
-    if (
-      std::find(supported.begin(), supported.end(), action.blocking_type) ==
-      supported.end())
-    {
-      add_error(
-        "Action.action_type '" + action.action_type +
-          "' does not support the requested blocking_type.",
-        {});
-    }
-  }
-
-  if (!agv_action->action_parameters.has_value()) return;
-  const auto& declared = agv_action->action_parameters.value();
-
-  if (action.action_parameters.has_value())
-  {
-    for (const auto& p : action.action_parameters.value())
-    {
-      auto it = std::find_if(
-        declared.begin(), declared.end(),
-        [&](const vda5050_core::types::ActionParameterFactsheet& d) {
-          return d.key == p.key;
-        });
-      if (it == declared.end())
-      {
-        add_error(
-          "Action parameter key '" + p.key +
-            "' not declared by AGV for action_type '" + action.action_type +
-            "'.",
-          {});
-      }
-    }
-  }
-
-  for (const auto& d : declared)
-  {
-    if (d.is_optional.value_or(false)) continue;
-    const bool present =
-      action.action_parameters.has_value() &&
-      std::any_of(
-        action.action_parameters->begin(), action.action_parameters->end(),
-        [&](const auto& p) { return p.key == d.key; });
-    if (!present)
-    {
-      add_error(
-        "Action '" + action.action_type + "' is missing required parameter '" +
-          d.key + "'.",
-        {});
-    }
-  }
-}
 
 // Reachability (state-driven; runs without a factsheet).
 void validate_reachability(
@@ -196,20 +105,6 @@ void validate_reachability(
         std::to_string(distance) + " m, allowed=" + std::to_string(allowed) +
         " m).",
       {{::vda5050_core::errors::RefNodeId, first.node_id}});
-  }
-}
-
-void check_limit(
-  const std::optional<uint32_t>& limit, std::size_t actual,
-  const std::string& field_name, const AddErrorFn& add_error)
-{
-  if (limit.has_value() && actual > limit.value())
-  {
-    add_error(
-      "Order exceeds factsheet limit for " + field_name +
-        " (size=" + std::to_string(actual) +
-        ", max=" + std::to_string(limit.value()) + ").",
-      {});
   }
 }
 
@@ -299,96 +194,6 @@ ValidationResult validate_traversability(
       "[traversability] No layout loaded; skipping graph-integrity checks for "
       "order '{}'.",
       order.order_id);
-  }
-
-  // Capability + limit checks need a factsheet.
-  if (!ctx.last_factsheet.has_value())
-  {
-    VDA5050_WARN(
-      "[traversability] No factsheet cached for order '{}'; skipping "
-      "capability "
-      "and array-limit checks.",
-      order.order_id);
-    return res;
-  }
-
-  const auto& fs = ctx.last_factsheet.value();
-  const auto& limits = fs.protocol_limits.max_array_lens;
-
-  check_limit(limits.order_nodes, order.nodes.size(), "order_nodes", add_error);
-  check_limit(limits.order_edges, order.edges.size(), "order_edges", add_error);
-
-  for (const auto& node : order.nodes)
-  {
-    check_limit(
-      limits.node_actions, node.actions.size(), "node_actions", add_error);
-    for (const auto& action : node.actions)
-    {
-      check_limit(
-        limits.actions_actions_parameters,
-        action.action_parameters.has_value() ? action.action_parameters->size()
-                                             : 0,
-        "actions_actions_parameters", add_error);
-      validate_action_against_factsheet(
-        action, vda5050_core::types::ActionScope::NODE, fs, add_error);
-    }
-  }
-
-  for (const auto& edge : order.edges)
-  {
-    check_limit(
-      limits.edge_actions, edge.actions.size(), "edge_actions", add_error);
-    for (const auto& action : edge.actions)
-    {
-      check_limit(
-        limits.actions_actions_parameters,
-        action.action_parameters.has_value() ? action.action_parameters->size()
-                                             : 0,
-        "actions_actions_parameters", add_error);
-      validate_action_against_factsheet(
-        action, vda5050_core::types::ActionScope::EDGE, fs, add_error);
-    }
-  }
-
-  return res;
-}
-
-ValidationResult validate_traversability(
-  const PreSendContext& ctx, const vda5050_core::types::InstantActions& actions)
-{
-  ValidationResult res;
-
-  auto add_error =
-    [&](const std::string& description, std::vector<ErrorReference> refs) {
-      res.errors.push_back(
-        create_error(TraversabilityValidationError, description, refs));
-    };
-
-  // No graph => no reachability; capability/limits need a factsheet.
-  if (!ctx.last_factsheet.has_value())
-  {
-    VDA5050_WARN(
-      "[traversability] No factsheet cached; skipping instant-action "
-      "capability and array-limit checks.");
-    return res;
-  }
-
-  const auto& fs = ctx.last_factsheet.value();
-  const auto& limits = fs.protocol_limits.max_array_lens;
-
-  check_limit(
-    limits.instant_actions, actions.actions.size(), "instant_actions",
-    add_error);
-
-  for (const auto& action : actions.actions)
-  {
-    check_limit(
-      limits.actions_actions_parameters,
-      action.action_parameters.has_value() ? action.action_parameters->size()
-                                           : 0,
-      "actions_actions_parameters", add_error);
-    validate_action_against_factsheet(
-      action, vda5050_core::types::ActionScope::INSTANT, fs, add_error);
   }
 
   return res;

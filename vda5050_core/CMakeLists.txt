@@ -352,6 +352,8 @@ if(BUILD_TESTING)
 
   ament_add_gmock(test_master_validation_order_action
     test/master/test_unit_traversability_validator.cpp
+    test/master/test_unit_capability_validator.cpp
+    test/master/test_unit_protocol_limits_validator.cpp
     test/master/test_unit_action_conflict_validator.cpp
     test/master/test_unit_instant_action_mode_validator.cpp
     test/master/test_unit_factsheet_alignment.cpp

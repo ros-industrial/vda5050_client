@@ -29,13 +29,12 @@ namespace errors {
 
 struct ValidationResult
 {
-  /// \brief A vector of error(s) that resulted in an invalid order. Empty if
-  /// order is valid.
+  /// \brief Validation errors. Empty when validation passed.
   std::vector<vda5050_core::types::Error> errors;
 
-  /// \brief Allows use in boolean contexts
+  /// \brief Allows use in boolean contexts.
   ///
-  /// \return True if the order is valid, false otherwise.
+  /// \return True if valid (no errors), false otherwise.
   explicit operator bool() const
   {
     return errors.empty();

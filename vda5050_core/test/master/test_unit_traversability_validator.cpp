@@ -119,8 +119,7 @@ TEST(TraversabilityValidatorTest, OrderHappyPathOnNode)
   auto ctx = make_ctx(make_state_on_node("N0"), make_factsheet());
   auto order = make_minimal_order();
   auto res = validate_traversability(ctx, order);
-  EXPECT_TRUE(static_cast<bool>(res));  // valid — no FATAL errors
-  EXPECT_FALSE(res.has_fatal());
+  EXPECT_FALSE(res.has_fatal());  // valid — no FATAL errors
   // No layout loaded => graph-integrity skipped, reported as an advisory.
   EXPECT_EQ(res.warnings().size(), 1u);
 }
@@ -140,7 +139,7 @@ TEST(TraversabilityValidatorTest, OrderHappyPathByPositionWithinDeviation)
   order.nodes.front().node_position = np;
 
   auto res = validate_traversability(ctx, order);
-  EXPECT_TRUE(static_cast<bool>(res));
+  EXPECT_FALSE(res.has_fatal());
 }
 
 // ============================================================================
@@ -414,7 +413,6 @@ TEST(TraversabilityValidatorTest, GraphIntegrity_SkippedWhenNoGraph_Accepts)
   order.edges.push_back(make_order_edge("ANY", "N0", "N1"));
 
   auto res = validate_traversability(ctx, order);
-  EXPECT_TRUE(static_cast<bool>(res));
   EXPECT_FALSE(res.has_fatal());
   ASSERT_EQ(res.warnings().size(), 1u);
   EXPECT_NE(

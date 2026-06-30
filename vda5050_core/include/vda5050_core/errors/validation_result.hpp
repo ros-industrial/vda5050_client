@@ -31,8 +31,8 @@ namespace errors {
 
 struct ValidationResult
 {
-  /// \brief Entries produced by validation. FATAL entries make the result
-  /// invalid; WARNING entries are advisory and do not. Empty when validation
+  /// \brief Entries produced by validation. FATAL entries are hard failures
+  /// (see has_fatal()); WARNING entries are advisory. Empty when validation
   /// passed with nothing to report.
   std::vector<vda5050_core::types::Error> errors;
 
@@ -60,11 +60,11 @@ struct ValidationResult
 
   /// \brief Allows use in boolean contexts.
   ///
-  /// \return True iff there are no FATAL errors. WARNING-level advisories do
-  /// not make the result invalid.
+  /// \return True iff there are no entries at all (fully clean). Consumers that
+  /// tolerate advisory WARNING entries should gate on has_fatal() instead.
   explicit operator bool() const
   {
-    return !has_fatal();
+    return errors.empty();
   }
 };
 

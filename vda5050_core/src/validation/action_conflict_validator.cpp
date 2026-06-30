@@ -66,7 +66,9 @@ ValidationResult validate_action_conflict(
   // non-conflict itself (every received action gets an actionState; parallel
   // execution is governed by blockingType). Rejecting on no-state instead would
   // block recovery actions (cancelOrder, stateRequest) on a silent AGV, which
-  // is worse.
+  // is worse. This complements the instant-action mode gate, which already
+  // rejects non-exempt actions when the mode is unknown — so this pass-through
+  // cannot admit a non-recovery action on its own.
   if (!ctx.last_state.has_value()) return res;
 
   const auto& state = ctx.last_state.value();

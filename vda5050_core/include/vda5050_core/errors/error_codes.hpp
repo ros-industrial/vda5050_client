@@ -46,6 +46,16 @@ inline const std::string SpeedExceedsCapability = "speedExceedsCapability";
 inline const std::string SpeedBelowMinimum = "speedBelowMinimum";
 inline const std::string SpeedCapabilityUnknown = "speedCapabilityUnknown";
 
+// Check-skipped advisories (WARNING level): a validator could not run because
+// its required input (layout / factsheet) was absent. Distinct from the
+// rejection codes above so consumers can tell "check skipped" from "check
+// failed" by error_type, not just error_level.
+inline const std::string GraphIntegrityCheckSkipped =
+  "graphIntegrityCheckSkipped";
+inline const std::string CapabilityCheckSkipped = "capabilityCheckSkipped";
+inline const std::string ProtocolLimitCheckSkipped =
+  "protocolLimitCheckSkipped";
+
 // Reference key string for vda5050_types::ErrorReference::key
 inline const std::string RefOrderId = "orderId";
 inline const std::string RefOrderUpdateId = "orderUpdateId";

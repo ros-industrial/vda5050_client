@@ -45,8 +45,9 @@ namespace vda5050_core::master {
 ///
 /// \param graph      the master's loaded layout
 /// \param factsheet  the AGV's reported factsheet
-/// \return one WARNING-level entry per detected mismatch; a valid result
-///         (no entries) means full alignment
+/// \return WARNING-level entries — one per detected mismatch, or a single
+///         entry noting the check was skipped when the factsheet reports no
+///         usable speed. No entries means full alignment
 vda5050_core::order_utils::ValidationResult check_factsheet_alignment(
   const vda5050_core::layout::Graph& graph,
   const vda5050_core::types::Factsheet& factsheet);

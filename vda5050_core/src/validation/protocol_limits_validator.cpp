@@ -70,7 +70,8 @@ ValidationResult validate_protocol_limits(
   if (!ctx.last_factsheet.has_value())
   {
     res.errors.push_back(create_error(
-      ProtocolLimitError, "No factsheet cached; array-limit checks skipped.",
+      ::vda5050_core::errors::ProtocolLimitCheckSkipped,
+      "No factsheet cached; array-limit checks skipped.",
       {{::vda5050_core::errors::RefOrderId, order.order_id}},
       vda5050_core::types::ErrorLevel::WARNING));
     return res;
@@ -125,7 +126,7 @@ ValidationResult validate_protocol_limits(
   if (!ctx.last_factsheet.has_value())
   {
     res.errors.push_back(create_error(
-      ProtocolLimitError,
+      ::vda5050_core::errors::ProtocolLimitCheckSkipped,
       "No factsheet cached; instant-action array-limit checks skipped.", {},
       vda5050_core::types::ErrorLevel::WARNING));
     return res;

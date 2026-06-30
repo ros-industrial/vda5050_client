@@ -201,7 +201,10 @@ TEST(ProtocolLimitsValidatorTest, OrderSkipsLimitChecksWhenNoFactsheet)
   order.nodes.push_back(n2);
   auto res = validate_protocol_limits(ctx, order);
   EXPECT_FALSE(res.has_fatal());  // valid — skip is advisory, not FATAL
-  EXPECT_EQ(res.warnings().size(), 1u);
+  ASSERT_EQ(res.warnings().size(), 1u);
+  EXPECT_EQ(
+    res.warnings().front().error_type,
+    vda5050_core::errors::ProtocolLimitCheckSkipped);
 }
 
 // ============================================================================

@@ -27,15 +27,18 @@
 
 namespace {
 
+// Checks the rejection (FATAL) errors; advisory WARNING entries (e.g. the
+// graph-integrity skip) carry their own codes and are not rejections.
 ::testing::AssertionResult AllErrorsHaveTraversabilityType(
   const vda5050_core::order_utils::ValidationResult& res)
 {
   for (const auto& e : res.errors)
   {
+    if (e.error_level != vda5050_core::types::ErrorLevel::FATAL) continue;
     if (e.error_type != vda5050_core::errors::TraversabilityValidationError)
     {
       return ::testing::AssertionFailure()
-             << "found error with type '" << e.error_type
+             << "found FATAL error with type '" << e.error_type
              << "' (expected TraversabilityValidationError)";
     }
   }
@@ -415,6 +418,9 @@ TEST(TraversabilityValidatorTest, GraphIntegrity_SkippedWhenNoGraph_Accepts)
   auto res = validate_traversability(ctx, order);
   EXPECT_FALSE(res.has_fatal());
   ASSERT_EQ(res.warnings().size(), 1u);
+  EXPECT_EQ(
+    res.warnings().front().error_type,
+    vda5050_core::errors::GraphIntegrityCheckSkipped);
   EXPECT_NE(
     res.warnings().front().error_description->find("No layout loaded"),
     std::string::npos);

@@ -190,7 +190,7 @@ ValidationResult validate_traversability(
   else
   {
     res.errors.push_back(create_error(
-      TraversabilityValidationError,
+      ::vda5050_core::errors::GraphIntegrityCheckSkipped,
       "No layout loaded; graph-integrity checks skipped.",
       {{::vda5050_core::errors::RefOrderId, order.order_id}},
       vda5050_core::types::ErrorLevel::WARNING));

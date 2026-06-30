@@ -324,7 +324,10 @@ TEST(CapabilityValidatorTest, OrderSkipsCapabilityChecksWhenNoFactsheet)
   order.nodes.front().actions = {unsupported};
   auto res = validate_capability(ctx, order);
   EXPECT_FALSE(res.has_fatal());  // valid — skip is advisory, not FATAL
-  EXPECT_EQ(res.warnings().size(), 1u);
+  ASSERT_EQ(res.warnings().size(), 1u);
+  EXPECT_EQ(
+    res.warnings().front().error_type,
+    vda5050_core::errors::CapabilityCheckSkipped);
 }
 
 TEST(

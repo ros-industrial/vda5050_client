@@ -145,7 +145,7 @@ ValidationResult validate_capability(
   if (!ctx.last_factsheet.has_value())
   {
     res.errors.push_back(create_error(
-      CapabilityValidationError,
+      ::vda5050_core::errors::CapabilityCheckSkipped,
       "No factsheet cached; capability checks skipped.",
       {{::vda5050_core::errors::RefOrderId, order.order_id}},
       vda5050_core::types::ErrorLevel::WARNING));
@@ -189,7 +189,7 @@ ValidationResult validate_capability(
   if (!ctx.last_factsheet.has_value())
   {
     res.errors.push_back(create_error(
-      CapabilityValidationError,
+      ::vda5050_core::errors::CapabilityCheckSkipped,
       "No factsheet cached; instant-action capability checks skipped.", {},
       vda5050_core::types::ErrorLevel::WARNING));
     return res;

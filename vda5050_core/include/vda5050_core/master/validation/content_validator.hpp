@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#ifndef VDA5050_CORE__MASTER__VALIDATION__SCHEMA_VALIDATOR_HPP_
-#define VDA5050_CORE__MASTER__VALIDATION__SCHEMA_VALIDATOR_HPP_
+#ifndef VDA5050_CORE__MASTER__VALIDATION__CONTENT_VALIDATOR_HPP_
+#define VDA5050_CORE__MASTER__VALIDATION__CONTENT_VALIDATOR_HPP_
 
 #include "vda5050_core/errors/validation_result.hpp"
 #include "vda5050_core/types/connection.hpp"
@@ -29,30 +29,30 @@
 
 namespace vda5050_core::master {
 
-/// \brief Structural field checks on an Order (version, non-empty ids).
-vda5050_core::errors::ValidationResult validate_order_schema(
+/// \brief Required-content checks on an Order (version, non-empty ids).
+vda5050_core::errors::ValidationResult validate_order_content(
   const vda5050_core::types::Order& order);
 
-/// \brief Structural field checks on an InstantActions message.
-vda5050_core::errors::ValidationResult validate_instant_actions_schema(
+/// \brief Required-content checks on an InstantActions message.
+vda5050_core::errors::ValidationResult validate_instant_actions_content(
   const vda5050_core::types::InstantActions& actions);
 
-/// \brief Structural field checks on a State message.
-vda5050_core::errors::ValidationResult validate_state_schema(
+/// \brief Required-content checks on a State message.
+vda5050_core::errors::ValidationResult validate_state_content(
   const vda5050_core::types::State& state);
 
-/// \brief Structural field checks on a Connection message.
-vda5050_core::errors::ValidationResult validate_connection_schema(
+/// \brief Required-content checks on a Connection message.
+vda5050_core::errors::ValidationResult validate_connection_content(
   const vda5050_core::types::Connection& connection);
 
-/// \brief Structural field checks on a Factsheet message.
-vda5050_core::errors::ValidationResult validate_factsheet_schema(
+/// \brief Required-content checks on a Factsheet message.
+vda5050_core::errors::ValidationResult validate_factsheet_content(
   const vda5050_core::types::Factsheet& factsheet);
 
-/// \brief Structural field checks on a Visualization message.
-vda5050_core::errors::ValidationResult validate_visualization_schema(
+/// \brief Required-content checks on a Visualization message.
+vda5050_core::errors::ValidationResult validate_visualization_content(
   const vda5050_core::types::Visualization& visualization);
 
 }  // namespace vda5050_core::master
 
-#endif  // VDA5050_CORE__MASTER__VALIDATION__SCHEMA_VALIDATOR_HPP_
+#endif  // VDA5050_CORE__MASTER__VALIDATION__CONTENT_VALIDATOR_HPP_

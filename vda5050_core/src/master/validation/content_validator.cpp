@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-#include "vda5050_core/master/validation/schema_validator.hpp"
+#include "vda5050_core/master/validation/content_validator.hpp"
 
 #include <algorithm>
 #include <functional>
@@ -31,8 +31,8 @@ namespace vda5050_core::master {
 
 namespace {
 
+using ::vda5050_core::errors::ContentValidationError;
 using ::vda5050_core::errors::create_error;
-using ::vda5050_core::errors::SchemaValidationError;
 using ::vda5050_core::errors::ValidationResult;
 using ::vda5050_core::types::ErrorReference;
 
@@ -64,7 +64,7 @@ void validate_header_common(
   }
 }
 
-void validate_action_schema(
+void validate_action_content(
   const ::vda5050_core::types::Action& action, const AddErrorFn& add_error)
 {
   if (action.action_id.empty())
@@ -82,7 +82,7 @@ void validate_action_schema(
 
 }  // namespace
 
-ValidationResult validate_order_schema(
+ValidationResult validate_order_content(
   const ::vda5050_core::types::Order& order)
 {
   ValidationResult res;
@@ -94,7 +94,7 @@ ValidationResult validate_order_schema(
         {::vda5050_core::errors::RefOrderUpdateId,
          std::to_string(order.order_update_id)});
       res.errors.push_back(
-        create_error(SchemaValidationError, description, refs));
+        create_error(ContentValidationError, description, refs));
     };
 
   validate_header_common(order.header, add_error);
@@ -115,7 +115,7 @@ ValidationResult validate_order_schema(
     }
     for (const auto& action : node.actions)
     {
-      validate_action_schema(action, add_error);
+      validate_action_content(action, add_error);
     }
   }
 
@@ -130,14 +130,14 @@ ValidationResult validate_order_schema(
     }
     for (const auto& action : edge.actions)
     {
-      validate_action_schema(action, add_error);
+      validate_action_content(action, add_error);
     }
   }
 
   return res;
 }
 
-ValidationResult validate_instant_actions_schema(
+ValidationResult validate_instant_actions_content(
   const ::vda5050_core::types::InstantActions& actions)
 {
   ValidationResult res;
@@ -145,20 +145,20 @@ ValidationResult validate_instant_actions_schema(
   auto add_error =
     [&](const std::string& description, std::vector<ErrorReference> refs) {
       res.errors.push_back(
-        create_error(SchemaValidationError, description, refs));
+        create_error(ContentValidationError, description, refs));
     };
 
   validate_header_common(actions.header, add_error);
 
   for (const auto& action : actions.actions)
   {
-    validate_action_schema(action, add_error);
+    validate_action_content(action, add_error);
   }
 
   return res;
 }
 
-ValidationResult validate_state_schema(
+ValidationResult validate_state_content(
   const ::vda5050_core::types::State& state)
 {
   ValidationResult res;
@@ -166,7 +166,7 @@ ValidationResult validate_state_schema(
   auto add_error =
     [&](const std::string& description, std::vector<ErrorReference> refs) {
       res.errors.push_back(
-        create_error(SchemaValidationError, description, refs));
+        create_error(ContentValidationError, description, refs));
     };
 
   validate_header_common(state.header, add_error);
@@ -202,7 +202,7 @@ ValidationResult validate_state_schema(
   return res;
 }
 
-ValidationResult validate_connection_schema(
+ValidationResult validate_connection_content(
   const ::vda5050_core::types::Connection& connection)
 {
   ValidationResult res;
@@ -210,14 +210,14 @@ ValidationResult validate_connection_schema(
   auto add_error =
     [&](const std::string& description, std::vector<ErrorReference> refs) {
       res.errors.push_back(
-        create_error(SchemaValidationError, description, refs));
+        create_error(ContentValidationError, description, refs));
     };
 
   validate_header_common(connection.header, add_error);
   return res;
 }
 
-ValidationResult validate_factsheet_schema(
+ValidationResult validate_factsheet_content(
   const ::vda5050_core::types::Factsheet& factsheet)
 {
   ValidationResult res;
@@ -225,14 +225,14 @@ ValidationResult validate_factsheet_schema(
   auto add_error =
     [&](const std::string& description, std::vector<ErrorReference> refs) {
       res.errors.push_back(
-        create_error(SchemaValidationError, description, refs));
+        create_error(ContentValidationError, description, refs));
     };
 
   validate_header_common(factsheet.header, add_error);
   return res;
 }
 
-ValidationResult validate_visualization_schema(
+ValidationResult validate_visualization_content(
   const ::vda5050_core::types::Visualization& visualization)
 {
   ValidationResult res;
@@ -240,7 +240,7 @@ ValidationResult validate_visualization_schema(
   auto add_error =
     [&](const std::string& description, std::vector<ErrorReference> refs) {
       res.errors.push_back(
-        create_error(SchemaValidationError, description, refs));
+        create_error(ContentValidationError, description, refs));
     };
 
   validate_header_common(visualization.header, add_error);

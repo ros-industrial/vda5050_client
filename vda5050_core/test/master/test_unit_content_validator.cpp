@@ -21,21 +21,21 @@
 #include <algorithm>
 
 #include "vda5050_core/errors/error_codes.hpp"
-#include "vda5050_core/master/validation/schema_validator.hpp"
+#include "vda5050_core/master/validation/content_validator.hpp"
 
 namespace {
 
-// Returns true iff every error in `res` has type SchemaValidationError.
-::testing::AssertionResult AllErrorsHaveSchemaType(
+// Returns true iff every error in `res` has type ContentValidationError.
+::testing::AssertionResult AllErrorsHaveContentType(
   const vda5050_core::errors::ValidationResult& res)
 {
   for (const auto& e : res.errors)
   {
-    if (e.error_type != vda5050_core::errors::SchemaValidationError)
+    if (e.error_type != vda5050_core::errors::ContentValidationError)
     {
       return ::testing::AssertionFailure()
              << "found error with type '" << e.error_type
-             << "' (expected SchemaValidationError)";
+             << "' (expected ContentValidationError)";
     }
   }
   return ::testing::AssertionSuccess();
@@ -43,8 +43,7 @@ namespace {
 
 // Returns true iff at least one error's description contains `needle`.
 ::testing::AssertionResult AnyErrorMentions(
-  const vda5050_core::errors::ValidationResult& res,
-  const std::string& needle)
+  const vda5050_core::errors::ValidationResult& res, const std::string& needle)
 {
   for (const auto& e : res.errors)
   {
@@ -138,32 +137,33 @@ vda5050_core::types::Visualization make_valid_visualization()
 // Header — common to all messages.
 // ============================================================================
 
-TEST(SchemaValidatorTest, HeaderVersionMatch)
+TEST(ContentValidatorTest, HeaderVersionMatch)
 {
   auto o = make_valid_order();
-  auto res = validate_order_schema(o);
+  auto res = validate_order_content(o);
   EXPECT_TRUE(static_cast<bool>(res));
   EXPECT_TRUE(res.errors.empty());
 }
 
-TEST(SchemaValidatorTest, HeaderVersionMismatchRejected)
+TEST(ContentValidatorTest, HeaderVersionMismatchRejected)
 {
   auto o = make_valid_order();
   o.header.version = "1.3.2";
-  auto res = validate_order_schema(o);
+  auto res = validate_order_content(o);
   EXPECT_FALSE(static_cast<bool>(res));
   ASSERT_FALSE(res.errors.empty());
   EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::SchemaValidationError);
+    res.errors.front().error_type,
+    vda5050_core::errors::ContentValidationError);
 }
 
-TEST(SchemaValidatorTest, HeaderEmptyManufacturerRejected)
+TEST(ContentValidatorTest, HeaderEmptyManufacturerRejected)
 {
   auto o = make_valid_order();
   o.header.manufacturer = "";
-  auto res = validate_order_schema(o);
+  auto res = validate_order_content(o);
   EXPECT_FALSE(static_cast<bool>(res));
-  EXPECT_TRUE(AllErrorsHaveSchemaType(res));
+  EXPECT_TRUE(AllErrorsHaveContentType(res));
   EXPECT_TRUE(AnyErrorMentions(res, "manufacturer"));
 }
 
@@ -171,33 +171,33 @@ TEST(SchemaValidatorTest, HeaderEmptyManufacturerRejected)
 // Order
 // ============================================================================
 
-TEST(SchemaValidatorTest, OrderValidPasses)
+TEST(ContentValidatorTest, OrderValidPasses)
 {
   auto o = make_valid_order();
-  EXPECT_TRUE(static_cast<bool>(validate_order_schema(o)));
+  EXPECT_TRUE(static_cast<bool>(validate_order_content(o)));
 }
 
-TEST(SchemaValidatorTest, OrderEmptyOrderIdRejected)
+TEST(ContentValidatorTest, OrderEmptyOrderIdRejected)
 {
   auto o = make_valid_order();
   o.order_id = "";
-  auto res = validate_order_schema(o);
+  auto res = validate_order_content(o);
   EXPECT_FALSE(static_cast<bool>(res));
-  EXPECT_TRUE(AllErrorsHaveSchemaType(res));
+  EXPECT_TRUE(AllErrorsHaveContentType(res));
   EXPECT_TRUE(AnyErrorMentions(res, "order_id"));
 }
 
-TEST(SchemaValidatorTest, OrderNodeWithEmptyNodeIdRejected)
+TEST(ContentValidatorTest, OrderNodeWithEmptyNodeIdRejected)
 {
   auto o = make_valid_order();
   o.nodes.front().node_id = "";
-  auto res = validate_order_schema(o);
+  auto res = validate_order_content(o);
   EXPECT_FALSE(static_cast<bool>(res));
-  EXPECT_TRUE(AllErrorsHaveSchemaType(res));
+  EXPECT_TRUE(AllErrorsHaveContentType(res));
   EXPECT_TRUE(AnyErrorMentions(res, "node_id"));
 }
 
-TEST(SchemaValidatorTest, OrderActionWithEmptyActionTypeRejected)
+TEST(ContentValidatorTest, OrderActionWithEmptyActionTypeRejected)
 {
   auto o = make_valid_order();
   vda5050_core::types::Action a;
@@ -205,13 +205,13 @@ TEST(SchemaValidatorTest, OrderActionWithEmptyActionTypeRejected)
   a.action_type = "";  // bad
   a.blocking_type = vda5050_core::types::BlockingType::NONE;
   o.nodes.front().actions.push_back(a);
-  auto res = validate_order_schema(o);
+  auto res = validate_order_content(o);
   EXPECT_FALSE(static_cast<bool>(res));
-  EXPECT_TRUE(AllErrorsHaveSchemaType(res));
+  EXPECT_TRUE(AllErrorsHaveContentType(res));
   EXPECT_TRUE(AnyErrorMentions(res, "action_type"));
 }
 
-TEST(SchemaValidatorTest, OrderEdgeWithEmptyEdgeIdRejected)
+TEST(ContentValidatorTest, OrderEdgeWithEmptyEdgeIdRejected)
 {
   auto o = make_valid_order();
   // Add a second node + connecting edge with empty edge_id.
@@ -229,49 +229,49 @@ TEST(SchemaValidatorTest, OrderEdgeWithEmptyEdgeIdRejected)
   e.released = true;
   o.edges.push_back(e);
 
-  auto res = validate_order_schema(o);
+  auto res = validate_order_content(o);
   EXPECT_FALSE(static_cast<bool>(res));
-  EXPECT_TRUE(AllErrorsHaveSchemaType(res));
+  EXPECT_TRUE(AllErrorsHaveContentType(res));
   EXPECT_TRUE(AnyErrorMentions(res, "edge_id"));
 }
 
-TEST(SchemaValidatorTest, OrderWithEmptyNodesPasses)
+TEST(ContentValidatorTest, OrderWithEmptyNodesPasses)
 {
-  // Schema-validator does NOT enforce graph topology — empty `nodes`
+  // Content-validator does NOT enforce graph topology — empty `nodes`
   // is the graph validator's concern. Locks in layer separation:
-  // schema only checks shape, graph checks topology.
+  // content only checks shape, graph checks topology.
   auto o = make_valid_order();
   o.nodes.clear();
-  EXPECT_TRUE(static_cast<bool>(validate_order_schema(o)));
+  EXPECT_TRUE(static_cast<bool>(validate_order_content(o)));
 }
 
 // ============================================================================
 // InstantActions
 // ============================================================================
 
-TEST(SchemaValidatorTest, InstantActionsValidPasses)
+TEST(ContentValidatorTest, InstantActionsValidPasses)
 {
   auto ia = make_valid_instant_actions();
-  EXPECT_TRUE(static_cast<bool>(validate_instant_actions_schema(ia)));
+  EXPECT_TRUE(static_cast<bool>(validate_instant_actions_content(ia)));
 }
 
-TEST(SchemaValidatorTest, InstantActionsEmptyActionIdRejected)
+TEST(ContentValidatorTest, InstantActionsEmptyActionIdRejected)
 {
   auto ia = make_valid_instant_actions();
   ia.actions.front().action_id = "";
-  auto res = validate_instant_actions_schema(ia);
+  auto res = validate_instant_actions_content(ia);
   EXPECT_FALSE(static_cast<bool>(res));
-  EXPECT_TRUE(AllErrorsHaveSchemaType(res));
+  EXPECT_TRUE(AllErrorsHaveContentType(res));
   EXPECT_TRUE(AnyErrorMentions(res, "action_id"));
 }
 
-TEST(SchemaValidatorTest, InstantActionsEmptyActionTypeRejected)
+TEST(ContentValidatorTest, InstantActionsEmptyActionTypeRejected)
 {
   auto ia = make_valid_instant_actions();
   ia.actions.front().action_type = "";
-  auto res = validate_instant_actions_schema(ia);
+  auto res = validate_instant_actions_content(ia);
   EXPECT_FALSE(static_cast<bool>(res));
-  EXPECT_TRUE(AllErrorsHaveSchemaType(res));
+  EXPECT_TRUE(AllErrorsHaveContentType(res));
   EXPECT_TRUE(AnyErrorMentions(res, "action_type"));
 }
 
@@ -279,23 +279,23 @@ TEST(SchemaValidatorTest, InstantActionsEmptyActionTypeRejected)
 // State
 // ============================================================================
 
-TEST(SchemaValidatorTest, StateValidPasses)
+TEST(ContentValidatorTest, StateValidPasses)
 {
   auto s = make_valid_state();
-  EXPECT_TRUE(static_cast<bool>(validate_state_schema(s)));
+  EXPECT_TRUE(static_cast<bool>(validate_state_content(s)));
 }
 
-TEST(SchemaValidatorTest, StateEmptyOrderIdPassesByDesign)
+TEST(ContentValidatorTest, StateEmptyOrderIdPassesByDesign)
 {
-  // Spec allows empty order_id when AGV has no current order. Schema
+  // Spec allows empty order_id when AGV has no current order. Content
   // validator must NOT reject this — a State with empty order_id is
   // structurally valid.
   auto s = make_valid_state();
   s.order_id = "";
-  EXPECT_TRUE(static_cast<bool>(validate_state_schema(s)));
+  EXPECT_TRUE(static_cast<bool>(validate_state_content(s)));
 }
 
-TEST(SchemaValidatorTest, StateNodeStateWithEmptyNodeIdRejected)
+TEST(ContentValidatorTest, StateNodeStateWithEmptyNodeIdRejected)
 {
   auto s = make_valid_state();
   vda5050_core::types::NodeState ns;
@@ -303,22 +303,22 @@ TEST(SchemaValidatorTest, StateNodeStateWithEmptyNodeIdRejected)
   ns.sequence_id = 1;
   ns.released = true;
   s.node_states.push_back(ns);
-  auto res = validate_state_schema(s);
+  auto res = validate_state_content(s);
   EXPECT_FALSE(static_cast<bool>(res));
-  EXPECT_TRUE(AllErrorsHaveSchemaType(res));
+  EXPECT_TRUE(AllErrorsHaveContentType(res));
   EXPECT_TRUE(AnyErrorMentions(res, "node_id"));
 }
 
-TEST(SchemaValidatorTest, StateErrorWithEmptyErrorTypeRejected)
+TEST(ContentValidatorTest, StateErrorWithEmptyErrorTypeRejected)
 {
   auto s = make_valid_state();
   vda5050_core::types::Error err;
   err.error_type = "";
   err.error_level = vda5050_core::types::ErrorLevel::WARNING;
   s.errors.push_back(err);
-  auto res = validate_state_schema(s);
+  auto res = validate_state_content(s);
   EXPECT_FALSE(static_cast<bool>(res));
-  EXPECT_TRUE(AllErrorsHaveSchemaType(res));
+  EXPECT_TRUE(AllErrorsHaveContentType(res));
   EXPECT_TRUE(AnyErrorMentions(res, "error_type"));
 }
 
@@ -326,44 +326,45 @@ TEST(SchemaValidatorTest, StateErrorWithEmptyErrorTypeRejected)
 // Connection / Factsheet / Visualization — minimal beyond header
 // ============================================================================
 
-TEST(SchemaValidatorTest, ConnectionValidPasses)
+TEST(ContentValidatorTest, ConnectionValidPasses)
 {
   auto c = make_valid_connection();
-  EXPECT_TRUE(static_cast<bool>(validate_connection_schema(c)));
+  EXPECT_TRUE(static_cast<bool>(validate_connection_content(c)));
 }
 
-TEST(SchemaValidatorTest, FactsheetValidPasses)
+TEST(ContentValidatorTest, FactsheetValidPasses)
 {
   auto f = make_valid_factsheet();
-  EXPECT_TRUE(static_cast<bool>(validate_factsheet_schema(f)));
+  EXPECT_TRUE(static_cast<bool>(validate_factsheet_content(f)));
 }
 
-TEST(SchemaValidatorTest, VisualizationValidPasses)
+TEST(ContentValidatorTest, VisualizationValidPasses)
 {
   auto v = make_valid_visualization();
-  EXPECT_TRUE(static_cast<bool>(validate_visualization_schema(v)));
+  EXPECT_TRUE(static_cast<bool>(validate_visualization_content(v)));
 }
 
 // ============================================================================
 // Header version negative paths
 // ============================================================================
 
-TEST(SchemaValidatorTest, HeaderVersionEmptyRejected)
+TEST(ContentValidatorTest, HeaderVersionEmptyRejected)
 {
   auto c = make_valid_connection();
   c.header.version = "";
-  auto res = validate_connection_schema(c);
+  auto res = validate_connection_content(c);
   EXPECT_FALSE(static_cast<bool>(res));
   ASSERT_FALSE(res.errors.empty());
   EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::SchemaValidationError);
+    res.errors.front().error_type,
+    vda5050_core::errors::ContentValidationError);
 }
 
-TEST(SchemaValidatorTest, HeaderEmptySerialNumberRejected)
+TEST(ContentValidatorTest, HeaderEmptySerialNumberRejected)
 {
   auto f = make_valid_factsheet();
   f.header.serial_number = "";
-  auto res = validate_factsheet_schema(f);
+  auto res = validate_factsheet_content(f);
   EXPECT_FALSE(static_cast<bool>(res));
 }
 
@@ -371,17 +372,17 @@ TEST(SchemaValidatorTest, HeaderEmptySerialNumberRejected)
 // ValidationResult plumbing — multiple errors accumulate
 // ============================================================================
 
-TEST(SchemaValidatorTest, MultipleErrorsAccumulate)
+TEST(ContentValidatorTest, MultipleErrorsAccumulate)
 {
   auto o = make_valid_order();
   o.order_id = "";               // -> 1 error
   o.header.version = "9.9.9";    // -> 1 error
   o.header.manufacturer = "";    // -> 1 error
   o.nodes.front().node_id = "";  // -> 1 error
-  auto res = validate_order_schema(o);
+  auto res = validate_order_content(o);
   EXPECT_FALSE(static_cast<bool>(res));
   EXPECT_GE(res.errors.size(), 4u);
-  EXPECT_TRUE(AllErrorsHaveSchemaType(res));
+  EXPECT_TRUE(AllErrorsHaveContentType(res));
   // Spot-check that each independent issue surfaced its own message.
   EXPECT_TRUE(AnyErrorMentions(res, "order_id"));
   EXPECT_TRUE(AnyErrorMentions(res, "version"));

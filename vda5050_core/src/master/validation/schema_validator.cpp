@@ -33,7 +33,7 @@ namespace {
 
 using ::vda5050_core::errors::create_error;
 using ::vda5050_core::errors::SchemaValidationError;
-using ::vda5050_core::order_utils::ValidationResult;
+using ::vda5050_core::errors::ValidationResult;
 using ::vda5050_core::types::ErrorReference;
 
 using AddErrorFn =

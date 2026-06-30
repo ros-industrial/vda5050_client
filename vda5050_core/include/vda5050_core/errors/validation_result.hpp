@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#ifndef VDA5050_CORE__ORDER_UTILS__VALIDATION_RESULT_HPP_
-#define VDA5050_CORE__ORDER_UTILS__VALIDATION_RESULT_HPP_
+#ifndef VDA5050_CORE__ERRORS__VALIDATION_RESULT_HPP_
+#define VDA5050_CORE__ERRORS__VALIDATION_RESULT_HPP_
 
 #include <vector>
 
@@ -25,7 +25,7 @@
 
 namespace vda5050_core {
 
-namespace order_utils {
+namespace errors {
 
 struct ValidationResult
 {
@@ -42,7 +42,7 @@ struct ValidationResult
   }
 };
 
-}  // namespace order_utils
+}  // namespace errors
 }  // namespace vda5050_core
 
-#endif  // VDA5050_CORE__ORDER_UTILS__VALIDATION_RESULT_HPP_
+#endif  // VDA5050_CORE__ERRORS__VALIDATION_RESULT_HPP_

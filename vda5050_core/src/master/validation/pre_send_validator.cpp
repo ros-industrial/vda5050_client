@@ -45,10 +45,10 @@ const char* agv_state_name(AGVState state)
 
 }  // namespace
 
-vda5050_core::order_utils::ValidationResult validate_pre_send(
+vda5050_core::errors::ValidationResult validate_pre_send(
   const PreSendContext& ctx)
 {
-  vda5050_core::order_utils::ValidationResult res;
+  vda5050_core::errors::ValidationResult res;
 
   auto add_error = [&](const std::string& description) {
     res.errors.push_back(vda5050_core::errors::create_error(

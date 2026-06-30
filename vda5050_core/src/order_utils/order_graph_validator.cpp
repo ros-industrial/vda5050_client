@@ -27,9 +27,9 @@ namespace vda5050_core {
 namespace order_utils {
 
 //=============================================================================
-ValidationResult is_valid_graph(const vda5050_core::types::Order& order)
+errors::ValidationResult is_valid_graph(const vda5050_core::types::Order& order)
 {
-  ValidationResult res;
+  errors::ValidationResult res;
 
   auto add_error = [&](
                      const std::string& description,
@@ -165,11 +165,11 @@ ValidationResult is_valid_graph(const vda5050_core::types::Order& order)
 }
 
 //=============================================================================
-ValidationResult is_valid_update(
+errors::ValidationResult is_valid_update(
   const vda5050_core::types::Order& base_order,
   const vda5050_core::types::Order& next_order)
 {
-  ValidationResult res;
+  errors::ValidationResult res;
 
   auto add_error = [&](
                      const std::string& description,

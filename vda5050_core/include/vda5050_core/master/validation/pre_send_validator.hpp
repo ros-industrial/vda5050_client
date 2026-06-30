@@ -21,8 +21,8 @@
 
 #include <optional>
 
+#include "vda5050_core/errors/validation_result.hpp"
 #include "vda5050_core/master/agv.hpp"
-#include "vda5050_core/order_utils/validation_result.hpp"
 #include "vda5050_core/types/connection_state.hpp"
 #include "vda5050_core/types/state.hpp"
 
@@ -37,7 +37,7 @@ struct PreSendContext
 };
 
 /// \brief AGV-readiness gate before publish (connection, mode, position).
-vda5050_core::order_utils::ValidationResult validate_pre_send(
+vda5050_core::errors::ValidationResult validate_pre_send(
   const PreSendContext& ctx);
 
 }  // namespace vda5050_core::master

@@ -27,7 +27,7 @@ namespace {
 
 // Returns true iff every error in `res` has type PreSendValidationError.
 ::testing::AssertionResult AllErrorsHavePreSendType(
-  const vda5050_core::order_utils::ValidationResult& res)
+  const vda5050_core::errors::ValidationResult& res)
 {
   for (const auto& e : res.errors)
   {
@@ -43,8 +43,7 @@ namespace {
 
 // Returns true iff at least one error's description contains `needle`.
 ::testing::AssertionResult AnyErrorMentions(
-  const vda5050_core::order_utils::ValidationResult& res,
-  const std::string& needle)
+  const vda5050_core::errors::ValidationResult& res, const std::string& needle)
 {
   for (const auto& e : res.errors)
   {

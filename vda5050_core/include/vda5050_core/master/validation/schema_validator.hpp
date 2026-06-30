@@ -19,7 +19,7 @@
 #ifndef VDA5050_CORE__MASTER__VALIDATION__SCHEMA_VALIDATOR_HPP_
 #define VDA5050_CORE__MASTER__VALIDATION__SCHEMA_VALIDATOR_HPP_
 
-#include "vda5050_core/order_utils/validation_result.hpp"
+#include "vda5050_core/errors/validation_result.hpp"
 #include "vda5050_core/types/connection.hpp"
 #include "vda5050_core/types/factsheet.hpp"
 #include "vda5050_core/types/instant_actions.hpp"
@@ -30,27 +30,27 @@
 namespace vda5050_core::master {
 
 /// \brief Structural field checks on an Order (version, non-empty ids).
-vda5050_core::order_utils::ValidationResult validate_order_schema(
+vda5050_core::errors::ValidationResult validate_order_schema(
   const vda5050_core::types::Order& order);
 
 /// \brief Structural field checks on an InstantActions message.
-vda5050_core::order_utils::ValidationResult validate_instant_actions_schema(
+vda5050_core::errors::ValidationResult validate_instant_actions_schema(
   const vda5050_core::types::InstantActions& actions);
 
 /// \brief Structural field checks on a State message.
-vda5050_core::order_utils::ValidationResult validate_state_schema(
+vda5050_core::errors::ValidationResult validate_state_schema(
   const vda5050_core::types::State& state);
 
 /// \brief Structural field checks on a Connection message.
-vda5050_core::order_utils::ValidationResult validate_connection_schema(
+vda5050_core::errors::ValidationResult validate_connection_schema(
   const vda5050_core::types::Connection& connection);
 
 /// \brief Structural field checks on a Factsheet message.
-vda5050_core::order_utils::ValidationResult validate_factsheet_schema(
+vda5050_core::errors::ValidationResult validate_factsheet_schema(
   const vda5050_core::types::Factsheet& factsheet);
 
 /// \brief Structural field checks on a Visualization message.
-vda5050_core::order_utils::ValidationResult validate_visualization_schema(
+vda5050_core::errors::ValidationResult validate_visualization_schema(
   const vda5050_core::types::Visualization& visualization);
 
 }  // namespace vda5050_core::master

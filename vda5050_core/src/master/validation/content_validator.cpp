@@ -187,7 +187,9 @@ ValidationResult validate_state_content(
   {
     if (as.action_id.empty())
     {
-      add_error("State.action_states[].action_id must be non-empty", {});
+      add_error(
+        "State.action_states[].action_id must be non-empty",
+        {{::vda5050_core::errors::RefActionId, as.action_id}});
     }
   }
 

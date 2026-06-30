@@ -37,6 +37,7 @@ inline const std::string RefOrderId = "orderId";
 inline const std::string RefOrderUpdateId = "orderUpdateId";
 inline const std::string RefNodeId = "nodeId";
 inline const std::string RefEdgeId = "edgeId";
+inline const std::string RefActionId = "actionId";
 inline const std::string RefSequenceId = "sequenceId";
 
 }  // namespace errors

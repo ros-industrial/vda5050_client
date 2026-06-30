@@ -50,17 +50,21 @@ vda5050_core::order_utils::ValidationResult validate_instant_action_mode(
 {
   vda5050_core::order_utils::ValidationResult res;
 
-  // No reported state => unknown mode; pass through.
-  if (!ctx.last_state.has_value()) return res;
-
-  const auto mode = ctx.last_state->operating_mode;
-
-  if (
-    mode == vda5050_core::types::OperatingMode::AUTOMATIC ||
-    mode == vda5050_core::types::OperatingMode::SEMIAUTOMATIC)
-  {
-    return res;
-  }
+  // The master may send arbitrary instant actions only when the AGV is
+  // confirmed to be under its control (AUTOMATIC / SEMIAUTOMATIC). Any other
+  // mode — or an unknown mode (no reported state) — is treated conservatively:
+  // only the predefined exempt actions pass, since the AGV cannot be confirmed
+  // to be in a mode that accepts arbitrary actions. Treating unknown as
+  // AUTOMATIC would be the most permissive (and least safe) reading, and the
+  // AGV does not honour master actions in MANUAL / SERVICE / TEACHIN, so the
+  // master must self-enforce this rather than rely on an AGV backstop.
+  const bool master_in_control =
+    ctx.last_state.has_value() &&
+    (ctx.last_state->operating_mode ==
+       vda5050_core::types::OperatingMode::AUTOMATIC ||
+     ctx.last_state->operating_mode ==
+       vda5050_core::types::OperatingMode::SEMIAUTOMATIC);
+  if (master_in_control) return res;
 
   for (const auto& action : actions.actions)
   {
@@ -69,10 +73,10 @@ vda5050_core::order_utils::ValidationResult validate_instant_action_mode(
     res.errors.push_back(vda5050_core::errors::create_error(
       vda5050_core::errors::ModeValidationError,
       "action_type '" + action.action_type +
-        "' is not on the instant-scope allowlist and AGV is not in "
-        "AUTOMATIC / SEMIAUTOMATIC operating_mode (master must "
-        "not send driving orders or non-recovery actions in MANUAL / "
-        "SERVICE / TEACHIN)",
+        "' is not on the instant-scope allowlist and the AGV is not "
+        "confirmed to be in AUTOMATIC / SEMIAUTOMATIC operating_mode (master "
+        "must not send driving orders or non-recovery actions in MANUAL / "
+        "SERVICE / TEACHIN, or when the AGV's mode is unknown)",
       {{vda5050_core::errors::RefActionId, action.action_id}}));
     return res;  // short-circuit on first failure
   }

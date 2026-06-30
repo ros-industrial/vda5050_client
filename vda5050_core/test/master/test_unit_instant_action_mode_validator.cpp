@@ -104,13 +104,29 @@ TEST(InstantActionModeValidator, NonExempt_ActionTypes_Rejected)
 // Validator behavior — degraded mode
 // =============================================================================
 
-TEST(InstantActionModeValidator, NoStateInContext_Passes)
+TEST(InstantActionModeValidator, NoState_NonExemptAction_Rejected)
 {
+  // Unknown mode (no reported state) is treated conservatively: a non-exempt
+  // action cannot be confirmed safe, so it is rejected.
   PreSendContext ctx{
     vda5050_core::types::ConnectionState::ONLINE, std::nullopt, std::nullopt,
     AGVState::AVAILABLE, nullptr};
   auto res =
     validate_instant_action_mode(ctx, wrap({make_action("customAction")}));
+  EXPECT_FALSE(static_cast<bool>(res));
+  EXPECT_EQ(
+    res.errors.front().error_type, vda5050_core::errors::ModeValidationError);
+}
+
+TEST(InstantActionModeValidator, NoState_ExemptAction_Passes)
+{
+  // Exempt (recovery / diagnostic) actions still pass with no state so the
+  // master can bootstrap or recover a silent AGV.
+  PreSendContext ctx{
+    vda5050_core::types::ConnectionState::ONLINE, std::nullopt, std::nullopt,
+    AGVState::AVAILABLE, nullptr};
+  auto res =
+    validate_instant_action_mode(ctx, wrap({make_action("stateRequest")}));
   EXPECT_TRUE(static_cast<bool>(res));
 }
 

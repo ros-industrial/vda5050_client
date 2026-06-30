@@ -59,7 +59,14 @@ ValidationResult validate_action_conflict(
     res.errors.push_back(create_error(error_type, description, refs));
   };
 
-  // No reported state => no view of actions/driving; pass through.
+  // Best-effort pre-screen: this check is state-driven (it reads `driving` and
+  // the running `action_states`). With no reported state there is no input to
+  // screen against, so the conflict cannot be checked here. This is a known
+  // limitation, not a guarantee — the AGV is the runtime authority and enforces
+  // non-conflict itself (every received action gets an actionState; parallel
+  // execution is governed by blockingType). Rejecting on no-state instead would
+  // block recovery actions (cancelOrder, stateRequest) on a silent AGV, which
+  // is worse.
   if (!ctx.last_state.has_value()) return res;
 
   const auto& state = ctx.last_state.value();

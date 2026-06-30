@@ -58,6 +58,25 @@ namespace {
          << "no error description mentions '" << needle << "'";
 }
 
+// Returns true iff at least one error carries an error reference with `key`.
+::testing::AssertionResult AnyErrorHasRef(
+  const vda5050_core::errors::ValidationResult& res, const std::string& key)
+{
+  for (const auto& e : res.errors)
+  {
+    if (!e.error_references) continue;
+    for (const auto& r : *e.error_references)
+    {
+      if (r.reference_key == key)
+      {
+        return ::testing::AssertionSuccess();
+      }
+    }
+  }
+  return ::testing::AssertionFailure()
+         << "no error carries reference key '" << key << "'";
+}
+
 }  // namespace
 
 namespace vda5050_core::master::test {
@@ -185,6 +204,8 @@ TEST(ContentValidatorTest, OrderEmptyOrderIdRejected)
   EXPECT_FALSE(static_cast<bool>(res));
   EXPECT_TRUE(AllErrorsHaveContentType(res));
   EXPECT_TRUE(AnyErrorMentions(res, "order_id"));
+  EXPECT_TRUE(AnyErrorHasRef(res, vda5050_core::errors::RefOrderId));
+  EXPECT_TRUE(AnyErrorHasRef(res, vda5050_core::errors::RefOrderUpdateId));
 }
 
 TEST(ContentValidatorTest, OrderNodeWithEmptyNodeIdRejected)
@@ -307,6 +328,20 @@ TEST(ContentValidatorTest, StateNodeStateWithEmptyNodeIdRejected)
   EXPECT_FALSE(static_cast<bool>(res));
   EXPECT_TRUE(AllErrorsHaveContentType(res));
   EXPECT_TRUE(AnyErrorMentions(res, "node_id"));
+  EXPECT_TRUE(AnyErrorHasRef(res, vda5050_core::errors::RefSequenceId));
+}
+
+TEST(ContentValidatorTest, StateActionStateWithEmptyActionIdRejected)
+{
+  auto s = make_valid_state();
+  vda5050_core::types::ActionState as;
+  as.action_id = "";  // required field missing
+  s.action_states.push_back(as);
+  auto res = validate_state_content(s);
+  EXPECT_FALSE(static_cast<bool>(res));
+  EXPECT_TRUE(AllErrorsHaveContentType(res));
+  EXPECT_TRUE(AnyErrorMentions(res, "action_id"));
+  EXPECT_TRUE(AnyErrorHasRef(res, vda5050_core::errors::RefActionId));
 }
 
 TEST(ContentValidatorTest, StateErrorWithEmptyErrorTypeRejected)

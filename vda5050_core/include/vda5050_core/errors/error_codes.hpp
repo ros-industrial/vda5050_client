@@ -41,6 +41,11 @@ inline const std::string ActionBlockedByDrivingError =
 inline const std::string HardActionBlockedError = "hardActionBlockedError";
 inline const std::string ModeValidationError = "modeValidationError";
 
+// Factsheet-alignment finding codes (advisory, WARNING level).
+inline const std::string SpeedExceedsCapability = "speedExceedsCapability";
+inline const std::string SpeedBelowMinimum = "speedBelowMinimum";
+inline const std::string SpeedCapabilityUnknown = "speedCapabilityUnknown";
+
 // Reference key string for vda5050_types::ErrorReference::key
 inline const std::string RefOrderId = "orderId";
 inline const std::string RefOrderUpdateId = "orderUpdateId";

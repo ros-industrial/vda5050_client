@@ -286,7 +286,7 @@ TEST(PreSendValidatorTest, MultipleErrorsAccumulate)
   ctx.last_state->agv_position->position_initialized = false;
   auto res = validate_pre_send(ctx);
   EXPECT_FALSE(static_cast<bool>(res));
-  EXPECT_GE(res.errors.size(), 3u);
+  EXPECT_EQ(res.errors.size(), 3u);
   EXPECT_TRUE(AllErrorsHavePreSendType(res));
   EXPECT_TRUE(AnyErrorMentions(res, "connection_status"));
   EXPECT_TRUE(AnyErrorMentions(res, "operating_mode"));

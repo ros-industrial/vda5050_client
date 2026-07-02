@@ -417,7 +417,7 @@ TEST(ContentValidatorTest, MultipleErrorsAccumulate)
   o.nodes.front().node_id = "";  // -> 1 error
   auto res = validate_order_content(o);
   EXPECT_FALSE(static_cast<bool>(res));
-  EXPECT_GE(res.errors.size(), 4u);
+  EXPECT_EQ(res.errors.size(), 4u);
   EXPECT_TRUE(AllErrorsHaveContentType(res));
   // Spot-check that each independent issue surfaced its own message.
   EXPECT_TRUE(AnyErrorMentions(res, "order_id"));

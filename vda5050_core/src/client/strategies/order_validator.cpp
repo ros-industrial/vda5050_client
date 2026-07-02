@@ -26,8 +26,8 @@
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
 #include "vda5050_core/logger/logger.hpp"
-#include "vda5050_core/order_utils/order_graph_validator.hpp"
 #include "vda5050_core/types/action_status.hpp"
+#include "vda5050_core/validation/order_graph_validator.hpp"
 
 namespace vda5050_core {
 
@@ -130,7 +130,7 @@ AcceptanceResult OrderValidator::validate_order(
       errors::ValidationError, "OrderExecutionResource is null", {}));
   }
 
-  if (auto graph = order_utils::is_valid_graph(incoming_order); !graph)
+  if (auto graph = validation::is_valid_graph(incoming_order); !graph)
   {
     for (auto& error : graph.errors) attach_order_refs(error, incoming_order);
     return rejected(std::move(graph.errors));

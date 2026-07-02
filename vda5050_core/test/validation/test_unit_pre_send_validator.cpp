@@ -21,7 +21,7 @@
 #include <string>
 
 #include "vda5050_core/errors/error_codes.hpp"
-#include "vda5050_core/master/validation/pre_send_validator.hpp"
+#include "vda5050_core/validation/pre_send_validator.hpp"
 
 namespace {
 
@@ -60,7 +60,8 @@ namespace {
 
 }  // namespace
 
-namespace vda5050_core::master::test {
+namespace vda5050_core::validation::test {
+using vda5050_core::master::AGVState;
 
 namespace {
 
@@ -292,4 +293,4 @@ TEST(PreSendValidatorTest, MultipleErrorsAccumulate)
   EXPECT_TRUE(AnyErrorMentions(res, "position"));
 }
 
-}  // namespace vda5050_core::master::test
+}  // namespace vda5050_core::validation::test

@@ -20,11 +20,11 @@
 
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
-#include "vda5050_core/order_utils/order_graph_validator.hpp"
+#include "vda5050_core/validation/order_graph_validator.hpp"
 
 namespace vda5050_core {
 
-namespace order_utils {
+namespace validation {
 
 //=============================================================================
 errors::ValidationResult is_valid_graph(const vda5050_core::types::Order& order)
@@ -216,5 +216,5 @@ errors::ValidationResult is_valid_update(
   return res;
 }
 
-}  // namespace order_utils
+}  // namespace validation
 }  // namespace vda5050_core

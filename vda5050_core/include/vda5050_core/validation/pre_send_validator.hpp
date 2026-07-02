@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#ifndef VDA5050_CORE__MASTER__VALIDATION__PRE_SEND_VALIDATOR_HPP_
-#define VDA5050_CORE__MASTER__VALIDATION__PRE_SEND_VALIDATOR_HPP_
+#ifndef VDA5050_CORE__VALIDATION__PRE_SEND_VALIDATOR_HPP_
+#define VDA5050_CORE__VALIDATION__PRE_SEND_VALIDATOR_HPP_
 
 #include <optional>
 
@@ -26,20 +26,20 @@
 #include "vda5050_core/types/connection_state.hpp"
 #include "vda5050_core/types/state.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core::validation {
 
 /// \brief Lock-free AGV snapshot captured once; serves the whole publish chain.
 struct PreSendContext
 {
   vda5050_core::types::ConnectionState connection_status;
   std::optional<vda5050_core::types::State> last_state;
-  AGVState operational_state;
+  vda5050_core::master::AGVState operational_state;
 };
 
 /// \brief AGV-readiness gate before publish (connection, mode, position).
 vda5050_core::errors::ValidationResult validate_pre_send(
   const PreSendContext& ctx);
 
-}  // namespace vda5050_core::master
+}  // namespace vda5050_core::validation
 
-#endif  // VDA5050_CORE__MASTER__VALIDATION__PRE_SEND_VALIDATOR_HPP_
+#endif  // VDA5050_CORE__VALIDATION__PRE_SEND_VALIDATOR_HPP_

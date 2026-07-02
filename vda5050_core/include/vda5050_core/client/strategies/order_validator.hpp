@@ -66,7 +66,7 @@ struct AcceptanceResult
 /// \brief Gatekeeper that runs the VDA5050 order-acceptance decision flow
 /// before an order enters the execution plane.
 ///
-/// Structural validity reuses `order_utils::is_valid_graph`.
+/// Structural validity reuses `validation::is_valid_graph`.
 /// TODO(eileentyz): Add position- and capability-dependent checks once AGV
 /// position and factsheet/capability data are available.
 class OrderValidator

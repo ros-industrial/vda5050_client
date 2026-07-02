@@ -21,7 +21,7 @@
 #include <algorithm>
 
 #include "vda5050_core/errors/error_codes.hpp"
-#include "vda5050_core/master/validation/content_validator.hpp"
+#include "vda5050_core/validation/content_validator.hpp"
 
 namespace {
 
@@ -79,7 +79,7 @@ namespace {
 
 }  // namespace
 
-namespace vda5050_core::master::test {
+namespace vda5050_core::validation::test {
 
 namespace {
 
@@ -425,4 +425,4 @@ TEST(ContentValidatorTest, MultipleErrorsAccumulate)
   EXPECT_TRUE(AnyErrorMentions(res, "node_id"));
 }
 
-}  // namespace vda5050_core::master::test
+}  // namespace vda5050_core::validation::test

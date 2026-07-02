@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#ifndef VDA5050_CORE__MASTER__VALIDATION__CONTENT_VALIDATOR_HPP_
-#define VDA5050_CORE__MASTER__VALIDATION__CONTENT_VALIDATOR_HPP_
+#ifndef VDA5050_CORE__VALIDATION__CONTENT_VALIDATOR_HPP_
+#define VDA5050_CORE__VALIDATION__CONTENT_VALIDATOR_HPP_
 
 #include "vda5050_core/errors/validation_result.hpp"
 #include "vda5050_core/types/connection.hpp"
@@ -27,7 +27,7 @@
 #include "vda5050_core/types/state.hpp"
 #include "vda5050_core/types/visualization.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core::validation {
 
 /// \brief Required-content checks on an Order (version, non-empty ids).
 vda5050_core::errors::ValidationResult validate_order_content(
@@ -53,6 +53,6 @@ vda5050_core::errors::ValidationResult validate_factsheet_content(
 vda5050_core::errors::ValidationResult validate_visualization_content(
   const vda5050_core::types::Visualization& visualization);
 
-}  // namespace vda5050_core::master
+}  // namespace vda5050_core::validation
 
-#endif  // VDA5050_CORE__MASTER__VALIDATION__CONTENT_VALIDATOR_HPP_
+#endif  // VDA5050_CORE__VALIDATION__CONTENT_VALIDATOR_HPP_

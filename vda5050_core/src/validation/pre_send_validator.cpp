@@ -16,14 +16,15 @@
  * limitations under the License.
  */
 
-#include "vda5050_core/master/validation/pre_send_validator.hpp"
+#include "vda5050_core/validation/pre_send_validator.hpp"
 
 #include <string>
 
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core::validation {
+using vda5050_core::master::AGVState;
 
 namespace {
 
@@ -102,4 +103,4 @@ vda5050_core::errors::ValidationResult validate_pre_send(
   return res;
 }
 
-}  // namespace vda5050_core::master
+}  // namespace vda5050_core::validation

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-#include "vda5050_core/master/validation/content_validator.hpp"
+#include "vda5050_core/validation/content_validator.hpp"
 
 #include <algorithm>
 #include <functional>
@@ -27,7 +27,8 @@
 #include "vda5050_core/errors/error_factory.hpp"
 #include "vda5050_core/master/standard_names.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core::validation {
+using vda5050_core::master::SupportedSchemaVersions;
 
 namespace {
 
@@ -249,4 +250,4 @@ ValidationResult validate_visualization_content(
   return res;
 }
 
-}  // namespace vda5050_core::master
+}  // namespace vda5050_core::validation

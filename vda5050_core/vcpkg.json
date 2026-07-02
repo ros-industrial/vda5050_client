@@ -1,0 +1,11 @@
+{
+  "name": "vda5050-core",
+  "version": "0.0.0",
+  "description": "VDA5050 library and support tools",
+  "dependencies": [
+    "paho-mqttpp3",
+    "fmt",
+    "nlohmann-json",
+    "gtest"
+  ]
+}

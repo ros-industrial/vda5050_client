@@ -1,0 +1,65 @@
+name: Build and test on native Windows
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+      - develop
+
+jobs:
+  windows:
+    name: Windows (MSVC + vcpkg)
+    runs-on: windows-latest
+    env:
+      # The library lives in the vda5050_core/ subdirectory of the repository.
+      SOURCE_DIR: vda5050_core
+      # vcpkg stores built packages here; actions/cache persists it across runs
+      # so paho/fmt/nlohmann-json/gtest are restored instead of recompiled.
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-bincache
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache vcpkg binary packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          # Invalidate when the manifest changes; fall back to the latest cache.
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vda5050_core/vcpkg.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-
+
+      # vcpkg requires VCPKG_DEFAULT_BINARY_CACHE to be an existing directory.
+      - name: Create binary cache directory
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force -Path "$env:VCPKG_DEFAULT_BINARY_CACHE" | Out-Null
+
+      - name: Configure (CMake + vcpkg manifest)
+        shell: pwsh
+        run: |
+          cmake -S "$env:SOURCE_DIR" -B build `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Start MQTT broker (mosquitto)
+        shell: pwsh
+        run: |
+          # The Chocolatey 'mosquitto' package was delisted, so install from the
+          # official mosquitto.org installer (silent /S, default install dir).
+          $ver = "2.0.20"
+          $url = "https://mosquitto.org/files/binary/win64/mosquitto-$ver-install-windows-x64.exe"
+          $installer = "$env:RUNNER_TEMP\mosquitto-install.exe"
+          Invoke-WebRequest -Uri $url -OutFile $installer
+          Start-Process -FilePath $installer -ArgumentList "/S" -Wait
+          $dir = "C:\Program Files\mosquitto"
+          # mosquitto 2.x denies anonymous access and needs an explicit listener.
+          "listener 1883`nallow_anonymous true" | Out-File -Encoding ascii "$dir\mosquitto.conf"
+          Start-Process -FilePath "$dir\mosquitto.exe" -ArgumentList "-c", "$dir\mosquitto.conf"
+          Start-Sleep -Seconds 2
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure

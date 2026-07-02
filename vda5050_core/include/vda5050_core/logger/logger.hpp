@@ -19,7 +19,7 @@
 #ifndef VDA5050_CORE__LOGGER__LOGGER_HPP_
 #define VDA5050_CORE__LOGGER__LOGGER_HPP_
 
-#include <fmt/core.h>
+#include <fmt/format.h>
 #include <memory>
 #include <sstream>
 #include <string>

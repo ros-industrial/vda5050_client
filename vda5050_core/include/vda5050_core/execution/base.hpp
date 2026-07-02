@@ -43,9 +43,13 @@ struct ResourceBase : public Base
 template <typename DerivedT, typename BaseT>
 struct Initialize : public BaseT
 {
-  static inline const std::type_index type = std::type_index(typeid(DerivedT));
   std::type_index get_type() const override
   {
+    // Computed once and cached (as before), but as a function-local static so
+    // typeid(DerivedT) lives in a deferred function body. A static *member*
+    // initializer is instantiated eagerly by MSVC while DerivedT is still an
+    // incomplete CRTP base, which fails with error C2027.
+    static const std::type_index type = std::type_index(typeid(DerivedT));
     return type;
   }
 };

@@ -30,6 +30,7 @@
 #include <utility>
 #include <vector>
 
+#include "vda5050_core/compat/time_utils.hpp"
 #include "vda5050_core/types/action_scope.hpp"
 #include "vda5050_core/types/action_status.hpp"
 #include "vda5050_core/types/agv_class.hpp"
@@ -185,8 +186,7 @@ inline std::string to_iso8601(TimePoint time_point)
   auto duration = time_point.time_since_epoch();
   auto millisec = duration_cast<milliseconds>(duration).count() % 1000;
 
-  std::tm tm_buf;
-  gmtime_r(&time_sec, &tm_buf);
+  std::tm tm_buf = compat::to_gmtime(time_sec);
 
   std::ostringstream oss;
   oss << std::put_time(&tm_buf, types::ISO8601_FORMAT);
@@ -241,8 +241,7 @@ inline TimePoint from_iso8601(const std::string& time_string)
     }
   }
 
-  // TODO(sauk): Add a check to see if the platform supports timegm
-  auto tp = system_clock::from_time_t(timegm(&t));
+  auto tp = system_clock::from_time_t(compat::timegm_utc(&t));
 
   return tp + milliseconds(millisec);
 }

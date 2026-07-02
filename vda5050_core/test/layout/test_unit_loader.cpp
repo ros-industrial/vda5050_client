@@ -16,7 +16,11 @@
  * limitations under the License.
  */
 
+#if defined(_WIN32)
+#include <process.h>
+#else
 #include <unistd.h>
+#endif
 
 #include <gtest/gtest.h>
 
@@ -33,6 +37,17 @@
 namespace vda5050_core::layout::test {
 
 namespace {
+
+// Portable current process id, used to make temp file names unique across
+// concurrently running test executables.
+int current_pid()
+{
+#if defined(_WIN32)
+  return _getpid();
+#else
+  return getpid();
+#endif
+}
 
 nlohmann::json minimal_valid_json()
 {
@@ -91,7 +106,7 @@ TEST(LayoutLoaderTest, LoadFromFile_MalformedJson_ReturnsParseError)
 {
   const std::string path = std::string(testing::TempDir()) +
                            "/vda5050_malformed_layout_" +
-                           std::to_string(::getpid()) + ".json";
+                           std::to_string(current_pid()) + ".json";
   {
     std::ofstream out(path);
     out << R"({ "metaInformation": { "projectIdentification": )";

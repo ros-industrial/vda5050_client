@@ -23,6 +23,8 @@
 #include <iostream>
 #include <mutex>
 
+#include "vda5050_core/compat/time_utils.hpp"
+
 namespace vda5050_core {
 
 namespace logger {
@@ -40,8 +42,7 @@ public:
   {
     auto now = std::chrono::system_clock::now();
     std::time_t now_t = std::chrono::system_clock::to_time_t(now);
-    std::tm localtime;
-    localtime_r(&now_t, &localtime);
+    std::tm localtime = compat::to_localtime(now_t);
 
     std::cout << "[" << fmt::format("{:%Y-%m-%d %H:%M:%S}", localtime) << "]"
               << to_log_level_string(level) << ": " << message << std::endl;

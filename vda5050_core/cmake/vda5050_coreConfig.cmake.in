@@ -1,0 +1,14 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+find_dependency(PahoMqttCpp)
+find_dependency(fmt)
+find_dependency(nlohmann_json)
+
+include("${CMAKE_CURRENT_LIST_DIR}/vda5050_coreTargets.cmake")
+
+# Expose the vda5050_ament_lint_common() command to consumers (when shipped).
+include("${CMAKE_CURRENT_LIST_DIR}/vda5050_ament_lint_common.cmake" OPTIONAL)
+
+check_required_components(vda5050_core)

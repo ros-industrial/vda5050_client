@@ -1,15 +1,34 @@
 cmake_minimum_required(VERSION 3.8)
-project(vda5050_core)
+project(vda5050_core VERSION 0.0.0)
 
 if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 17)
 endif()
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
+elseif(MSVC)
+  # /bigobj: template-heavy deps (nlohmann_json, fmt, gmock) exceed MSVC's 64k
+  #          section limit per object (fatal C1128).
+  # /utf-8:  treat source/exec charset as UTF-8 instead of the system code page.
+  add_compile_options(/bigobj /utf-8)
+  # NOMINMAX: stop <windows.h> defining min/max macros that clash with
+  #           std::min/max and std::numeric_limits<>::max().
+  # _CRT_SECURE_NO_WARNINGS: silence C4996 "insecure" CRT deprecation warnings.
+  add_compile_definitions(NOMINMAX _CRT_SECURE_NO_WARNINGS)
 endif()
 
-find_package(ament_cmake REQUIRED)
+# Export all symbols from the shared libraries on Windows so consumers can link
+# against the DLLs without per-symbol __declspec annotations. No-op elsewhere.
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
+# Windows has no RPATH: co-locate the DLLs with the executables that load them
+# (examples and tests) so they resolve at run time. Harmless on other platforms.
+if(WIN32)
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+endif()
+
 find_package(PahoMqttCpp REQUIRED)
 find_package(fmt REQUIRED)
 find_package(nlohmann_json REQUIRED)
@@ -129,6 +148,12 @@ target_include_directories(vda5050_transport
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
+# The shared paho-mqttpp3 DLL on Windows needs PAHO_MQTTPP_IMPORTS so its headers
+# declare symbols as dllimport; the vcpkg target does not propagate it
+# (microsoft/vcpkg#52261). PUBLIC because paho_mqtt_client.hpp exposes mqtt types.
+if(WIN32)
+  target_compile_definitions(vda5050_transport PUBLIC PAHO_MQTTPP_IMPORTS)
+endif()
 
 # Execution
 file(GLOB_RECURSE execution_srcs "src/execution/*.cpp")
@@ -230,20 +255,36 @@ install(
     vda5050_layout
     vda5050_master
   EXPORT export_${PROJECT_NAME}
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib
-  RUNTIME DESTINATION bin
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-ament_export_targets(export_${PROJECT_NAME}
-  HAS_LIBRARY_TARGET
+# Export the targets and generate a plain CMake package config so consumers can
+# `find_package(vda5050_core)` and link `vda5050_core::<component>`.
+install(EXPORT export_${PROJECT_NAME}
   NAMESPACE ${PROJECT_NAME}::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+  FILE ${PROJECT_NAME}Targets.cmake
 )
-ament_export_dependencies(PahoMqttCpp fmt nlohmann_json)
 
-if(ENABLE_ROS2)
-  ament_export_dependencies(vda5050_interfaces)
-endif()
+include(CMakePackageConfigHelpers)
+configure_package_config_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/${PROJECT_NAME}Config.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+)
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY SameMajorVersion
+)
+install(FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
+  cmake/vda5050_ament_lint_common.cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+)
 
 option(BUILD_EXAMPLES "Build examples" ON)
 
@@ -277,54 +318,61 @@ if(BUILD_EXAMPLES)
       provider_example
       engine_example
       handler_integration
-    DESTINATION lib/${PROJECT_NAME}
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/${PROJECT_NAME}
   )
 endif()
 
 option(BUILD_TESTING "Build tests" ON)
 
 if(BUILD_TESTING)
-  include(cmake/vda5050_ament_lint_common.cmake)
-  vda5050_ament_lint_common()
+  enable_testing()
 
-  find_package(ament_cmake_gmock REQUIRED)
+  # In a ROS 2 dev environment, keep the ament linters and register tests with
+  # the ament backends (selected inside vda5050_add_gtest/gmock by the
+  # ament_cmake_g{test,mock}_FOUND variables set here).
+  find_package(ament_cmake_gtest QUIET)
+  find_package(ament_cmake_gmock QUIET)
+  if(ament_cmake_gmock_FOUND)
+    include(cmake/vda5050_ament_lint_common.cmake)
+    vda5050_ament_lint_common()
+  endif()
+
+  include(cmake/vda5050_add_gtest.cmake)
+  include(cmake/vda5050_add_gmock.cmake)
 
   set(json_tests test/json_utils/test_json_utils.cpp)
   if(ENABLE_ROS2)
     list(APPEND json_tests test/json_utils/test_json_utils_ros2.cpp)
   endif()
-  ament_add_gmock(test_json_utils ${json_tests})
+  vda5050_add_gtest(test_json_utils ${json_tests})
   target_link_libraries(test_json_utils vda5050_core::json_utils)
 
-  ament_add_gmock(test_order_utils
+  vda5050_add_gtest(test_order_utils
     test/order_utils/test_unit_order_graph_validator.cpp)
   target_link_libraries(test_order_utils vda5050_core::order_utils)
 
-  ament_add_gmock(test_logger
+  vda5050_add_gtest(test_logger
     test/logger/test_unit_default_logger.cpp
     test/logger/test_unit_logger.cpp
   )
   target_link_libraries(test_logger vda5050_core::logger)
 
-  ament_add_gmock(test_transport
+  vda5050_add_gmock(test_transport
     test/transport/test_unit_mqtt_client_interface.cpp
     test/transport/test_integration_paho_mqtt_client.cpp
   )
   target_link_libraries(test_transport vda5050_core::transport)
 
-  ament_add_gmock(test_client
+  vda5050_add_gmock(test_client
     test/client/test_order_types.cpp
     test/client/test_order_execution_resource.cpp
     test/client/test_agv_context.cpp
     test/client/test_order_validator.cpp
     test/client/test_order_acceptance.cpp
   )
+  target_link_libraries(test_client vda5050_core::client)
 
-  target_link_libraries(test_client
-    vda5050_core::client
-  )
-
-  ament_add_gmock(test_execution
+  vda5050_add_gmock(test_execution
     test/execution/test_engine.cpp
     test/execution/test_event_queue.cpp
     test/execution/test_handler.cpp
@@ -333,7 +381,7 @@ if(BUILD_TESTING)
   )
   target_link_libraries(test_execution vda5050_core::execution)
 
-  ament_add_gmock(test_master
+  vda5050_add_gmock(test_master
     test/master/test_integration_heartbeat.cpp
     test/master/test_integration_master_logic.cpp
     test/master/test_integration_master_mqtt.cpp
@@ -342,28 +390,17 @@ if(BUILD_TESTING)
   )
   target_link_libraries(test_master vda5050_core::master)
 
-  ament_add_gmock(test_layout_loader
+  vda5050_add_gtest(test_layout_loader
     test/layout/test_unit_loader.cpp
   )
   target_link_libraries(test_layout_loader vda5050_core::layout)
   target_compile_definitions(test_layout_loader PRIVATE
     VDA5050_CORE__SAMPLE_LAYOUT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/test/layout/data/sample_layout.json")
 
-  ament_add_gmock(test_layout_graph
+  vda5050_add_gtest(test_layout_graph
     test/layout/test_unit_graph.cpp
   )
   target_link_libraries(test_layout_graph vda5050_core::layout)
   target_compile_definitions(test_layout_graph PRIVATE
     VDA5050_CORE__SAMPLE_LAYOUT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/test/layout/data/sample_layout.json")
 endif()
-
-# Install linter macro
-install(
-  FILES
-    cmake/vda5050_ament_lint_common.cmake
-  DESTINATION share/${PROJECT_NAME}/cmake
-)
-
-ament_package(
-  CONFIG_EXTRAS "vda5050_core-extras.cmake"
-)

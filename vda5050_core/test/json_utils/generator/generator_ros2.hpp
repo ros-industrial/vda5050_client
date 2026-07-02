@@ -183,7 +183,10 @@ public:
   /// \brief Generate a random index for enum selection
   uint8_t generate_random_index(size_t size)
   {
-    std::uniform_int_distribution<uint8_t> index_dist(0, size - 1);
+    // uniform_int_distribution does not permit char-sized types (MSVC enforces
+    // this); use int and narrow on return.
+    std::uniform_int_distribution<int> index_dist(
+      0, static_cast<int>(size) - 1);
     return index_dist(rng_);
   }
 
@@ -879,8 +882,9 @@ private:
   /// \brief Distribution for unsigned 32-bit integers
   std::uniform_int_distribution<uint32_t> uint_dist_;
 
-  /// \brief Distribution for signed 8-bit integers
-  std::uniform_int_distribution<int8_t> int_dist_;
+  /// \brief Distribution for signed 8-bit integers (int-typed; char-sized
+  /// distribution types are not permitted by the standard / MSVC)
+  std::uniform_int_distribution<int> int_dist_;
 
   /// \brief Distribution for 64-bit floating-point numbers
   std::uniform_real_distribution<double> float_dist_;
@@ -894,8 +898,9 @@ private:
   /// \brief Distribution for milliseconds from epoch
   std::uniform_int_distribution<int64_t> milliseconds_dist_;
 
-  /// \brief Distribution for random vector size
-  std::uniform_int_distribution<uint8_t> size_dist_;
+  /// \brief Distribution for random vector size (int-typed; char-sized
+  /// distribution types are not permitted by the standard / MSVC)
+  std::uniform_int_distribution<int> size_dist_;
 
   /// \brief Distribution for random percentage values
   std::uniform_real_distribution<double> percentage_dist_;

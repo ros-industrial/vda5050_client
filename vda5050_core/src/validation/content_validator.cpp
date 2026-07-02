@@ -23,6 +23,8 @@
 #include <string>
 #include <vector>
 
+#include "fmt/format.h"
+
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
 #include "vda5050_core/master/standard_names.hpp"
@@ -49,9 +51,7 @@ void validate_header_common(
     supported.end())
   {
     add_error(
-      "header.version '" + header.version +
-        "' is not in SupportedSchemaVersions",
-      {});
+      fmt::format("Unsupported header version '{}'", header.version), {});
   }
 
   if (header.manufacturer.empty())
@@ -75,8 +75,9 @@ void validate_action_content(
   if (action.action_type.empty())
   {
     add_error(
-      "Action.action_type must be non-empty (action_id='" + action.action_id +
-        "')",
+      fmt::format(
+        "Action.action_type must be non-empty (action_id='{}')",
+        action.action_id),
       {});
   }
 }
@@ -190,7 +191,7 @@ ValidationResult validate_state_content(
     {
       add_error(
         "State.action_states[].action_id must be non-empty",
-        {{::vda5050_core::errors::RefActionId, as.action_id}});
+        {{::vda5050_core::errors::RefActionType, as.action_type.value_or("")}});
     }
   }
 

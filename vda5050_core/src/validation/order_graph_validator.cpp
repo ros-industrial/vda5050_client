@@ -18,6 +18,8 @@
 
 #include <algorithm>
 
+#include "fmt/format.h"
+
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
 #include "vda5050_core/validation/order_graph_validator.hpp"
@@ -53,8 +55,9 @@ errors::ValidationResult is_valid_graph(const vda5050_core::types::Order& order)
   if (order.nodes.size() != order.edges.size() + 1)
   {
     add_error(
-      "Graph mismatch: Order contains " + std::to_string(order.nodes.size()) +
-        " node(s) but " + std::to_string(order.edges.size()) + " edge(s).",
+      fmt::format(
+        "Graph mismatch: Order contains {} node(s) but {} edge(s).",
+        order.nodes.size(), order.edges.size()),
       {});
     return res;
   }

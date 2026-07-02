@@ -335,13 +335,14 @@ TEST(ContentValidatorTest, StateActionStateWithEmptyActionIdRejected)
 {
   auto s = make_valid_state();
   vda5050_core::types::ActionState as;
-  as.action_id = "";  // required field missing
+  as.action_id = "";        // required field missing
+  as.action_type = "pick";  // populated — the useful locator
   s.action_states.push_back(as);
   auto res = validate_state_content(s);
   EXPECT_FALSE(static_cast<bool>(res));
   EXPECT_TRUE(AllErrorsHaveContentType(res));
   EXPECT_TRUE(AnyErrorMentions(res, "action_id"));
-  EXPECT_TRUE(AnyErrorHasRef(res, vda5050_core::errors::RefActionId));
+  EXPECT_TRUE(AnyErrorHasRef(res, vda5050_core::errors::RefActionType));
 }
 
 TEST(ContentValidatorTest, StateErrorWithEmptyErrorTypeRejected)

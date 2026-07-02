@@ -20,6 +20,8 @@
 
 #include <string>
 
+#include "fmt/format.h"
+
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
 
@@ -63,9 +65,9 @@ vda5050_core::errors::ValidationResult validate_pre_send(
 
   if (ctx.operational_state != AGVState::AVAILABLE)
   {
-    add_error(
-      std::string("AGV operational_state is not AVAILABLE (") +
-      agv_state_name(ctx.operational_state) + ")");
+    add_error(fmt::format(
+      "AGV operational_state is not AVAILABLE ({})",
+      agv_state_name(ctx.operational_state)));
   }
 
   if (!ctx.last_state.has_value())

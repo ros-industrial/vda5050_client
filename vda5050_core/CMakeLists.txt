@@ -106,6 +106,7 @@ vda5050_configure_target_alias(
 target_link_libraries(vda5050_validation PUBLIC
   ${PROJECT_NAME}::types
   ${PROJECT_NAME}::errors
+  fmt::fmt
 )
 target_include_directories(vda5050_validation
   PUBLIC

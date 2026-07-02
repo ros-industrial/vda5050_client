@@ -89,6 +89,56 @@ TEST_F(MasterTeardownTest, OffboardAgvUnsubscribesAllPerAgvTopics)
   master->offboard_agv("acme", "agv-001");
 }
 
+TEST_F(MasterTeardownTest, OffboardAgvUnsubscribesAllPerAgvTopicsInterfaceName)
+{
+  auto master = std::make_shared<VDA5050Master>(mock_);
+  master->connect();
+  {  // default interface name
+    master->onboard_agv("acme", "agv-001");
+
+    EXPECT_CALL(
+      *mock_,
+      unsubscribe(::testing::HasSubstr("uagv/v2/acme/agv-001/connection")))
+      .Times(1);
+    EXPECT_CALL(
+      *mock_, unsubscribe(::testing::HasSubstr("uagv/v2/acme/agv-001/state")))
+      .Times(1);
+    EXPECT_CALL(
+      *mock_,
+      unsubscribe(::testing::HasSubstr("uagv/v2/acme/agv-001/factsheet")))
+      .Times(1);
+    EXPECT_CALL(
+      *mock_,
+      unsubscribe(::testing::HasSubstr("uagv/v2/acme/agv-001/visualization")))
+      .Times(1);
+
+    master->offboard_agv("acme", "agv-001");
+  }
+
+  {  // custom interface name
+    std::string custom_interface_name = "amr";
+    master->onboard_agv(custom_interface_name, "acme", "agv-001");
+
+    EXPECT_CALL(
+      *mock_,
+      unsubscribe(::testing::HasSubstr("amr/v2/acme/agv-001/connection")))
+      .Times(1);
+    EXPECT_CALL(
+      *mock_, unsubscribe(::testing::HasSubstr("amr/v2/acme/agv-001/state")))
+      .Times(1);
+    EXPECT_CALL(
+      *mock_,
+      unsubscribe(::testing::HasSubstr("amr/v2/acme/agv-001/factsheet")))
+      .Times(1);
+    EXPECT_CALL(
+      *mock_,
+      unsubscribe(::testing::HasSubstr("amr/v2/acme/agv-001/visualization")))
+      .Times(1);
+
+    master->offboard_agv("acme", "agv-001");
+  }
+}
+
 TEST_F(MasterTeardownTest, MasterDestructionUnsubscribesAllPerAgvTopics)
 {
   EXPECT_CALL(

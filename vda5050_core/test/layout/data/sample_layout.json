@@ -1,0 +1,57 @@
+{
+  "metaInformation": {
+    "projectIdentification": "warehouse",
+    "creator": "vda5050_master sample",
+    "exportTimestamp": "2026-05-28T10:00:00.000Z",
+    "lifVersion": "0.11.0"
+  },
+  "layouts": [
+    {
+      "layoutId": "warehouse_floor1",
+      "layoutVersion": "1",
+      "layoutName": "Floor 1",
+      "layoutLevelId": "L1",
+      "layoutDescription": "Ground floor — main staging area",
+      "nodes": [
+        {
+          "nodeId": "N0",
+          "mapId": "warehouse_floor1",
+          "nodePosition": { "x": 0.0, "y": 0.0 },
+          "vehicleTypeNodeProperties": [
+            { "vehicleTypeId": "agv-default", "theta": 0.0 }
+          ]
+        },
+        {
+          "nodeId": "N1",
+          "nodeName": "Dropoff",
+          "mapId": "warehouse_floor1",
+          "nodePosition": { "x": 5.0, "y": 0.0 },
+          "vehicleTypeNodeProperties": [
+            { "vehicleTypeId": "agv-default", "theta": 0.0 }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "edgeId": "E1",
+          "startNodeId": "N0",
+          "endNodeId": "N1",
+          "vehicleTypeEdgeProperties": [
+            {
+              "vehicleTypeId": "agv-default",
+              "rotationAllowed": true,
+              "maxSpeed": 1.0
+            }
+          ]
+        }
+      ],
+      "stations": [
+        {
+          "stationId": "S1",
+          "interactionNodeIds": ["N1"],
+          "stationName": "Drop station 1"
+        }
+      ]
+    }
+  ]
+}

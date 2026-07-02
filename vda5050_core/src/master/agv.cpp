@@ -31,10 +31,11 @@ namespace master {
 //=============================================================================
 AGV::AGV(
   std::shared_ptr<ProtocolAdapter> protocol_adapter,
-  const std::string& manufacturer, const std::string& serial_number,
-  size_t max_queue_size, bool drop_oldest, int state_heartbeat_interval,
-  std::weak_ptr<VDA5050Master> parent)
-: manufacturer_(manufacturer),
+  const std::string& interface_name, const std::string& manufacturer,
+  const std::string& serial_number, size_t max_queue_size, bool drop_oldest,
+  int state_heartbeat_interval, std::weak_ptr<VDA5050Master> parent)
+: interface_name_(interface_name),
+  manufacturer_(manufacturer),
   serial_number_(serial_number),
   agv_id_(manufacturer + "/" + serial_number),
   protocol_adapter_(protocol_adapter),
@@ -675,7 +676,7 @@ void AGV::publish_instant_actions(const InstantActions& actions)
 //=============================================================================
 std::string AGV::build_topic(const std::string& topic_name) const
 {
-  return InterfaceName + "/" + Version + "/" + manufacturer_ + "/" +
+  return interface_name_ + "/" + Version + "/" + manufacturer_ + "/" +
          serial_number_ + "/" + topic_name;
 }
 

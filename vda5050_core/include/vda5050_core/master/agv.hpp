@@ -123,8 +123,9 @@ public:
    */
   AGV(
     std::shared_ptr<execution::ProtocolAdapter> protocol_adapter,
-    const std::string& manufacturer, const std::string& serial_number,
-    size_t max_queue_size = 10, bool drop_oldest = true,
+    const std::string& interface_name, const std::string& manufacturer,
+    const std::string& serial_number, size_t max_queue_size = 10,
+    bool drop_oldest = true,
     int state_heartbeat_interval = StateHeartbeatInterval,
     std::weak_ptr<VDA5050Master> parent = {});
 
@@ -143,6 +144,13 @@ public:
   // Identity
   // ============================================================================
 
+  /**
+   * @brief Get the interface name
+   */
+  const std::string& get_interface_name() const
+  {
+    return interface_name_;
+  }
   /**
    * @brief Get the manufacturer name
    */
@@ -435,6 +443,7 @@ private:
   // ============================================================================
 
   // Identity
+  std::string interface_name_;
   std::string manufacturer_;
   std::string serial_number_;
   std::string agv_id_;

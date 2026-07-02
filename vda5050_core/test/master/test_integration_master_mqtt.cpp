@@ -31,8 +31,10 @@
 #include <thread>
 
 #include "vda5050_core/master/master.hpp"
+#include "vda5050_core/master/standard_names.hpp"
 #include "vda5050_core/transport/mqtt_client_interface.hpp"
 
+using vda5050_core::master::DefaultInterfaceName;
 using vda5050_core::master::VDA5050Master;
 
 class MasterMqttTestFixture : public ::testing::Test
@@ -42,6 +44,7 @@ protected:
   {
     manufacturer_ = "TestManufacturer";
     serial_number_ = "SN001";
+    interface_name_ = DefaultInterfaceName;
   }
 
   void TearDown() override
@@ -58,6 +61,7 @@ protected:
     return std::make_shared<VDA5050Master>(client);
   }
 
+  std::string interface_name_;
   std::string manufacturer_;
   std::string serial_number_;
 };
@@ -106,6 +110,28 @@ TEST_F(MasterMqttTestFixture, OnboardAGVWhileConnected)
 
   auto agv = master->get_agv(manufacturer_, serial_number_);
   ASSERT_NE(agv, nullptr);
+  EXPECT_EQ(agv->get_interface_name(), interface_name_);
+  EXPECT_EQ(agv->get_manufacturer(), manufacturer_);
+  EXPECT_EQ(agv->get_serial_number(), serial_number_);
+
+  master->disconnect();
+}
+
+TEST_F(MasterMqttTestFixture, OnboardAGVWithCustomInterfaceNameWhileConnected)
+{
+  std::string custom_interface_name = "amr";
+  auto master = create_master();
+  master->connect();
+
+  EXPECT_FALSE(master->is_agv_onboarded(manufacturer_, serial_number_));
+
+  master->onboard_agv(custom_interface_name, manufacturer_, serial_number_);
+
+  EXPECT_TRUE(master->is_agv_onboarded(manufacturer_, serial_number_));
+
+  auto agv = master->get_agv(manufacturer_, serial_number_);
+  ASSERT_NE(agv, nullptr);
+  EXPECT_EQ(agv->get_interface_name(), custom_interface_name);
   EXPECT_EQ(agv->get_manufacturer(), manufacturer_);
   EXPECT_EQ(agv->get_serial_number(), serial_number_);
 

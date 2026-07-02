@@ -32,6 +32,7 @@ class AGVTestFixture : public ::testing::Test
 protected:
   void SetUp() override
   {
+    interface_name_ = DefaultInterfaceName;
     manufacturer_ = "TestManufacturer";
     serial_number_ = "SN001";
     agv_id_ = manufacturer_ + "/" + serial_number_;
@@ -45,7 +46,8 @@ protected:
   std::unique_ptr<AGV>& create_agv()
   {
     // Use nullptr for ProtocolAdapter in unit tests
-    agv_ = std::make_unique<AGV>(nullptr, manufacturer_, serial_number_);
+    agv_ = std::make_unique<AGV>(
+      nullptr, interface_name_, manufacturer_, serial_number_);
     return agv_;
   }
 
@@ -54,7 +56,7 @@ protected:
   {
     // Use nullptr for ProtocolAdapter in unit tests
     agv_ = std::make_unique<AGV>(
-      nullptr, manufacturer_, serial_number_, 10, true,
+      nullptr, interface_name_, manufacturer_, serial_number_, 10, true,
       state_heartbeat_interval);
     return agv_;
   }
@@ -117,6 +119,7 @@ protected:
   }
 
   std::unique_ptr<AGV> agv_;
+  std::string interface_name_;
   std::string manufacturer_;
   std::string serial_number_;
   std::string agv_id_;
@@ -413,6 +416,7 @@ TEST_F(AGVTestFixture, RestartPreservesIdentity)
 
   agv->restart();
 
+  EXPECT_EQ(agv->get_interface_name(), interface_name_);
   EXPECT_EQ(agv->get_manufacturer(), manufacturer_);
   EXPECT_EQ(agv->get_serial_number(), serial_number_);
   EXPECT_EQ(agv->get_agv_id(), agv_id_);

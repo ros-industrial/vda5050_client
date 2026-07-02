@@ -87,8 +87,8 @@ bool VDA5050Master::is_connected() const
 
 //=============================================================================
 void VDA5050Master::onboard_agv(
-  const std::string& manufacturer, const std::string& serial_number,
-  size_t max_queue_size, bool drop_oldest)
+  const std::string& interface_name, const std::string& manufacturer,
+  const std::string& serial_number, size_t max_queue_size, bool drop_oldest)
 {
   std::string agv_id = manufacturer + "/" + serial_number;
 
@@ -106,8 +106,8 @@ void VDA5050Master::onboard_agv(
   // detecting master destruction cleanly via lock().
   auto agv = std::make_shared<AGV>(
     ProtocolAdapter::make(
-      mqtt_client_, InterfaceName, Version, manufacturer, serial_number),
-    manufacturer, serial_number, max_queue_size, drop_oldest,
+      mqtt_client_, interface_name, Version, manufacturer, serial_number),
+    interface_name, manufacturer, serial_number, max_queue_size, drop_oldest,
     StateHeartbeatInterval, weak_from_this());
 
   // Subscriptions are wired here (not in AGV's ctor) so that
@@ -118,6 +118,15 @@ void VDA5050Master::onboard_agv(
   agvs_[agv_id] = std::move(agv);
 
   VDA5050_INFO("[VDA5050Master] Onboarded AGV: {}", agv_id);
+}
+
+void VDA5050Master::onboard_agv(
+  const std::string& manufacturer, const std::string& serial_number,
+  size_t max_queue_size, bool drop_oldest)
+{
+  onboard_agv(
+    DefaultInterfaceName, manufacturer, serial_number, max_queue_size,
+    drop_oldest);
 }
 
 //=============================================================================

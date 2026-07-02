@@ -29,6 +29,14 @@ namespace errors {
 inline const std::string GraphValidationError = "graphValidationError";
 inline const std::string OrderUpdateError = "orderUpdateError";
 inline const std::string ValidationError = "validationError";
+inline const std::string SchemaValidationError = "schemaValidationError";
+inline const std::string PreSendValidationError = "preSendValidationError";
+inline const std::string TraversabilityValidationError =
+  "traversabilityValidationError";
+inline const std::string ActionBlockedByDrivingError =
+  "actionBlockedByDrivingError";
+inline const std::string HardActionBlockedError = "hardActionBlockedError";
+inline const std::string ModeValidationError = "modeValidationError";
 
 // Reference key string for vda5050_types::ErrorReference::key
 inline const std::string RefOrderId = "orderId";
@@ -36,6 +44,7 @@ inline const std::string RefOrderUpdateId = "orderUpdateId";
 inline const std::string RefNodeId = "nodeId";
 inline const std::string RefEdgeId = "edgeId";
 inline const std::string RefSequenceId = "sequenceId";
+inline const std::string RefActionId = "actionId";
 
 }  // namespace errors
 }  // namespace vda5050_core

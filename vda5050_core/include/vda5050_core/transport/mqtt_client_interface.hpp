@@ -77,6 +77,28 @@ public:
   virtual void set_will(
     const std::string& topic, const std::string& message, int qos,
     bool retain = true) = 0;
+
+  using ConnectionStateHandler = std::function<void(const std::string&)>;
+
+  /// \brief Register a handler to be invoked when the underlying transport
+  /// reports the broker connection has been lost (Task #70).
+  ///
+  /// The handler runs on the transport's I/O thread and must be
+  /// thread-safe with respect to any state it touches. Setting a new
+  /// handler replaces any previously-registered one. Default impl is
+  /// a no-op so existing MqttClientInterface implementations continue
+  /// to compile without changes.
+  virtual void set_connection_lost_callback(ConnectionStateHandler /*handler*/)
+  {
+  }
+
+  /// \brief Register a handler to be invoked when the underlying transport
+  /// reports the broker connection has been (re)established (Task #70).
+  ///
+  /// Fires on initial connect and on every Paho-driven auto-reconnect.
+  /// Same threading + replace-on-set semantics as
+  /// set_connection_lost_callback. Default impl is a no-op.
+  virtual void set_connected_callback(ConnectionStateHandler /*handler*/) {}
 };
 
 /// \brief Create a default shared MQTT client interface

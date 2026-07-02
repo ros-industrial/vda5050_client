@@ -20,10 +20,9 @@
 #define VDA5050_CORE__MASTER__STANDARD_NAMES_HPP_
 
 #include <string>
+#include <vector>
 
-namespace vda5050_core {
-
-namespace master {
+namespace vda5050_core::master {
 
 /// \brief MQTT QoS level — typed replacement for raw int values.
 ///
@@ -59,10 +58,25 @@ constexpr QosLevel StateQos = QosLevel::AtMostOnce;
 constexpr QosLevel VisualizationQos = QosLevel::AtMostOnce;
 constexpr QosLevel InstantActionsQos = QosLevel::AtMostOnce;
 
+/// The spec mandates a connection-topic heartbeat every 15s
+/// between the AGV client and the broker. The master does NOT poll for
+/// this — the spec's window is enforced by the broker's TCP keepalive
+/// (mosquitto: configure to <=15s for spec compliance) plus Paho's
+/// `set_automatic_reconnect(2, 32)` (vda5050_core/.../paho_mqtt_client.cpp).
+/// The AGV's per-transition Connection messages (last-will + on_connect /
+/// on_offline / on_connection_broken) are the master-side
+/// observable surface. This constant is documentation-only — referenced
+/// by tests as the spec value, never read by library code.
 constexpr int ConnectionHeartbeatInterval = 15;  // seconds
 constexpr int StateHeartbeatInterval = 30;       // seconds
 
-}  // namespace master
-}  // namespace vda5050_core
+/// \brief VDA5050 protocol versions accepted by SchemaValidator.
+///
+/// Master rejects (outgoing) or drops (incoming) any message whose
+/// header.version is not in this set. Currently 2.0.0 only; add a
+/// 2.1.0 entry when that migration lands.
+inline const std::vector<std::string> SupportedSchemaVersions = {"2.0.0"};
+
+}  // namespace vda5050_core::master
 
 #endif  // VDA5050_CORE__MASTER__STANDARD_NAMES_HPP_

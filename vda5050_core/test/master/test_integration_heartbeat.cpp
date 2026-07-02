@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "vda5050_core/logger/logger.hpp"
-
 #include "vda5050_core/master/heartbeat.hpp"
 #include "vda5050_core/master/standard_names.hpp"
 
@@ -45,11 +44,11 @@ public:
     start_connection_heartbeat();
   }
 
-  std::chrono::system_clock::time_point get_current_time() override
+  std::chrono::steady_clock::time_point get_current_time() override
   {
     VDA5050_INFO(
       "get_current_time with skip of " + std::to_string(time_to_skip_));
-    return std::chrono::system_clock::now() +
+    return std::chrono::steady_clock::now() +
            std::chrono::seconds(time_to_skip_);
   }
 
@@ -62,6 +61,12 @@ public:
 
   ~MockHeartbeatListener()
   {
+    // Stop the worker thread BEFORE the base destructor runs. listen()
+    // calls virtual methods (get_current_time, get_check_interval)
+    // through `this`; if the worker is still spinning when this mock's
+    // vtable is swapped out for the base, those calls race against the
+    // vptr transition. TSan flags this as "data race on vptr".
+    stop_connection_heartbeat();
     VDA5050_INFO("MockHeartbeatListener destroyed");
   }
 
@@ -108,7 +113,7 @@ TEST(HeartbeatListenerTest, HeartbeatReceivedNoTimeout)
       hb_listener.get_last_connection_report().time_since_epoch())
       .count(),
     std::chrono::duration_cast<std::chrono::seconds>(
-      std::chrono::system_clock::now().time_since_epoch())
+      std::chrono::steady_clock::now().time_since_epoch())
       .count(),
     ConnectionHeartbeatInterval - 1);
 

@@ -29,6 +29,7 @@
 #include "fmt/format.h"
 #include "vda5050_core/logger/logger.hpp"
 #include "vda5050_master_ros2/internal/ros2_topic_naming.hpp"
+#include "vda5050_master_ros2/internal/to_msg.hpp"
 #include "vda5050_master_ros2/order_status_builder.hpp"
 #include "vda5050_master_ros2/pose_view_builder.hpp"
 
@@ -148,7 +149,11 @@ void VDA5050MasterROS2::on_state(
     vda5050_core::master::VDA5050Master::on_state(agv_id, state);
     return;
   }
-  device_status_->publish_state(mfg, serial, state);
+  // Convert State -> ROS message once; reused for the /state topic and the
+  // combined DeviceStatus snapshot below.
+  const auto state_msg = internal::to_msg<
+    vda5050_core::types::State, vda5050_interfaces::msg::State>(state);
+  device_status_->publish_state(mfg, serial, state_msg);
 
   // OrderStatus + combined DeviceStatus alongside the per-component
   // State stream. handle_state has already cached the new State, so
@@ -160,7 +165,7 @@ void VDA5050MasterROS2::on_state(
       bundle, mfg, serial, get_active_assignment_id(mfg, serial));
     order_status_publisher_->publish_order_status(mfg, serial, msg);
     device_status_->publish_device_status(
-      mfg, serial, agv->get_status_snapshot());
+      mfg, serial, agv->get_status_snapshot(), &state_msg);
   }
 
   vda5050_core::master::VDA5050Master::on_state(agv_id, state);

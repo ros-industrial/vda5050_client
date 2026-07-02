@@ -106,6 +106,13 @@ public:
     const std::string& manufacturer, const std::string& serial_number,
     const vda5050_core::types::State& state);
 
+  /// \brief Publish an already-converted State message. Lets a caller that
+  ///        already holds the ROS message (e.g. to also feed it into the
+  ///        combined snapshot) avoid a second State conversion.
+  void publish_state(
+    const std::string& manufacturer, const std::string& serial_number,
+    const vda5050_interfaces::msg::State& state_msg);
+
   /// \brief Publish a Connection message for the given AGV.
   void publish_connection(
     const std::string& manufacturer, const std::string& serial_number,
@@ -125,9 +132,13 @@ public:
   ///        Connection / Factsheet receive callbacks after the
   ///        per-component publish, so every cache update produces a
   ///        fresh combined snapshot.
+  /// \param prebuilt_state When non-null, used verbatim as the snapshot's
+  ///        State field instead of re-converting snapshot.state (the caller
+  ///        already converted the same State for the /state topic).
   void publish_device_status(
     const std::string& manufacturer, const std::string& serial_number,
-    const vda5050_core::master::AGV::StatusSnapshot& snapshot);
+    const vda5050_core::master::AGV::StatusSnapshot& snapshot,
+    const vda5050_interfaces::msg::State* prebuilt_state = nullptr);
 
   /// \brief Drop publishers for an AGV (called from the on_offboard
   ///        override).

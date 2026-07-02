@@ -143,8 +143,8 @@ DeviceStatusPublisher::ensure_publishers_locked(
     internal::needs_topic_sanitization(serial_number))
   {
     VDA5050_INFO(
-      "[DeviceStatusPublisher] sanitized ROS 2 segment for AGV {} "
-      "(ROS 2 names cannot start with a digit; '_' was prepended)",
+      "[DeviceStatusPublisher] sanitized ROS 2 segment for AGV {} (raw VDA5050 "
+      "identity contains characters not valid in a ROS 2 topic segment)",
       id);
   }
   VDA5050_INFO(
@@ -169,6 +169,18 @@ void DeviceStatusPublisher::publish_state(
   }
   pub->publish(
     to_msg<vda5050_core::types::State, vda5050_interfaces::msg::State>(state));
+}
+
+void DeviceStatusPublisher::publish_state(
+  const std::string& manufacturer, const std::string& serial_number,
+  const vda5050_interfaces::msg::State& state_msg)
+{
+  rclcpp::Publisher<vda5050_interfaces::msg::State>::SharedPtr pub;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    pub = ensure_publishers_locked(manufacturer, serial_number).state;
+  }
+  pub->publish(state_msg);
 }
 
 void DeviceStatusPublisher::publish_connection(
@@ -202,18 +214,23 @@ void DeviceStatusPublisher::publish_factsheet(
 
 void DeviceStatusPublisher::publish_device_status(
   const std::string& manufacturer, const std::string& serial_number,
-  const vda5050_core::master::AGV::StatusSnapshot& snapshot)
+  const vda5050_core::master::AGV::StatusSnapshot& snapshot,
+  const vda5050_interfaces::msg::State* prebuilt_state)
 {
   vda5050_master_ros2::msg::DeviceStatus msg;
   msg.manufacturer = manufacturer;
   msg.serial_number = serial_number;
-  msg.stamp = node_->now();
+  // system_clock (wall) to stay consistent with the *_received_at fields and
+  // the other builders, which timestamp off the AGV's wall-clock cache.
+  msg.stamp = to_ros_time(std::chrono::system_clock::now());
 
   if (snapshot.state.has_value())
   {
     msg.state.push_back(
-      to_msg<vda5050_core::types::State, vda5050_interfaces::msg::State>(
-        *snapshot.state));
+      prebuilt_state != nullptr
+        ? *prebuilt_state
+        : to_msg<vda5050_core::types::State, vda5050_interfaces::msg::State>(
+            *snapshot.state));
     if (snapshot.state_received_at.has_value())
     {
       msg.state_received_at.push_back(to_ros_time(*snapshot.state_received_at));

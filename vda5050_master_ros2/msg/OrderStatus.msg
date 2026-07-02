@@ -48,9 +48,11 @@ uint32 nodes_in_base
 uint32 nodes_in_horizon
 
 # Live execution flags (mirror State). Orthogonal to phase.
+# paused / new_base_request are optional in State: empty = the AGV did not
+# report the field, single element = the reported value.
 bool driving
-bool paused
-bool new_base_request
+bool[<=1] paused
+bool[<=1] new_base_request
 
 # Master queue depth — order updates waiting for stitch conditions in
 # OrderLifecycleManager. 0 when no pending updates.

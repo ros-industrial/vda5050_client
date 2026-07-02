@@ -20,6 +20,8 @@
 
 #include <chrono>
 #include <cstdint>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <utility>
 
@@ -49,8 +51,13 @@ builtin_interfaces::msg::Time to_ros_time(
 }  // namespace
 
 DeviceStatusPublisher::DeviceStatusPublisher(
-  rclcpp::Node::SharedPtr node, const std::string& topic_namespace)
-: node_(std::move(node)), namespace_(topic_namespace)
+  rclcpp::Node::SharedPtr node, const std::string& topic_namespace,
+  std::shared_ptr<std::mutex> node_create_mutex)
+: node_(std::move(node)),
+  namespace_(topic_namespace),
+  node_create_mutex_(
+    node_create_mutex ? std::move(node_create_mutex)
+                      : std::make_shared<std::mutex>())
 {
 }
 
@@ -107,22 +114,29 @@ DeviceStatusPublisher::ensure_publishers_locked(
   auto it = publishers_.find(id);
   if (it != publishers_.end()) return it->second;
 
-  PerAgvPublishers pubs;
-  pubs.state = node_->create_publisher<vda5050_interfaces::msg::State>(
-    state_topic(manufacturer, serial_number), kQosDepth);
-  pubs.connection =
-    node_->create_publisher<vda5050_interfaces::msg::Connection>(
-      connection_topic(manufacturer, serial_number), kQosDepth);
-  pubs.factsheet = node_->create_publisher<vda5050_interfaces::msg::Factsheet>(
-    factsheet_topic(manufacturer, serial_number), kQosDepth);
-
   // Combined snapshot — latched so a late subscriber gets the current
   // view immediately, without waiting for the next State arrival.
   rclcpp::QoS combined_qos(kQosDepthCombined);
   combined_qos.reliable().transient_local();
-  pubs.device_status =
-    node_->create_publisher<vda5050_master_ros2::msg::DeviceStatus>(
-      device_status_topic(manufacturer, serial_number), combined_qos);
+
+  // rclcpp does not guarantee node entity creation is thread-safe; per-AGV
+  // creation runs on both the MQTT callback thread and the ROS timer thread,
+  // so serialize every create_publisher on the shared node mutex.
+  PerAgvPublishers pubs;
+  {
+    std::lock_guard<std::mutex> node_lock(*node_create_mutex_);
+    pubs.state = node_->create_publisher<vda5050_interfaces::msg::State>(
+      state_topic(manufacturer, serial_number), kQosDepth);
+    pubs.connection =
+      node_->create_publisher<vda5050_interfaces::msg::Connection>(
+        connection_topic(manufacturer, serial_number), kQosDepth);
+    pubs.factsheet =
+      node_->create_publisher<vda5050_interfaces::msg::Factsheet>(
+        factsheet_topic(manufacturer, serial_number), kQosDepth);
+    pubs.device_status =
+      node_->create_publisher<vda5050_master_ros2::msg::DeviceStatus>(
+        device_status_topic(manufacturer, serial_number), combined_qos);
+  }
 
   if (
     internal::needs_topic_sanitization(manufacturer) ||

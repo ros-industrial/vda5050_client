@@ -21,11 +21,14 @@
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <utility>
 
 #include "fmt/format.h"
+#include "vda5050_core/logger/logger.hpp"
+#include "vda5050_master_ros2/internal/ros2_topic_naming.hpp"
 #include "vda5050_master_ros2/order_status_builder.hpp"
 #include "vda5050_master_ros2/pose_view_builder.hpp"
 
@@ -37,12 +40,13 @@ VDA5050MasterROS2::VDA5050MasterROS2(
   double pose_view_rate_hz)
 : vda5050_core::master::VDA5050Master(std::move(mqtt_client)),
   node_(ros2_node),
-  device_status_(
-    std::make_unique<DeviceStatusPublisher>(ros2_node, topic_namespace)),
-  order_status_publisher_(
-    std::make_unique<OrderStatusPublisher>(ros2_node, topic_namespace)),
-  pose_view_publisher_(
-    std::make_unique<PoseViewPublisher>(ros2_node, topic_namespace)),
+  node_create_mutex_(std::make_shared<std::mutex>()),
+  device_status_(std::make_unique<DeviceStatusPublisher>(
+    ros2_node, topic_namespace, node_create_mutex_)),
+  order_status_publisher_(std::make_unique<OrderStatusPublisher>(
+    ros2_node, topic_namespace, node_create_mutex_)),
+  pose_view_publisher_(std::make_unique<PoseViewPublisher>(
+    ros2_node, topic_namespace, node_create_mutex_)),
   assignment_result_publisher_(
     std::make_shared<AssignmentResultPublisher>(ros2_node, topic_namespace)),
   assign_order_request_subscriber_(
@@ -76,22 +80,54 @@ VDA5050MasterROS2::VDA5050MasterROS2(
 
 VDA5050MasterROS2::~VDA5050MasterROS2()
 {
-  // Stop the periodic callback before the members it touches are torn down.
-  // The caller is expected to have stopped spinning the executor first.
+  // Mark shutting-down under the timer mutex, so a concurrently-executing
+  // publish_pose_views() finishes before teardown proceeds, then stop the
+  // periodic callback before the members it touches are destroyed.
+  {
+    std::lock_guard<std::mutex> lock(pose_timer_mutex_);
+    shutting_down_ = true;
+  }
   if (pose_view_timer_) pose_view_timer_->cancel();
 }
 
 void VDA5050MasterROS2::publish_pose_views()
 {
+  std::lock_guard<std::mutex> lock(pose_timer_mutex_);
+  if (shutting_down_) return;
+
   for (const auto& [mfg, serial] : get_onboarded_agvs())
   {
     auto agv = get_agv(mfg, serial);
     if (!agv) continue;
+    if (!ros2_topics_allowed(mfg + "/" + serial, mfg, serial)) continue;
     const vda5050_core::master::PoseView view = agv->get_pose_view();
     if (view.source == vda5050_core::master::PoseSource::None) continue;
     pose_view_publisher_->publish_pose_view(
       mfg, serial, build_pose_view_msg(view, mfg, serial));
   }
+}
+
+bool VDA5050MasterROS2::ros2_topics_allowed(
+  const std::string& agv_id, const std::string& manufacturer,
+  const std::string& serial_number)
+{
+  const std::string sanitized = internal::to_ros2_topic_segment(manufacturer) +
+                                "/" +
+                                internal::to_ros2_topic_segment(serial_number);
+
+  std::lock_guard<std::mutex> lock(topic_identity_mutex_);
+  if (refused_agvs_.count(agv_id)) return false;
+
+  auto [it, inserted] = claimed_topic_identities_.emplace(sanitized, agv_id);
+  if (inserted || it->second == agv_id) return true;
+
+  refused_agvs_.insert(agv_id);
+  VDA5050_ERROR(
+    "[VDA5050MasterROS2] AGV '{}' sanitizes to ROS 2 topic identity '{}' "
+    "already claimed by AGV '{}'; its ROS 2 topics are refused. Choose serials "
+    "that stay unambiguous after ROS 2 topic-name sanitization.",
+    agv_id, sanitized, it->second);
+  return false;
 }
 
 std::pair<std::string, std::string> VDA5050MasterROS2::split_agv_id(
@@ -107,6 +143,11 @@ void VDA5050MasterROS2::on_state(
   const std::string& agv_id, const vda5050_core::types::State& state)
 {
   auto [mfg, serial] = split_agv_id(agv_id);
+  if (!ros2_topics_allowed(agv_id, mfg, serial))
+  {
+    vda5050_core::master::VDA5050Master::on_state(agv_id, state);
+    return;
+  }
   device_status_->publish_state(mfg, serial, state);
 
   // OrderStatus + combined DeviceStatus alongside the per-component
@@ -129,6 +170,11 @@ void VDA5050MasterROS2::on_connection(
   const std::string& agv_id, const vda5050_core::types::Connection& connection)
 {
   auto [mfg, serial] = split_agv_id(agv_id);
+  if (!ros2_topics_allowed(agv_id, mfg, serial))
+  {
+    vda5050_core::master::VDA5050Master::on_connection(agv_id, connection);
+    return;
+  }
   device_status_->publish_connection(mfg, serial, connection);
   if (auto agv = get_agv(mfg, serial))
   {
@@ -142,6 +188,11 @@ void VDA5050MasterROS2::on_factsheet(
   const std::string& agv_id, const vda5050_core::types::Factsheet& factsheet)
 {
   auto [mfg, serial] = split_agv_id(agv_id);
+  if (!ros2_topics_allowed(agv_id, mfg, serial))
+  {
+    vda5050_core::master::VDA5050Master::on_factsheet(agv_id, factsheet);
+    return;
+  }
   device_status_->publish_factsheet(mfg, serial, factsheet);
   if (auto agv = get_agv(mfg, serial))
   {
@@ -154,6 +205,17 @@ void VDA5050MasterROS2::on_factsheet(
 void VDA5050MasterROS2::on_offboard(const std::string& agv_id)
 {
   auto [mfg, serial] = split_agv_id(agv_id);
+  {
+    std::lock_guard<std::mutex> lock(topic_identity_mutex_);
+    const std::string sanitized = internal::to_ros2_topic_segment(mfg) + "/" +
+                                  internal::to_ros2_topic_segment(serial);
+    auto it = claimed_topic_identities_.find(sanitized);
+    if (it != claimed_topic_identities_.end() && it->second == agv_id)
+    {
+      claimed_topic_identities_.erase(it);
+    }
+    refused_agvs_.erase(agv_id);
+  }
   device_status_->remove_agv(mfg, serial);
   order_status_publisher_->remove_agv(mfg, serial);
   pose_view_publisher_->remove_agv(mfg, serial);

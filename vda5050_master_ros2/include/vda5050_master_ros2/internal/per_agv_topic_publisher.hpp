@@ -19,6 +19,7 @@
 #ifndef VDA5050_MASTER_ROS2__INTERNAL__PER_AGV_TOPIC_PUBLISHER_HPP_
 #define VDA5050_MASTER_ROS2__INTERNAL__PER_AGV_TOPIC_PUBLISHER_HPP_
 
+#include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -37,18 +38,25 @@ namespace internal {
 // released so concurrent per-AGV threads do not serialize on it (rclcpp
 // publish is itself thread-safe, and the copied shared_ptr keeps the
 // publisher alive even if remove_agv races the publish).
+//
+// node_create_mutex is shared across every publisher helper on the same node.
+// rclcpp guarantees publish() is thread-safe but NOT entity creation, and the
+// per-AGV publish paths run on two threads (MQTT callback + ROS timer), so all
+// create_publisher() calls must serialize on one node-wide mutex.
 template <typename MsgT>
 class PerAgvTopicPublisher
 {
 public:
   PerAgvTopicPublisher(
     rclcpp::Node::SharedPtr node, std::string topic_namespace, std::string leaf,
-    std::string log_tag, rclcpp::QoS qos)
+    std::string log_tag, rclcpp::QoS qos,
+    std::shared_ptr<std::mutex> node_create_mutex)
   : node_(std::move(node)),
     namespace_(std::move(topic_namespace)),
     leaf_(std::move(leaf)),
     log_tag_(std::move(log_tag)),
-    qos_(std::move(qos))
+    qos_(std::move(qos)),
+    node_create_mutex_(std::move(node_create_mutex))
   {
   }
 
@@ -100,15 +108,19 @@ private:
     if (it != publishers_.end()) return it->second;
 
     const std::string topic = topic_for(manufacturer, serial_number);
-    auto pub = node_->create_publisher<MsgT>(topic, qos_);
+    typename rclcpp::Publisher<MsgT>::SharedPtr pub;
+    {
+      std::lock_guard<std::mutex> node_lock(*node_create_mutex_);
+      pub = node_->create_publisher<MsgT>(topic, qos_);
+    }
 
     if (
       needs_topic_sanitization(manufacturer) ||
       needs_topic_sanitization(serial_number))
     {
       VDA5050_INFO(
-        "[{}] sanitized ROS 2 segment for AGV {} -> topic {} (ROS 2 names "
-        "cannot start with a digit; '_' was prepended)",
+        "[{}] sanitized ROS 2 segment for AGV {} -> topic {} (raw VDA5050 "
+        "identity contains characters not valid in a ROS 2 topic segment)",
         log_tag_, id, topic);
     }
     VDA5050_INFO(
@@ -122,6 +134,7 @@ private:
   const std::string leaf_;
   const std::string log_tag_;
   const rclcpp::QoS qos_;
+  const std::shared_ptr<std::mutex> node_create_mutex_;
 
   mutable std::mutex mutex_;
   std::unordered_map<std::string, typename rclcpp::Publisher<MsgT>::SharedPtr>

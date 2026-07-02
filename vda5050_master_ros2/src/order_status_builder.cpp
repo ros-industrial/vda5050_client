@@ -129,8 +129,16 @@ vda5050_master_ros2::msg::OrderStatus build_order_status_msg(
     msg.last_node_id = state_ptr->last_node_id;
     msg.last_node_sequence_id = state_ptr->last_node_sequence_id;
     msg.driving = state_ptr->driving;
-    msg.paused = state_ptr->paused.value_or(false);
-    msg.new_base_request = state_ptr->new_base_request.value_or(false);
+    msg.paused.clear();
+    if (state_ptr->paused.has_value())
+    {
+      msg.paused.push_back(state_ptr->paused.value());
+    }
+    msg.new_base_request.clear();
+    if (state_ptr->new_base_request.has_value())
+    {
+      msg.new_base_request.push_back(state_ptr->new_base_request.value());
+    }
 
     msg.action_states.reserve(state_ptr->action_states.size());
     for (const auto& a : state_ptr->action_states)

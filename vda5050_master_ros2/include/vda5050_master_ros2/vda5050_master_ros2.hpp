@@ -20,7 +20,10 @@
 #define VDA5050_MASTER_ROS2__VDA5050_MASTER_ROS2_HPP_
 
 #include <memory>
+#include <mutex>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 #include "rclcpp/rclcpp.hpp"
@@ -66,6 +69,12 @@ public:
   static constexpr double kMaxPoseViewRateHz = 1000.0;
 
   /// \brief Construct.
+  ///
+  /// Like the base VDA5050Master, this MUST be created via
+  /// std::make_shared<VDA5050MasterROS2>(...). The base dispatches AGV
+  /// callbacks through weak_from_this(); a stack- or unique_ptr-allocated
+  /// instance silently publishes nothing per-AGV.
+  ///
   /// \param mqtt_client      Same MQTT client passed to base; required.
   /// \param ros2_node        ROS 2 node hosting publishers.
   ///                         Caller spins. Must outlive this object.
@@ -134,7 +143,17 @@ private:
   // Timer callback: publish a fused PoseView for every onboarded AGV.
   void publish_pose_views();
 
+  // False when this AGV's sanitized ROS 2 topic identity collides with one
+  // already claimed by a different AGV; its ROS 2 topics are then refused (a
+  // one-shot ERROR is logged). Decided once per AGV.
+  bool ros2_topics_allowed(
+    const std::string& agv_id, const std::string& manufacturer,
+    const std::string& serial_number);
+
   rclcpp::Node::SharedPtr node_;
+  // Shared by every per-AGV publisher so concurrent create_publisher() calls
+  // from the MQTT and timer threads serialize on one node-wide mutex.
+  std::shared_ptr<std::mutex> node_create_mutex_;
   std::unique_ptr<DeviceStatusPublisher> device_status_;
   std::unique_ptr<OrderStatusPublisher> order_status_publisher_;
   std::unique_ptr<PoseViewPublisher> pose_view_publisher_;
@@ -143,6 +162,19 @@ private:
   std::shared_ptr<AssignmentResultPublisher> assignment_result_publisher_;
   std::unique_ptr<AssignOrderRequestSubscriber>
     assign_order_request_subscriber_;
+
+  // ROS 2 topic-name collision guard: distinct raw identities can sanitize to
+  // the same topic segment pair. The first claims it; later colliders land in
+  // refused_agvs_ and get no ROS 2 topics.
+  std::mutex topic_identity_mutex_;
+  std::unordered_map<std::string, std::string> claimed_topic_identities_;
+  std::unordered_set<std::string> refused_agvs_;
+
+  // Guards pose-timer teardown: the destructor sets shutting_down_ under this
+  // mutex so it waits out any in-flight publish_pose_views() before the members
+  // it touches are destroyed (safe even under a multi-threaded executor).
+  std::mutex pose_timer_mutex_;
+  bool shutting_down_ = false;
 
   // Declared last so it is destroyed first — the timer callback touches the
   // pose_view publisher and the base AGV registry, which must outlive it.

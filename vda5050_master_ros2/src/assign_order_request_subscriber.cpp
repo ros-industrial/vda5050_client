@@ -19,6 +19,7 @@
 #include "vda5050_master_ros2/assign_order_request_subscriber.hpp"
 
 #include <cstdint>
+#include <exception>
 #include <string>
 #include <utility>
 #include <vector>
@@ -84,7 +85,9 @@ AssignOrderRequestSubscriber::AssignOrderRequestSubscriber(
   topic_name_(make_topic_name(topic_namespace))
 {
   rclcpp::QoS qos(kQosDepth);
-  qos.reliable();  // VOLATILE durability — requests do not replay.
+  // RELIABLE so no request is dropped; VOLATILE so requests are not replayed
+  // to a late-joining master.
+  qos.reliable().durability_volatile();
 
   sub_ =
     node_->create_subscription<vda5050_master_ros2::msg::AssignOrderRequest>(
@@ -117,8 +120,28 @@ void AssignOrderRequestSubscriber::on_request(
     return;
   }
 
-  vda5050_core::types::Order order_typed = internal::from_msg<
-    vda5050_interfaces::msg::Order, vda5050_core::types::Order>(msg->order);
+  // from_msg round-trips through JSON and throws on a semantically invalid
+  // order (bad enum, missing required key). The request comes from an external
+  // caller, so a malformed order must not escape the callback and abort the
+  // executor — reject it and still return a verdict for this assignment_id.
+  vda5050_core::types::Order order_typed;
+  try
+  {
+    order_typed = internal::from_msg<
+      vda5050_interfaces::msg::Order, vda5050_core::types::Order>(msg->order);
+  }
+  catch (const std::exception& e)
+  {
+    vda5050_interfaces::msg::Error err;
+    err.error_type = "InvalidOrder";
+    err.error_level = vda5050_interfaces::msg::Error::ERROR_LEVEL_FATAL;
+    err.error_description.push_back(
+      std::string("AssignOrderRequest.order could not be parsed: ") + e.what());
+    result_publisher_->publish_result(
+      msg->assignment_id, msg->order.order_id, msg->order.order_update_id,
+      AR::REJECTED_PREFLIGHT, {err});
+    return;
+  }
 
   const vda5050_core::master::AssignmentResult result =
     sender_(msg->manufacturer, msg->serial_number, order_typed);

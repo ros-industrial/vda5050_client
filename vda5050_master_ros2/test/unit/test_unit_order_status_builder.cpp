@@ -114,8 +114,8 @@ TEST(OrderStatusBuilderTest, EmptyState_NoActiveOrder_PhaseNoOrder)
   EXPECT_EQ(msg.nodes_in_base, 0u);
   EXPECT_EQ(msg.nodes_in_horizon, 0u);
   EXPECT_FALSE(msg.driving);
-  EXPECT_FALSE(msg.paused);
-  EXPECT_FALSE(msg.new_base_request);
+  EXPECT_TRUE(msg.paused.empty());
+  EXPECT_TRUE(msg.new_base_request.empty());
   EXPECT_TRUE(msg.action_states.empty());
   EXPECT_TRUE(msg.errors.empty());
 }
@@ -232,8 +232,10 @@ TEST(
   EXPECT_EQ(msg.nodes_in_base, 3u);
   EXPECT_EQ(msg.nodes_in_horizon, 2u);
   EXPECT_EQ(msg.pending_stitch_count, 2u);
-  EXPECT_TRUE(msg.paused);
-  EXPECT_TRUE(msg.new_base_request);
+  ASSERT_EQ(msg.paused.size(), 1u);
+  EXPECT_TRUE(msg.paused[0]);
+  ASSERT_EQ(msg.new_base_request.size(), 1u);
+  EXPECT_TRUE(msg.new_base_request[0]);
   ASSERT_EQ(msg.action_states.size(), 2u);
   EXPECT_EQ(msg.action_states[0].action_id, "A1");
   EXPECT_EQ(msg.action_states[1].action_id, "A2");

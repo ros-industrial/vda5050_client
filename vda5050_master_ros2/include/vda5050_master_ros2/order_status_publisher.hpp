@@ -19,6 +19,8 @@
 #ifndef VDA5050_MASTER_ROS2__ORDER_STATUS_PUBLISHER_HPP_
 #define VDA5050_MASTER_ROS2__ORDER_STATUS_PUBLISHER_HPP_
 
+#include <memory>
+#include <mutex>
 #include <string>
 
 #include "rclcpp/rclcpp.hpp"
@@ -63,9 +65,14 @@ public:
   /// \param topic_namespace Prefix for all per-AGV topics. Empty string
   ///                        means topics are published at the node's
   ///                        own namespace.
+  /// \param node_create_mutex Shared node-entity-creation mutex; when null a
+  ///                          private one is used. VDA5050MasterROS2 passes one
+  ///                          shared across all publishers so create_publisher
+  ///                          calls from different threads serialize.
   explicit OrderStatusPublisher(
     rclcpp::Node::SharedPtr node,
-    const std::string& topic_namespace = kDefaultNamespace);
+    const std::string& topic_namespace = kDefaultNamespace,
+    std::shared_ptr<std::mutex> node_create_mutex = nullptr);
 
   ~OrderStatusPublisher() = default;
   OrderStatusPublisher(const OrderStatusPublisher&) = delete;

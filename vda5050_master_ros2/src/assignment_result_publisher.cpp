@@ -44,7 +44,8 @@ AssignmentResultPublisher::AssignmentResultPublisher(
 : node_(std::move(node)), topic_name_(make_topic_name(topic_namespace))
 {
   rclcpp::QoS qos(kQosDepth);
-  qos.reliable();  // VOLATILE durability by default
+  // RELIABLE so no result is dropped; VOLATILE so results are not replayed.
+  qos.reliable().durability_volatile();
   pub_ = node_->create_publisher<vda5050_master_ros2::msg::AssignmentResult>(
     topic_name_, qos);
 

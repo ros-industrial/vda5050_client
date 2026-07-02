@@ -18,16 +18,21 @@
 
 #include "vda5050_master_ros2/pose_view_publisher.hpp"
 
+#include <memory>
+#include <mutex>
 #include <string>
 #include <utility>
 
 namespace vda5050_master_ros2 {
 
 PoseViewPublisher::PoseViewPublisher(
-  rclcpp::Node::SharedPtr node, const std::string& topic_namespace)
+  rclcpp::Node::SharedPtr node, const std::string& topic_namespace,
+  std::shared_ptr<std::mutex> node_create_mutex)
 : impl_(
     std::move(node), topic_namespace, "pose_view", "PoseViewPublisher",
-    rclcpp::QoS(kQosDepth))
+    rclcpp::QoS(kQosDepth),
+    node_create_mutex ? std::move(node_create_mutex)
+                      : std::make_shared<std::mutex>())
 {
 }
 

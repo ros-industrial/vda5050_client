@@ -165,14 +165,20 @@ private:
 
   // ROS 2 topic-name collision guard: distinct raw identities can sanitize to
   // the same topic segment pair. The first claims it; later colliders land in
-  // refused_agvs_ and get no ROS 2 topics.
+  // refused_agvs_ and get no ROS 2 topics. allowed_agvs_ / refused_agvs_ cache
+  // the per-AGV verdict so the steady-state path is a single lookup (the key is
+  // built and the claim attempted only on an AGV's first sighting).
   std::mutex topic_identity_mutex_;
   std::unordered_map<std::string, std::string> claimed_topic_identities_;
+  std::unordered_set<std::string> allowed_agvs_;
   std::unordered_set<std::string> refused_agvs_;
 
   // Guards pose-timer teardown: the destructor sets shutting_down_ under this
-  // mutex so it waits out any in-flight publish_pose_views() before the members
-  // it touches are destroyed (safe even under a multi-threaded executor).
+  // mutex so a concurrently-running publish_pose_views() finishes (or bails)
+  // before the members it touches are destroyed. The caller must stop spinning
+  // the executor before destroying this object (the "Caller spins" contract) —
+  // that is what guarantees no new callback starts during teardown; the mutex
+  // additionally covers a callback that is already mid-flight.
   std::mutex pose_timer_mutex_;
   bool shutting_down_ = false;
 

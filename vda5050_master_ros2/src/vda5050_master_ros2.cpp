@@ -112,15 +112,21 @@ bool VDA5050MasterROS2::ros2_topics_allowed(
   const std::string& agv_id, const std::string& manufacturer,
   const std::string& serial_number)
 {
+  std::lock_guard<std::mutex> lock(topic_identity_mutex_);
+  // Steady-state fast path: the verdict is stable per AGV, so once decided it
+  // is a single lookup — no key rebuild, no allocating emplace, per message.
+  if (allowed_agvs_.count(agv_id)) return true;
+  if (refused_agvs_.count(agv_id)) return false;
+
   const std::string sanitized = internal::to_ros2_topic_segment(manufacturer) +
                                 "/" +
                                 internal::to_ros2_topic_segment(serial_number);
-
-  std::lock_guard<std::mutex> lock(topic_identity_mutex_);
-  if (refused_agvs_.count(agv_id)) return false;
-
   auto [it, inserted] = claimed_topic_identities_.emplace(sanitized, agv_id);
-  if (inserted || it->second == agv_id) return true;
+  if (inserted)
+  {
+    allowed_agvs_.insert(agv_id);
+    return true;
+  }
 
   refused_agvs_.insert(agv_id);
   VDA5050_ERROR(
@@ -219,6 +225,7 @@ void VDA5050MasterROS2::on_offboard(const std::string& agv_id)
     {
       claimed_topic_identities_.erase(it);
     }
+    allowed_agvs_.erase(agv_id);
     refused_agvs_.erase(agv_id);
   }
   device_status_->remove_agv(mfg, serial);

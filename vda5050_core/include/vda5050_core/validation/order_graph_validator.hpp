@@ -22,9 +22,7 @@
 #include "vda5050_core/errors/validation_result.hpp"
 #include "vda5050_core/types/order.hpp"
 
-namespace vda5050_core {
-
-namespace validation {
+namespace vda5050_core::validation {
 
 /// \brief Checks that the nodes and edges in a VDA5050 Order form a valid
 /// graph according to the VDA5050 specification sheet.
@@ -45,7 +43,6 @@ errors::ValidationResult is_valid_update(
   const vda5050_core::types::Order& base_order,
   const vda5050_core::types::Order& next_order);
 
-}  // namespace validation
-}  // namespace vda5050_core
+}  // namespace vda5050_core::validation
 
 #endif  // VDA5050_CORE__VALIDATION__ORDER_GRAPH_VALIDATOR_HPP_

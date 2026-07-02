@@ -23,7 +23,7 @@
 #include <string>
 #include <vector>
 
-#include "fmt/format.h"
+#include <fmt/format.h>
 
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"

@@ -28,7 +28,9 @@
 #include "vda5050_core/types/factsheet.hpp"
 #include "vda5050_core/types/state.hpp"
 
-namespace vda5050_core::validation {
+namespace vda5050_core {
+
+namespace validation {
 
 /// \brief Lock-free AGV snapshot captured once; serves the whole publish chain.
 struct PreSendContext
@@ -44,6 +46,7 @@ struct PreSendContext
 vda5050_core::errors::ValidationResult validate_pre_send(
   const PreSendContext& ctx);
 
-}  // namespace vda5050_core::validation
+}  // namespace validation
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__VALIDATION__PRE_SEND_VALIDATOR_HPP_

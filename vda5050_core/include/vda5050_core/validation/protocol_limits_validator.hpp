@@ -24,7 +24,9 @@
 #include "vda5050_core/types/order.hpp"
 #include "vda5050_core/validation/pre_send_validator.hpp"
 
-namespace vda5050_core::validation {
+namespace vda5050_core {
+
+namespace validation {
 
 /// \brief Does the message fit the AGV's declared array-size limits? Checks
 /// node / edge / action / parameter counts against the factsheet's
@@ -37,6 +39,7 @@ vda5050_core::errors::ValidationResult validate_protocol_limits(
   const PreSendContext& ctx,
   const vda5050_core::types::InstantActions& actions);
 
-}  // namespace vda5050_core::validation
+}  // namespace validation
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__VALIDATION__PROTOCOL_LIMITS_VALIDATOR_HPP_

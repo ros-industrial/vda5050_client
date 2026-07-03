@@ -23,7 +23,9 @@
 #include "vda5050_core/types/order.hpp"
 #include "vda5050_core/validation/pre_send_validator.hpp"
 
-namespace vda5050_core::validation {
+namespace vda5050_core {
+
+namespace validation {
 
 /// \brief Can this AGV navigate the order's route? Validates first-node
 /// reachability (state-driven) and, when a layout is loaded, that every
@@ -32,6 +34,7 @@ namespace vda5050_core::validation {
 vda5050_core::errors::ValidationResult validate_traversability(
   const PreSendContext& ctx, const vda5050_core::types::Order& order);
 
-}  // namespace vda5050_core::validation
+}  // namespace validation
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__VALIDATION__TRAVERSABILITY_VALIDATOR_HPP_

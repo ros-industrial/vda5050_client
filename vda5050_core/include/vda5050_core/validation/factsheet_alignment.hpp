@@ -23,7 +23,9 @@
 #include "vda5050_core/layout/graph.hpp"
 #include "vda5050_core/types/factsheet.hpp"
 
-namespace vda5050_core::validation {
+namespace vda5050_core {
+
+namespace validation {
 
 // Cross-checks a loaded layout against an AGV's factsheet so the integrator
 // learns, before sending orders, whether the AGV can physically execute what
@@ -52,6 +54,7 @@ vda5050_core::errors::ValidationResult check_factsheet_alignment(
   const vda5050_core::layout::Graph& graph,
   const vda5050_core::types::Factsheet& factsheet);
 
-}  // namespace vda5050_core::validation
+}  // namespace validation
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__VALIDATION__FACTSHEET_ALIGNMENT_HPP_

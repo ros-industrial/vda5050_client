@@ -27,7 +27,9 @@
 #include "vda5050_core/types/state.hpp"
 #include "vda5050_core/types/visualization.hpp"
 
-namespace vda5050_core::validation {
+namespace vda5050_core {
+
+namespace validation {
 
 /// \brief Required-content checks on an Order (version, non-empty ids).
 vda5050_core::errors::ValidationResult validate_order_content(
@@ -53,6 +55,7 @@ vda5050_core::errors::ValidationResult validate_factsheet_content(
 vda5050_core::errors::ValidationResult validate_visualization_content(
   const vda5050_core::types::Visualization& visualization);
 
-}  // namespace vda5050_core::validation
+}  // namespace validation
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__VALIDATION__CONTENT_VALIDATOR_HPP_

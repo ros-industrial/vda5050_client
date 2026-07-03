@@ -25,7 +25,9 @@
 #include "vda5050_core/types/instant_actions.hpp"
 #include "vda5050_core/validation/pre_send_validator.hpp"
 
-namespace vda5050_core::validation {
+namespace vda5050_core {
+
+namespace validation {
 
 /// \brief Operating-mode gate: in non-AUTOMATIC modes, only the predefined
 /// instant-scope actions (is_mode_exempt_action_type) may be sent.
@@ -37,6 +39,7 @@ vda5050_core::errors::ValidationResult validate_instant_action_mode(
 /// the operating-mode gate (e.g. stateRequest, cancelOrder, initPosition).
 bool is_mode_exempt_action_type(const std::string& action_type);
 
-}  // namespace vda5050_core::validation
+}  // namespace validation
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__VALIDATION__INSTANT_ACTION_MODE_VALIDATOR_HPP_

@@ -24,7 +24,9 @@
 #include "vda5050_core/types/order.hpp"
 #include "vda5050_core/validation/pre_send_validator.hpp"
 
-namespace vda5050_core::validation {
+namespace vda5050_core {
+
+namespace validation {
 
 /// \brief Can this AGV perform the message's actions? Checks every action
 /// against the factsheet (action type supported, required scope, blocking
@@ -37,6 +39,7 @@ vda5050_core::errors::ValidationResult validate_capability(
   const PreSendContext& ctx,
   const vda5050_core::types::InstantActions& actions);
 
-}  // namespace vda5050_core::validation
+}  // namespace validation
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__VALIDATION__CAPABILITY_VALIDATOR_HPP_

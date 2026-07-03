@@ -28,9 +28,9 @@ namespace vda5050_core {
 
 namespace validation {
 
-/// \brief Can this AGV perform the message's actions? Checks every action
-/// against the factsheet (action type supported, required scope, blocking
-/// type, declared/required parameters). Skips when no factsheet is cached.
+/// \brief Validate the message's actions against the AGV factsheet (action
+/// type supported, required scope, blocking type, declared/required
+/// parameters). Skips when no factsheet is cached.
 vda5050_core::errors::ValidationResult validate_capability(
   const PreSendContext& ctx, const vda5050_core::types::Order& order);
 

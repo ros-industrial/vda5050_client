@@ -57,6 +57,7 @@ vda5050_core::errors::ValidationResult check_factsheet_alignment(
   }
 
   graph.for_each_edge_ordered([&](const vda5050_core::layout::Edge& edge) {
+    // v2.0.0 factsheet has no vehicle_type_id — check every lane.
     for (const auto& prop : edge.vehicle_type_edge_properties)
     {
       if (!prop.max_speed.has_value()) continue;

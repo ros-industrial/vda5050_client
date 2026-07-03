@@ -27,23 +27,8 @@ namespace vda5050_core {
 
 namespace validation {
 
-// Cross-checks a loaded layout against an AGV's factsheet so the integrator
-// learns, before sending orders, whether the AGV can physically execute what
-// the layout commands.
-//
-// Speed rule: "speedExceedsCapability" / "speedBelowMinimum" — for every edge's
-// per-vehicle-type max_speed, compare against the factsheet's reported physical
-// speed envelope (physical_parameters.speed_max / speed_min). The v2.0.0
-// factsheet carries no vehicle_type_id, so the check cannot resolve which
-// vehicle-type lane applies to this AGV; it reports every lane and names the
-// vehicle_type_id in the finding, leaving relevance to the integrator. Findings
-// are advisory (WARNING level) and never block onboarding.
-//
-// Deferred (no v2.0.0 factsheet field to check against): footprint-fits-edge,
-// localization tolerance, mapId / mapVersion match.
-
-/// \brief Run alignment checks for `factsheet` against `graph`. Stateless;
-/// safe to call concurrently.
+/// \brief Advisory check: edge speeds in `graph` against the AGV factsheet's
+/// speed envelope. Stateless; safe to call concurrently.
 ///
 /// \param graph      the master's loaded layout
 /// \param factsheet  the AGV's reported factsheet

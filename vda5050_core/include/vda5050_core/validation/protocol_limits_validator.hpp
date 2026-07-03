@@ -28,9 +28,9 @@ namespace vda5050_core {
 
 namespace validation {
 
-/// \brief Does the message fit the AGV's declared array-size limits? Checks
-/// node / edge / action / parameter counts against the factsheet's
-/// protocol_limits. Skips when no factsheet is cached.
+/// \brief Validate the message's array sizes against the factsheet's
+/// protocol_limits (node / edge / action / parameter counts). Skips when no
+/// factsheet is cached.
 vda5050_core::errors::ValidationResult validate_protocol_limits(
   const PreSendContext& ctx, const vda5050_core::types::Order& order);
 

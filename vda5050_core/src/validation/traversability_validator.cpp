@@ -110,11 +110,8 @@ void validate_reachability(
   }
 }
 
-// Topological checks against the loaded layout: every order node/edge id must
-// exist, the order edge's endpoints must match the (directed) layout edge, and
-// each node's map_id must match the layout. Order edge_id must equal the layout
-// edge id. Coordinates are not compared — node x/y precision is implementation
-// defined, so agreement is asserted via the map_id, not a distance tolerance.
+// Order nodes/edges must exist in the layout with matching endpoints, edge
+// direction, and map_id. Coordinates aren't compared (map_id asserts agreement).
 void validate_graph_integrity(
   const PreSendContext& ctx, const vda5050_core::types::Order& order,
   const AddErrorFn& add_error)

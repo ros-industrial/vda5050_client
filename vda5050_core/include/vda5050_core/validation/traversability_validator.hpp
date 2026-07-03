@@ -27,10 +27,9 @@ namespace vda5050_core {
 
 namespace validation {
 
-/// \brief Can this AGV navigate the order's route? Validates first-node
-/// reachability (state-driven) and, when a layout is loaded, that every
-/// node/edge exists in it with matching map_id and directed endpoints. The
-/// graph-integrity check is skipped when no layout is cached.
+/// \brief Validate the order's route for this AGV: first-node reachability
+/// and, if a layout is loaded, node/edge existence, map_id, and edge
+/// direction.
 vda5050_core::errors::ValidationResult validate_traversability(
   const PreSendContext& ctx, const vda5050_core::types::Order& order);
 

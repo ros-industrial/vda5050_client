@@ -51,14 +51,8 @@ vda5050_core::errors::ValidationResult validate_instant_action_mode(
 {
   vda5050_core::errors::ValidationResult res;
 
-  // The master may send arbitrary instant actions only when the AGV is
-  // confirmed to be under its control (AUTOMATIC / SEMIAUTOMATIC). Any other
-  // mode — or an unknown mode (no reported state) — is treated conservatively:
-  // only the predefined exempt actions pass, since the AGV cannot be confirmed
-  // to be in a mode that accepts arbitrary actions. Treating unknown as
-  // AUTOMATIC would be the most permissive (and least safe) reading, and the
-  // AGV does not honour master actions in MANUAL / SERVICE / TEACHIN, so the
-  // master must self-enforce this rather than rely on an AGV backstop.
+  // Master control is confirmed only in AUTOMATIC / SEMIAUTOMATIC; any other or
+  // unknown mode is treated conservatively — only exempt actions pass below.
   const bool master_in_control =
     ctx.last_state.has_value() &&
     (ctx.last_state->operating_mode ==

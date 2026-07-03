@@ -31,31 +31,25 @@ namespace vda5050_core::validation {
 
 namespace {
 
-using ::vda5050_core::errors::CapabilityValidationError;
-using ::vda5050_core::errors::create_error;
-using ::vda5050_core::errors::ValidationResult;
-using ::vda5050_core::types::AGVAction;
-using ::vda5050_core::types::ErrorReference;
-
 using AddErrorFn =
-  std::function<void(const std::string&, std::vector<ErrorReference>)>;
+  std::function<void(const std::string&, std::vector<types::ErrorReference>)>;
 
-const AGVAction* find_agv_action(
-  const vda5050_core::types::Factsheet& fs, const std::string& action_type)
+const types::AGVAction* find_agv_action(
+  const types::Factsheet& fs, const std::string& action_type)
 {
   const auto& actions = fs.protocol_features.agv_actions;
   auto it = std::find_if(
     actions.begin(), actions.end(),
-    [&](const AGVAction& a) { return a.action_type == action_type; });
+    [&](const types::AGVAction& a) { return a.action_type == action_type; });
   return (it == actions.end()) ? nullptr : &(*it);
 }
 
 void validate_action_against_factsheet(
-  const vda5050_core::types::Action& action,
-  vda5050_core::types::ActionScope expected_scope,
-  const vda5050_core::types::Factsheet& factsheet, const AddErrorFn& add_error)
+  const types::Action& action, types::ActionScope expected_scope,
+  const types::Factsheet& factsheet, const AddErrorFn& add_error)
 {
-  const AGVAction* agv_action = find_agv_action(factsheet, action.action_type);
+  const types::AGVAction* agv_action =
+    find_agv_action(factsheet, action.action_type);
   if (agv_action == nullptr)
   {
     add_error(
@@ -103,7 +97,7 @@ void validate_action_against_factsheet(
     {
       auto it = std::find_if(
         declared.begin(), declared.end(),
-        [&](const vda5050_core::types::ActionParameterFactsheet& d) {
+        [&](const types::ActionParameterFactsheet& d) {
           return d.key == p.key;
         });
       if (it == declared.end())
@@ -139,24 +133,25 @@ void validate_action_against_factsheet(
 
 }  // namespace
 
-ValidationResult validate_capability(
-  const PreSendContext& ctx, const vda5050_core::types::Order& order)
+errors::ValidationResult validate_capability(
+  const PreSendContext& ctx, const types::Order& order)
 {
-  ValidationResult res;
+  errors::ValidationResult res;
 
-  auto add_error =
-    [&](const std::string& description, std::vector<ErrorReference> refs) {
-      refs.push_back({::vda5050_core::errors::RefOrderId, order.order_id});
-      res.add_error(create_error(CapabilityValidationError, description, refs));
-    };
+  auto add_error = [&](
+                     const std::string& description,
+                     std::vector<types::ErrorReference> refs) {
+    refs.push_back({errors::RefOrderId, order.order_id});
+    res.add_error(errors::create_error(
+      errors::CapabilityValidationError, description, refs));
+  };
 
   if (!ctx.last_factsheet.has_value())
   {
-    res.add_error(create_error(
-      ::vda5050_core::errors::CapabilityCheckSkipped,
+    res.add_error(errors::create_error(
+      errors::CapabilityCheckSkipped,
       "No factsheet cached; capability checks skipped.",
-      {{::vda5050_core::errors::RefOrderId, order.order_id}},
-      vda5050_core::types::ErrorLevel::WARNING));
+      {{errors::RefOrderId, order.order_id}}, types::ErrorLevel::WARNING));
     return res;
   }
 
@@ -167,7 +162,7 @@ ValidationResult validate_capability(
     for (const auto& action : node.actions)
     {
       validate_action_against_factsheet(
-        action, vda5050_core::types::ActionScope::NODE, fs, add_error);
+        action, types::ActionScope::NODE, fs, add_error);
     }
   }
 
@@ -176,29 +171,31 @@ ValidationResult validate_capability(
     for (const auto& action : edge.actions)
     {
       validate_action_against_factsheet(
-        action, vda5050_core::types::ActionScope::EDGE, fs, add_error);
+        action, types::ActionScope::EDGE, fs, add_error);
     }
   }
 
   return res;
 }
 
-ValidationResult validate_capability(
-  const PreSendContext& ctx, const vda5050_core::types::InstantActions& actions)
+errors::ValidationResult validate_capability(
+  const PreSendContext& ctx, const types::InstantActions& actions)
 {
-  ValidationResult res;
+  errors::ValidationResult res;
 
-  auto add_error =
-    [&](const std::string& description, std::vector<ErrorReference> refs) {
-      res.add_error(create_error(CapabilityValidationError, description, refs));
-    };
+  auto add_error = [&](
+                     const std::string& description,
+                     std::vector<types::ErrorReference> refs) {
+    res.add_error(errors::create_error(
+      errors::CapabilityValidationError, description, refs));
+  };
 
   if (!ctx.last_factsheet.has_value())
   {
-    res.add_error(create_error(
-      ::vda5050_core::errors::CapabilityCheckSkipped,
+    res.add_error(errors::create_error(
+      errors::CapabilityCheckSkipped,
       "No factsheet cached; instant-action capability checks skipped.", {},
-      vda5050_core::types::ErrorLevel::WARNING));
+      types::ErrorLevel::WARNING));
     return res;
   }
 
@@ -207,7 +204,7 @@ ValidationResult validate_capability(
   for (const auto& action : actions.actions)
   {
     validate_action_against_factsheet(
-      action, vda5050_core::types::ActionScope::INSTANT, fs, add_error);
+      action, types::ActionScope::INSTANT, fs, add_error);
   }
 
   return res;

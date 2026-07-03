@@ -46,34 +46,32 @@ bool is_mode_exempt_action_type(const std::string& action_type)
   return exempt_action_types().count(action_type) != 0;
 }
 
-vda5050_core::errors::ValidationResult validate_instant_action_mode(
-  const PreSendContext& ctx, const vda5050_core::types::InstantActions& actions)
+errors::ValidationResult validate_instant_action_mode(
+  const PreSendContext& ctx, const types::InstantActions& actions)
 {
-  vda5050_core::errors::ValidationResult res;
+  errors::ValidationResult res;
 
   // Master control is confirmed only in AUTOMATIC / SEMIAUTOMATIC; any other or
   // unknown mode is treated conservatively — only exempt actions pass below.
   const bool master_in_control =
     ctx.last_state.has_value() &&
-    (ctx.last_state->operating_mode ==
-       vda5050_core::types::OperatingMode::AUTOMATIC ||
-     ctx.last_state->operating_mode ==
-       vda5050_core::types::OperatingMode::SEMIAUTOMATIC);
+    (ctx.last_state->operating_mode == types::OperatingMode::AUTOMATIC ||
+     ctx.last_state->operating_mode == types::OperatingMode::SEMIAUTOMATIC);
   if (master_in_control) return res;
 
   for (const auto& action : actions.actions)
   {
     if (is_mode_exempt_action_type(action.action_type)) continue;
 
-    res.add_error(vda5050_core::errors::create_error(
-      vda5050_core::errors::ModeValidationError,
+    res.add_error(errors::create_error(
+      errors::ModeValidationError,
       fmt::format(
         "action_type '{}' is not on the instant-scope allowlist and the AGV "
         "is not confirmed to be in AUTOMATIC / SEMIAUTOMATIC operating_mode "
         "(master must not send driving orders or non-recovery actions in "
         "MANUAL / SERVICE / TEACHIN, or when the AGV's mode is unknown)",
         action.action_type),
-      {{vda5050_core::errors::RefActionId, action.action_id}}));
+      {{errors::RefActionId, action.action_id}}));
   }
 
   return res;

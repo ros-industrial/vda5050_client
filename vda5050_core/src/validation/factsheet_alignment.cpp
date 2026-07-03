@@ -28,35 +28,33 @@
 
 namespace vda5050_core::validation {
 
-vda5050_core::errors::ValidationResult check_factsheet_alignment(
-  const vda5050_core::layout::Graph& graph,
-  const vda5050_core::types::Factsheet& factsheet)
+errors::ValidationResult check_factsheet_alignment(
+  const layout::Graph& graph, const types::Factsheet& factsheet)
 {
-  vda5050_core::errors::ValidationResult result;
+  errors::ValidationResult result;
 
   const double agv_speed_max = factsheet.physical_parameters.speed_max;
   const double agv_speed_min = factsheet.physical_parameters.speed_min;
 
-  auto add_warning =
-    [&](
-      const std::string& code, const std::string& description,
-      std::vector<vda5050_core::types::ErrorReference> refs = {}) {
-      result.add_error(vda5050_core::errors::create_error(
-        code, description, refs, vda5050_core::types::ErrorLevel::WARNING));
-    };
+  auto add_warning = [&](
+                       const std::string& code, const std::string& description,
+                       std::vector<types::ErrorReference> refs = {}) {
+    result.add_error(errors::create_error(
+      code, description, refs, types::ErrorLevel::WARNING));
+  };
 
   // No usable speed capability reported (default-constructed or factsheet not
   // yet received) — skip rather than flag every edge.
   if (agv_speed_max <= 0.0)
   {
     add_warning(
-      vda5050_core::errors::SpeedCapabilityUnknown,
+      errors::SpeedCapabilityUnknown,
       "AGV factsheet reports no usable physical_parameters.speed_max; "
       "edge speed alignment was not checked.");
     return result;
   }
 
-  graph.for_each_edge_ordered([&](const vda5050_core::layout::Edge& edge) {
+  graph.for_each_edge_ordered([&](const layout::Edge& edge) {
     // v2.0.0 factsheet has no vehicle_type_id — check every lane.
     for (const auto& prop : edge.vehicle_type_edge_properties)
     {
@@ -65,22 +63,22 @@ vda5050_core::errors::ValidationResult check_factsheet_alignment(
       if (edge_max > agv_speed_max)
       {
         add_warning(
-          vda5050_core::errors::SpeedExceedsCapability,
+          errors::SpeedExceedsCapability,
           fmt::format(
             "Edge '{}' (vehicle_type '{}') max_speed={} m/s exceeds AGV "
             "factsheet physical_parameters.speed_max={} m/s.",
             edge.edge_id, prop.vehicle_type_id, edge_max, agv_speed_max),
-          {{vda5050_core::errors::RefEdgeId, edge.edge_id}});
+          {{errors::RefEdgeId, edge.edge_id}});
       }
       if (agv_speed_min > 0.0 && edge_max < agv_speed_min)
       {
         add_warning(
-          vda5050_core::errors::SpeedBelowMinimum,
+          errors::SpeedBelowMinimum,
           fmt::format(
             "Edge '{}' (vehicle_type '{}') max_speed={} m/s is below AGV "
             "factsheet physical_parameters.speed_min={} m/s.",
             edge.edge_id, prop.vehicle_type_id, edge_max, agv_speed_min),
-          {{vda5050_core::errors::RefEdgeId, edge.edge_id}});
+          {{errors::RefEdgeId, edge.edge_id}});
       }
     }
   });

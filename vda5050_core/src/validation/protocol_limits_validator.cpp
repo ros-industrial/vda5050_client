@@ -33,13 +33,8 @@ namespace vda5050_core::validation {
 
 namespace {
 
-using ::vda5050_core::errors::create_error;
-using ::vda5050_core::errors::ProtocolLimitError;
-using ::vda5050_core::errors::ValidationResult;
-using ::vda5050_core::types::ErrorReference;
-
 using AddErrorFn =
-  std::function<void(const std::string&, std::vector<ErrorReference>)>;
+  std::function<void(const std::string&, std::vector<types::ErrorReference>)>;
 
 void check_limit(
   const std::optional<uint32_t>& limit, std::size_t actual,
@@ -57,24 +52,25 @@ void check_limit(
 
 }  // namespace
 
-ValidationResult validate_protocol_limits(
-  const PreSendContext& ctx, const vda5050_core::types::Order& order)
+errors::ValidationResult validate_protocol_limits(
+  const PreSendContext& ctx, const types::Order& order)
 {
-  ValidationResult res;
+  errors::ValidationResult res;
 
-  auto add_error =
-    [&](const std::string& description, std::vector<ErrorReference> refs) {
-      refs.push_back({::vda5050_core::errors::RefOrderId, order.order_id});
-      res.add_error(create_error(ProtocolLimitError, description, refs));
-    };
+  auto add_error = [&](
+                     const std::string& description,
+                     std::vector<types::ErrorReference> refs) {
+    refs.push_back({errors::RefOrderId, order.order_id});
+    res.add_error(
+      errors::create_error(errors::ProtocolLimitError, description, refs));
+  };
 
   if (!ctx.last_factsheet.has_value())
   {
-    res.add_error(create_error(
-      ::vda5050_core::errors::ProtocolLimitCheckSkipped,
+    res.add_error(errors::create_error(
+      errors::ProtocolLimitCheckSkipped,
       "No factsheet cached; array-limit checks skipped.",
-      {{::vda5050_core::errors::RefOrderId, order.order_id}},
-      vda5050_core::types::ErrorLevel::WARNING));
+      {{errors::RefOrderId, order.order_id}}, types::ErrorLevel::WARNING));
     return res;
   }
 
@@ -114,22 +110,24 @@ ValidationResult validate_protocol_limits(
   return res;
 }
 
-ValidationResult validate_protocol_limits(
-  const PreSendContext& ctx, const vda5050_core::types::InstantActions& actions)
+errors::ValidationResult validate_protocol_limits(
+  const PreSendContext& ctx, const types::InstantActions& actions)
 {
-  ValidationResult res;
+  errors::ValidationResult res;
 
-  auto add_error =
-    [&](const std::string& description, std::vector<ErrorReference> refs) {
-      res.add_error(create_error(ProtocolLimitError, description, refs));
-    };
+  auto add_error = [&](
+                     const std::string& description,
+                     std::vector<types::ErrorReference> refs) {
+    res.add_error(
+      errors::create_error(errors::ProtocolLimitError, description, refs));
+  };
 
   if (!ctx.last_factsheet.has_value())
   {
-    res.add_error(create_error(
-      ::vda5050_core::errors::ProtocolLimitCheckSkipped,
+    res.add_error(errors::create_error(
+      errors::ProtocolLimitCheckSkipped,
       "No factsheet cached; instant-action array-limit checks skipped.", {},
-      vda5050_core::types::ErrorLevel::WARNING));
+      types::ErrorLevel::WARNING));
     return res;
   }
 

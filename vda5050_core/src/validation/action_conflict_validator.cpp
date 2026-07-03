@@ -29,35 +29,27 @@ namespace vda5050_core::validation {
 
 namespace {
 
-using ::vda5050_core::errors::ActionBlockedByDrivingError;
-using ::vda5050_core::errors::create_error;
-using ::vda5050_core::errors::HardActionBlockedError;
-using ::vda5050_core::errors::RefActionId;
-using ::vda5050_core::errors::ValidationResult;
-using ::vda5050_core::types::ActionStatus;
-using ::vda5050_core::types::BlockingType;
-using ::vda5050_core::types::ErrorReference;
-
 // Active statuses: the AGV is committed to the action. PAUSED is included
 // (mid-pause HARD could collide on resume); FINISHED / FAILED are not.
-constexpr bool is_active_status(ActionStatus s)
+constexpr bool is_active_status(types::ActionStatus s)
 {
-  return s == ActionStatus::WAITING || s == ActionStatus::INITIALIZING ||
-         s == ActionStatus::RUNNING || s == ActionStatus::PAUSED;
+  return s == types::ActionStatus::WAITING ||
+         s == types::ActionStatus::INITIALIZING ||
+         s == types::ActionStatus::RUNNING || s == types::ActionStatus::PAUSED;
 }
 
 }  // namespace
 
-ValidationResult validate_action_conflict(
-  const PreSendContext& ctx, const vda5050_core::types::InstantActions& actions)
+errors::ValidationResult validate_action_conflict(
+  const PreSendContext& ctx, const types::InstantActions& actions)
 {
-  ValidationResult res;
+  errors::ValidationResult res;
 
   auto add_error = [&](
                      const std::string& error_type,
                      const std::string& description,
-                     std::vector<ErrorReference> refs) {
-    res.add_error(create_error(error_type, description, refs));
+                     std::vector<types::ErrorReference> refs) {
+    res.add_error(errors::create_error(error_type, description, refs));
   };
 
   // No state to screen against — pass through. The AGV enforces non-conflict
@@ -81,41 +73,41 @@ ValidationResult validate_action_conflict(
   {
     switch (action.blocking_type)
     {
-      case BlockingType::NONE:
+      case types::BlockingType::NONE:
         break;
-      case BlockingType::SOFT:
+      case types::BlockingType::SOFT:
         if (driving)
         {
           add_error(
-            ActionBlockedByDrivingError,
+            errors::ActionBlockedByDrivingError,
             fmt::format(
               "SOFT-blocking action '{}' rejected because AGV is driving "
               "(vehicle must not drive).",
               action.action_type),
-            {{RefActionId, action.action_id}});
+            {{errors::RefActionId, action.action_id}});
         }
         break;
-      case BlockingType::HARD:
+      case types::BlockingType::HARD:
         if (driving)
         {
           add_error(
-            ActionBlockedByDrivingError,
+            errors::ActionBlockedByDrivingError,
             fmt::format(
               "HARD-blocking action '{}' rejected because AGV is driving "
               "(vehicle must not drive).",
               action.action_type),
-            {{RefActionId, action.action_id}});
+            {{errors::RefActionId, action.action_id}});
           continue;
         }
         if (any_active)
         {
           add_error(
-            HardActionBlockedError,
+            errors::HardActionBlockedError,
             fmt::format(
               "HARD-blocking action '{}' rejected because AGV has active "
               "actions in flight (must not be executed in parallel).",
               action.action_type),
-            {{RefActionId, action.action_id}});
+            {{errors::RefActionId, action.action_id}});
         }
         break;
     }

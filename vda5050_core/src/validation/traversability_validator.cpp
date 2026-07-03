@@ -31,17 +31,12 @@ namespace vda5050_core::validation {
 
 namespace {
 
-using ::vda5050_core::errors::create_error;
-using ::vda5050_core::errors::TraversabilityValidationError;
-using ::vda5050_core::errors::ValidationResult;
-using ::vda5050_core::types::ErrorReference;
-
 using AddErrorFn =
-  std::function<void(const std::string&, std::vector<ErrorReference>)>;
+  std::function<void(const std::string&, std::vector<types::ErrorReference>)>;
 
 // Reachability (state-driven; runs without a factsheet).
 void validate_reachability(
-  const PreSendContext& ctx, const vda5050_core::types::Order& order,
+  const PreSendContext& ctx, const types::Order& order,
   const AddErrorFn& add_error)
 {
   if (order.nodes.empty())
@@ -66,7 +61,7 @@ void validate_reachability(
     add_error(
       "Cannot determine reachability: AGV is not on first node and "
       "either node_position or agv_position is missing.",
-      {{::vda5050_core::errors::RefNodeId, first.node_id}});
+      {{errors::RefNodeId, first.node_id}});
     return;
   }
 
@@ -77,7 +72,7 @@ void validate_reachability(
   {
     add_error(
       "Cannot determine reachability: AGV position is not initialized.",
-      {{::vda5050_core::errors::RefNodeId, first.node_id}});
+      {{errors::RefNodeId, first.node_id}});
     return;
   }
 
@@ -88,7 +83,7 @@ void validate_reachability(
         "AGV is on a different map than the first node (AGV map '{}', node "
         "map '{}').",
         ap.map_id, np.map_id),
-      {{::vda5050_core::errors::RefNodeId, first.node_id}});
+      {{errors::RefNodeId, first.node_id}});
     return;
   }
 
@@ -106,14 +101,14 @@ void validate_reachability(
         "AGV is not within the first node's allowed_deviation_x_y "
         "(distance={} m, allowed={} m).",
         distance, allowed),
-      {{::vda5050_core::errors::RefNodeId, first.node_id}});
+      {{errors::RefNodeId, first.node_id}});
   }
 }
 
 // Order nodes/edges must exist in the layout with matching endpoints, edge
 // direction, and map_id. Coordinates aren't compared (map_id asserts agreement).
 void validate_graph_integrity(
-  const PreSendContext& ctx, const vda5050_core::types::Order& order,
+  const PreSendContext& ctx, const types::Order& order,
   const AddErrorFn& add_error)
 {
   const auto& graph = *ctx.loaded_graph;
@@ -127,7 +122,7 @@ void validate_graph_integrity(
         fmt::format(
           "Order node_id '{}' is not present in the master's loaded layout.",
           node.node_id),
-        {{::vda5050_core::errors::RefNodeId, node.node_id}});
+        {{errors::RefNodeId, node.node_id}});
       continue;
     }
     if (!node.node_position.has_value()) continue;
@@ -139,7 +134,7 @@ void validate_graph_integrity(
           "Order node '{}' map_id '{}' does not match the layout's map_id "
           "'{}'.",
           node.node_id, np.map_id, gn->map_id),
-        {{::vda5050_core::errors::RefNodeId, node.node_id}});
+        {{errors::RefNodeId, node.node_id}});
     }
   }
 
@@ -153,7 +148,7 @@ void validate_graph_integrity(
           "Order edge_id '{}' is not present in the master's loaded layout "
           "(edge_id must match a layout edge id).",
           edge.edge_id),
-        {{::vda5050_core::errors::RefEdgeId, edge.edge_id}});
+        {{errors::RefEdgeId, edge.edge_id}});
       continue;
     }
     if (
@@ -167,24 +162,25 @@ void validate_graph_integrity(
           "separate edge.",
           edge.edge_id, edge.start_node_id, edge.end_node_id, ge->start_node_id,
           ge->end_node_id),
-        {{::vda5050_core::errors::RefEdgeId, edge.edge_id}});
+        {{errors::RefEdgeId, edge.edge_id}});
     }
   }
 }
 
 }  // namespace
 
-ValidationResult validate_traversability(
-  const PreSendContext& ctx, const vda5050_core::types::Order& order)
+errors::ValidationResult validate_traversability(
+  const PreSendContext& ctx, const types::Order& order)
 {
-  ValidationResult res;
+  errors::ValidationResult res;
 
-  auto add_error =
-    [&](const std::string& description, std::vector<ErrorReference> refs) {
-      refs.push_back({::vda5050_core::errors::RefOrderId, order.order_id});
-      res.add_error(
-        create_error(TraversabilityValidationError, description, refs));
-    };
+  auto add_error = [&](
+                     const std::string& description,
+                     std::vector<types::ErrorReference> refs) {
+    refs.push_back({errors::RefOrderId, order.order_id});
+    res.add_error(errors::create_error(
+      errors::TraversabilityValidationError, description, refs));
+  };
 
   validate_reachability(ctx, order, add_error);
 
@@ -194,11 +190,10 @@ ValidationResult validate_traversability(
   }
   else
   {
-    res.add_error(create_error(
-      ::vda5050_core::errors::GraphIntegrityCheckSkipped,
+    res.add_error(errors::create_error(
+      errors::GraphIntegrityCheckSkipped,
       "No layout loaded; graph-integrity checks skipped.",
-      {{::vda5050_core::errors::RefOrderId, order.order_id}},
-      vda5050_core::types::ErrorLevel::WARNING));
+      {{errors::RefOrderId, order.order_id}}, types::ErrorLevel::WARNING));
   }
 
   return res;

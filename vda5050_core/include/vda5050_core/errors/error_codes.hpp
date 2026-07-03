@@ -46,10 +46,8 @@ inline const std::string SpeedExceedsCapability = "speedExceedsCapability";
 inline const std::string SpeedBelowMinimum = "speedBelowMinimum";
 inline const std::string SpeedCapabilityUnknown = "speedCapabilityUnknown";
 
-// Check-skipped advisories (WARNING level): a validator could not run because
-// its required input (layout / factsheet) was absent. Distinct from the
-// rejection codes above so consumers can tell "check skipped" from "check
-// failed" by error_type, not just error_level.
+// Check-skipped advisories (WARNING): the validator's input (layout /
+// factsheet) was absent, so the check could not run.
 inline const std::string GraphIntegrityCheckSkipped =
   "graphIntegrityCheckSkipped";
 inline const std::string CapabilityCheckSkipped = "capabilityCheckSkipped";

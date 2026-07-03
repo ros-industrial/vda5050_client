@@ -19,9 +19,9 @@
 #ifndef VDA5050_CORE__VALIDATION__ACTION_CONFLICT_VALIDATOR_HPP_
 #define VDA5050_CORE__VALIDATION__ACTION_CONFLICT_VALIDATOR_HPP_
 
-#include "vda5050_core/validation/pre_send_validator.hpp"
 #include "vda5050_core/errors/validation_result.hpp"
 #include "vda5050_core/types/instant_actions.hpp"
+#include "vda5050_core/validation/pre_send_validator.hpp"
 
 namespace vda5050_core::validation {
 

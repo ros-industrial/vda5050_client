@@ -18,6 +18,7 @@
 
 #include "vda5050_core/validation/action_conflict_validator.hpp"
 
+#include <fmt/format.h>
 #include <string>
 #include <vector>
 
@@ -56,7 +57,7 @@ ValidationResult validate_action_conflict(
                      const std::string& error_type,
                      const std::string& description,
                      std::vector<ErrorReference> refs) {
-    res.errors.push_back(create_error(error_type, description, refs));
+    res.add_error(create_error(error_type, description, refs));
   };
 
   // Best-effort pre-screen: this check is state-driven (it reads `driving` and
@@ -95,10 +96,11 @@ ValidationResult validate_action_conflict(
         {
           add_error(
             ActionBlockedByDrivingError,
-            "SOFT-blocking action '" + action.action_type +
-              "' rejected because AGV is driving (vehicle must not drive).",
+            fmt::format(
+              "SOFT-blocking action '{}' rejected because AGV is driving "
+              "(vehicle must not drive).",
+              action.action_type),
             {{RefActionId, action.action_id}});
-          return res;
         }
         break;
       case BlockingType::HARD:
@@ -106,20 +108,22 @@ ValidationResult validate_action_conflict(
         {
           add_error(
             ActionBlockedByDrivingError,
-            "HARD-blocking action '" + action.action_type +
-              "' rejected because AGV is driving (vehicle must not drive).",
+            fmt::format(
+              "HARD-blocking action '{}' rejected because AGV is driving "
+              "(vehicle must not drive).",
+              action.action_type),
             {{RefActionId, action.action_id}});
-          return res;
+          continue;
         }
         if (any_active)
         {
           add_error(
             HardActionBlockedError,
-            "HARD-blocking action '" + action.action_type +
-              "' rejected because AGV has active actions in flight (must not "
-              "be executed in parallel).",
+            fmt::format(
+              "HARD-blocking action '{}' rejected because AGV has active "
+              "actions in flight (must not be executed in parallel).",
+              action.action_type),
             {{RefActionId, action.action_id}});
-          return res;
         }
         break;
     }

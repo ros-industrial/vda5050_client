@@ -18,6 +18,7 @@
 
 #include "vda5050_core/validation/traversability_validator.hpp"
 
+#include <fmt/format.h>
 #include <cmath>
 #include <functional>
 #include <string>
@@ -83,8 +84,10 @@ void validate_reachability(
   if (ap.map_id != np.map_id)
   {
     add_error(
-      "AGV is on a different map than the first node (AGV map '" + ap.map_id +
-        "', node map '" + np.map_id + "').",
+      fmt::format(
+        "AGV is on a different map than the first node (AGV map '{}', node "
+        "map '{}').",
+        ap.map_id, np.map_id),
       {{::vda5050_core::errors::RefNodeId, first.node_id}});
     return;
   }
@@ -99,10 +102,10 @@ void validate_reachability(
   if (distance > allowed)
   {
     add_error(
-      "AGV is not within the first node's allowed_deviation_x_y "
-      "(distance=" +
-        std::to_string(distance) + " m, allowed=" + std::to_string(allowed) +
-        " m).",
+      fmt::format(
+        "AGV is not within the first node's allowed_deviation_x_y "
+        "(distance={} m, allowed={} m).",
+        distance, allowed),
       {{::vda5050_core::errors::RefNodeId, first.node_id}});
   }
 }
@@ -124,8 +127,9 @@ void validate_graph_integrity(
     if (gn == nullptr)
     {
       add_error(
-        "Order node_id '" + node.node_id +
-          "' is not present in the master's loaded layout.",
+        fmt::format(
+          "Order node_id '{}' is not present in the master's loaded layout.",
+          node.node_id),
         {{::vda5050_core::errors::RefNodeId, node.node_id}});
       continue;
     }
@@ -134,8 +138,10 @@ void validate_graph_integrity(
     if (np.map_id != gn->map_id)
     {
       add_error(
-        "Order node '" + node.node_id + "' map_id '" + np.map_id +
-          "' does not match the layout's map_id '" + gn->map_id + "'.",
+        fmt::format(
+          "Order node '{}' map_id '{}' does not match the layout's map_id "
+          "'{}'.",
+          node.node_id, np.map_id, gn->map_id),
         {{::vda5050_core::errors::RefNodeId, node.node_id}});
     }
   }
@@ -146,9 +152,10 @@ void validate_graph_integrity(
     if (ge == nullptr)
     {
       add_error(
-        "Order edge_id '" + edge.edge_id +
-          "' is not present in the master's loaded layout (edge_id must match "
-          "a layout edge id).",
+        fmt::format(
+          "Order edge_id '{}' is not present in the master's loaded layout "
+          "(edge_id must match a layout edge id).",
+          edge.edge_id),
         {{::vda5050_core::errors::RefEdgeId, edge.edge_id}});
       continue;
     }
@@ -157,11 +164,12 @@ void validate_graph_integrity(
       ge->end_node_id != edge.end_node_id)
     {
       add_error(
-        "Order edge '" + edge.edge_id + "' endpoints (" + edge.start_node_id +
-          "->" + edge.end_node_id + ") do not match the layout's edge (" +
-          ge->start_node_id + "->" + ge->end_node_id +
-          "). Layout edges are directed; reverse traversal needs a separate "
-          "edge.",
+        fmt::format(
+          "Order edge '{}' endpoints ({}->{}) do not match the layout's edge "
+          "({}->{}). Layout edges are directed; reverse traversal needs a "
+          "separate edge.",
+          edge.edge_id, edge.start_node_id, edge.end_node_id, ge->start_node_id,
+          ge->end_node_id),
         {{::vda5050_core::errors::RefEdgeId, edge.edge_id}});
     }
   }
@@ -177,7 +185,7 @@ ValidationResult validate_traversability(
   auto add_error =
     [&](const std::string& description, std::vector<ErrorReference> refs) {
       refs.push_back({::vda5050_core::errors::RefOrderId, order.order_id});
-      res.errors.push_back(
+      res.add_error(
         create_error(TraversabilityValidationError, description, refs));
     };
 
@@ -189,7 +197,7 @@ ValidationResult validate_traversability(
   }
   else
   {
-    res.errors.push_back(create_error(
+    res.add_error(create_error(
       ::vda5050_core::errors::GraphIntegrityCheckSkipped,
       "No layout loaded; graph-integrity checks skipped.",
       {{::vda5050_core::errors::RefOrderId, order.order_id}},

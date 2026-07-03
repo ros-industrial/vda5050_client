@@ -30,6 +30,11 @@ namespace vda5050_core::validation {
 /// \param order The order to be checked.
 ///
 /// \return A result struct of type errors::ValidationResult
+///
+/// \note Findings are advisory (WARNING) level: a rejected order does not make
+///       the AGV inoperable. Gate on has_fatal() || has_warnings(), not the
+///       bool operator (which only reports fatal errors). Same for
+///       is_valid_update().
 errors::ValidationResult is_valid_graph(
   const vda5050_core::types::Order& order);
 

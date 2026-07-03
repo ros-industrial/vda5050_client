@@ -18,6 +18,7 @@
 
 #include "vda5050_core/validation/protocol_limits_validator.hpp"
 
+#include <fmt/format.h>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -47,9 +48,9 @@ void check_limit(
   if (limit.has_value() && actual > limit.value())
   {
     add_error(
-      "Message exceeds factsheet limit for " + field_name +
-        " (size=" + std::to_string(actual) +
-        ", max=" + std::to_string(limit.value()) + ").",
+      fmt::format(
+        "Message exceeds factsheet limit for {} (size={}, max={}).", field_name,
+        actual, limit.value()),
       {});
   }
 }
@@ -64,12 +65,12 @@ ValidationResult validate_protocol_limits(
   auto add_error =
     [&](const std::string& description, std::vector<ErrorReference> refs) {
       refs.push_back({::vda5050_core::errors::RefOrderId, order.order_id});
-      res.errors.push_back(create_error(ProtocolLimitError, description, refs));
+      res.add_error(create_error(ProtocolLimitError, description, refs));
     };
 
   if (!ctx.last_factsheet.has_value())
   {
-    res.errors.push_back(create_error(
+    res.add_error(create_error(
       ::vda5050_core::errors::ProtocolLimitCheckSkipped,
       "No factsheet cached; array-limit checks skipped.",
       {{::vda5050_core::errors::RefOrderId, order.order_id}},
@@ -120,12 +121,12 @@ ValidationResult validate_protocol_limits(
 
   auto add_error =
     [&](const std::string& description, std::vector<ErrorReference> refs) {
-      res.errors.push_back(create_error(ProtocolLimitError, description, refs));
+      res.add_error(create_error(ProtocolLimitError, description, refs));
     };
 
   if (!ctx.last_factsheet.has_value())
   {
-    res.errors.push_back(create_error(
+    res.add_error(create_error(
       ::vda5050_core::errors::ProtocolLimitCheckSkipped,
       "No factsheet cached; instant-action array-limit checks skipped.", {},
       vda5050_core::types::ErrorLevel::WARNING));

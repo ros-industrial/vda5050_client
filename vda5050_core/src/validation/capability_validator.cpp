@@ -18,6 +18,7 @@
 
 #include "vda5050_core/validation/capability_validator.hpp"
 
+#include <fmt/format.h>
 #include <algorithm>
 #include <functional>
 #include <string>
@@ -58,8 +59,10 @@ void validate_action_against_factsheet(
   if (agv_action == nullptr)
   {
     add_error(
-      "Action.action_type '" + action.action_type +
-        "' is not supported by AGV (not present in factsheet.agv_actions).",
+      fmt::format(
+        "Action.action_type '{}' is not supported by AGV (not present in "
+        "factsheet.agv_actions).",
+        action.action_type),
       {});
     return;
   }
@@ -68,8 +71,10 @@ void validate_action_against_factsheet(
   if (std::find(scopes.begin(), scopes.end(), expected_scope) == scopes.end())
   {
     add_error(
-      "Action.action_type '" + action.action_type +
-        "' does not declare the required scope for its placement.",
+      fmt::format(
+        "Action.action_type '{}' does not declare the required scope for its "
+        "placement.",
+        action.action_type),
       {});
   }
 
@@ -81,8 +86,10 @@ void validate_action_against_factsheet(
       supported.end())
     {
       add_error(
-        "Action.action_type '" + action.action_type +
-          "' does not support the requested blocking_type.",
+        fmt::format(
+          "Action.action_type '{}' does not support the requested "
+          "blocking_type.",
+          action.action_type),
         {});
     }
   }
@@ -102,9 +109,10 @@ void validate_action_against_factsheet(
       if (it == declared.end())
       {
         add_error(
-          "Action parameter key '" + p.key +
-            "' not declared by AGV for action_type '" + action.action_type +
-            "'.",
+          fmt::format(
+            "Action parameter key '{}' not declared by AGV for action_type "
+            "'{}'.",
+            p.key, action.action_type),
           {});
       }
     }
@@ -121,8 +129,9 @@ void validate_action_against_factsheet(
     if (!present)
     {
       add_error(
-        "Action '" + action.action_type + "' is missing required parameter '" +
-          d.key + "'.",
+        fmt::format(
+          "Action '{}' is missing required parameter '{}'.", action.action_type,
+          d.key),
         {});
     }
   }
@@ -138,13 +147,12 @@ ValidationResult validate_capability(
   auto add_error =
     [&](const std::string& description, std::vector<ErrorReference> refs) {
       refs.push_back({::vda5050_core::errors::RefOrderId, order.order_id});
-      res.errors.push_back(
-        create_error(CapabilityValidationError, description, refs));
+      res.add_error(create_error(CapabilityValidationError, description, refs));
     };
 
   if (!ctx.last_factsheet.has_value())
   {
-    res.errors.push_back(create_error(
+    res.add_error(create_error(
       ::vda5050_core::errors::CapabilityCheckSkipped,
       "No factsheet cached; capability checks skipped.",
       {{::vda5050_core::errors::RefOrderId, order.order_id}},
@@ -182,13 +190,12 @@ ValidationResult validate_capability(
 
   auto add_error =
     [&](const std::string& description, std::vector<ErrorReference> refs) {
-      res.errors.push_back(
-        create_error(CapabilityValidationError, description, refs));
+      res.add_error(create_error(CapabilityValidationError, description, refs));
     };
 
   if (!ctx.last_factsheet.has_value())
   {
-    res.errors.push_back(create_error(
+    res.add_error(create_error(
       ::vda5050_core::errors::CapabilityCheckSkipped,
       "No factsheet cached; instant-action capability checks skipped.", {},
       vda5050_core::types::ErrorLevel::WARNING));

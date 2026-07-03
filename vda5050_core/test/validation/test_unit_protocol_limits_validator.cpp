@@ -29,7 +29,7 @@ namespace {
 ::testing::AssertionResult AllErrorsHaveProtocolLimitType(
   const vda5050_core::errors::ValidationResult& res)
 {
-  for (const auto& e : res.errors)
+  for (const auto& e : res.fatal_errors())
   {
     if (e.error_type != vda5050_core::errors::ProtocolLimitError)
     {
@@ -42,10 +42,9 @@ namespace {
 }
 
 ::testing::AssertionResult AnyErrorMentions(
-  const vda5050_core::errors::ValidationResult& res,
-  const std::string& needle)
+  const vda5050_core::errors::ValidationResult& res, const std::string& needle)
 {
-  for (const auto& e : res.errors)
+  for (const auto& e : res.fatal_errors())
   {
     if (
       e.error_description &&
@@ -231,7 +230,7 @@ TEST(ProtocolLimitsValidatorTest, MultipleLimitErrorsAccumulate)
 
   auto res = validate_protocol_limits(ctx, order);
   EXPECT_FALSE(static_cast<bool>(res));
-  EXPECT_GE(res.errors.size(), 2u);
+  EXPECT_EQ(res.fatal_errors().size(), 2u);
   EXPECT_TRUE(AllErrorsHaveProtocolLimitType(res));
   EXPECT_TRUE(AnyErrorMentions(res, "order_nodes"));
   EXPECT_TRUE(AnyErrorMentions(res, "node_actions"));

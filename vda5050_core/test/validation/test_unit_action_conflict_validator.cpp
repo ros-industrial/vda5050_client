@@ -22,13 +22,13 @@
 #include <vector>
 
 #include "vda5050_core/errors/error_codes.hpp"
-#include "vda5050_core/validation/action_conflict_validator.hpp"
 #include "vda5050_core/types/action.hpp"
 #include "vda5050_core/types/action_state.hpp"
 #include "vda5050_core/types/action_status.hpp"
 #include "vda5050_core/types/blocking_type.hpp"
 #include "vda5050_core/types/instant_actions.hpp"
 #include "vda5050_core/types/state.hpp"
+#include "vda5050_core/validation/action_conflict_validator.hpp"
 
 namespace vda5050_core::validation {
 namespace test {
@@ -95,7 +95,7 @@ TEST(ActionConflictValidator, EmptyActionsList_Passes)
     std::nullopt, AGVState::AVAILABLE, nullptr};
   auto res = validate_action_conflict(ctx, wrap({}));
   EXPECT_TRUE(static_cast<bool>(res));
-  EXPECT_TRUE(res.errors.empty());
+  EXPECT_TRUE(res.fatal_errors().empty());
 }
 
 TEST(ActionConflictValidator, NoStateInContext_Passes)
@@ -150,10 +150,10 @@ TEST(ActionConflictValidator, SoftBlockingDriving_RejectedWith_BlockedByDriving)
     wrap(
       {make_action("doSomething", vda5050_core::types::BlockingType::SOFT)}));
   EXPECT_FALSE(static_cast<bool>(res));
-  ASSERT_FALSE(res.errors.empty());
-  ASSERT_TRUE(res.errors.front().error_description.has_value());
+  ASSERT_FALSE(res.fatal_errors().empty());
+  ASSERT_TRUE(res.fatal_errors().front().error_description.has_value());
   EXPECT_EQ(
-    res.errors.front().error_type,
+    res.fatal_errors().front().error_type,
     vda5050_core::errors::ActionBlockedByDrivingError);
 }
 
@@ -181,10 +181,10 @@ TEST(
     make_ctx(state),
     wrap({make_action("hardAction", vda5050_core::types::BlockingType::HARD)}));
   EXPECT_FALSE(static_cast<bool>(res));
-  ASSERT_FALSE(res.errors.empty());
-  ASSERT_TRUE(res.errors.front().error_description.has_value());
+  ASSERT_FALSE(res.fatal_errors().empty());
+  ASSERT_TRUE(res.fatal_errors().front().error_description.has_value());
   EXPECT_EQ(
-    res.errors.front().error_type,
+    res.fatal_errors().front().error_type,
     vda5050_core::errors::HardActionBlockedError);
 }
 
@@ -199,9 +199,9 @@ TEST(
     make_ctx(state),
     wrap({make_action("hardAction", vda5050_core::types::BlockingType::HARD)}));
   EXPECT_FALSE(static_cast<bool>(res));
-  ASSERT_TRUE(res.errors.front().error_description.has_value());
+  ASSERT_TRUE(res.fatal_errors().front().error_description.has_value());
   EXPECT_EQ(
-    res.errors.front().error_type,
+    res.fatal_errors().front().error_type,
     vda5050_core::errors::HardActionBlockedError);
 }
 
@@ -218,9 +218,9 @@ TEST(
     make_ctx(state),
     wrap({make_action("hardAction", vda5050_core::types::BlockingType::HARD)}));
   EXPECT_FALSE(static_cast<bool>(res));
-  ASSERT_TRUE(res.errors.front().error_description.has_value());
+  ASSERT_TRUE(res.fatal_errors().front().error_description.has_value());
   EXPECT_EQ(
-    res.errors.front().error_type,
+    res.fatal_errors().front().error_type,
     vda5050_core::errors::HardActionBlockedError);
 }
 
@@ -238,9 +238,9 @@ TEST(
     make_ctx(state),
     wrap({make_action("hardAction", vda5050_core::types::BlockingType::HARD)}));
   EXPECT_FALSE(static_cast<bool>(res));
-  ASSERT_TRUE(res.errors.front().error_description.has_value());
+  ASSERT_TRUE(res.fatal_errors().front().error_description.has_value());
   EXPECT_EQ(
-    res.errors.front().error_type,
+    res.fatal_errors().front().error_type,
     vda5050_core::errors::HardActionBlockedError);
 }
 
@@ -260,9 +260,9 @@ TEST(
     make_ctx(state),
     wrap({make_action("hardAction", vda5050_core::types::BlockingType::HARD)}));
   EXPECT_FALSE(static_cast<bool>(res));
-  ASSERT_TRUE(res.errors.front().error_description.has_value());
+  ASSERT_TRUE(res.fatal_errors().front().error_description.has_value());
   EXPECT_EQ(
-    res.errors.front().error_type,
+    res.fatal_errors().front().error_type,
     vda5050_core::errors::HardActionBlockedError);
 }
 
@@ -288,9 +288,9 @@ TEST(ActionConflictValidator, HardBlockingDriving_RejectedWith_BlockedByDriving)
     make_ctx(state),
     wrap({make_action("hardAction", vda5050_core::types::BlockingType::HARD)}));
   EXPECT_FALSE(static_cast<bool>(res));
-  ASSERT_TRUE(res.errors.front().error_description.has_value());
+  ASSERT_TRUE(res.fatal_errors().front().error_description.has_value());
   EXPECT_EQ(
-    res.errors.front().error_type,
+    res.fatal_errors().front().error_type,
     vda5050_core::errors::ActionBlockedByDrivingError);
 }
 
@@ -298,11 +298,10 @@ TEST(ActionConflictValidator, HardBlockingDriving_RejectedWith_BlockedByDriving)
 // Batch semantics + tagging
 // =============================================================================
 
-TEST(
-  ActionConflictValidator, MultipleActionsBatch_FirstConflict_StopsAndReturns)
+TEST(ActionConflictValidator, MultipleActionsBatch_NoneAllowed_HardRejected)
 {
-  // Order in batch: [NONE OK, HARD blocked]. Validator should reach the
-  // HARD action and return — single error, focused on the first conflict.
+  // Batch: [NONE OK, HARD blocked by an in-flight action]. The NONE action is
+  // allowed; only the HARD one is rejected.
   auto state = make_state(
     false, {make_action_state(
              "inflight", vda5050_core::types::ActionStatus::RUNNING)});
@@ -311,13 +310,27 @@ TEST(
     make_action("hardAction", vda5050_core::types::BlockingType::HARD, "bad")};
   auto res = validate_action_conflict(make_ctx(state), wrap(batch));
   EXPECT_FALSE(static_cast<bool>(res));
-  ASSERT_EQ(res.errors.size(), 1u);
-  ASSERT_TRUE(res.errors.front().error_description.has_value());
-  // The error should reference the second action's id ("bad"), confirming
-  // we made it past the first NONE-action without rejecting it.
+  ASSERT_EQ(res.fatal_errors().size(), 1u);
+  ASSERT_TRUE(res.fatal_errors().front().error_description.has_value());
+  // The error should reference the HARD action's type, confirming the NONE
+  // action was allowed through without a rejection.
   EXPECT_NE(
-    res.errors.front().error_description->find("hardAction"),
+    res.fatal_errors().front().error_description->find("hardAction"),
     std::string::npos);
+}
+
+TEST(ActionConflictValidator, Driving_MultipleBlockingActions_ErrorsAccumulate)
+{
+  // AGV driving: every SOFT/HARD-blocking action is rejected and reported,
+  // not just the first (errors accumulate).
+  auto state = make_state(true);
+  std::vector<vda5050_core::types::Action> batch = {
+    make_action("a", vda5050_core::types::BlockingType::SOFT, "a1"),
+    make_action("b", vda5050_core::types::BlockingType::HARD, "a2"),
+    make_action("c", vda5050_core::types::BlockingType::SOFT, "a3")};
+  auto res = validate_action_conflict(make_ctx(state), wrap(batch));
+  EXPECT_FALSE(static_cast<bool>(res));
+  EXPECT_EQ(res.fatal_errors().size(), 3u);
 }
 
 TEST(ActionConflictValidator, DrivingRejection_TaggedAsBlockedByDriving)
@@ -326,8 +339,8 @@ TEST(ActionConflictValidator, DrivingRejection_TaggedAsBlockedByDriving)
   auto res = validate_action_conflict(
     make_ctx(state),
     wrap({make_action("hardAction", vda5050_core::types::BlockingType::HARD)}));
-  ASSERT_FALSE(res.errors.empty());
-  for (const auto& err : res.errors)
+  ASSERT_FALSE(res.fatal_errors().empty());
+  for (const auto& err : res.fatal_errors())
   {
     EXPECT_EQ(
       err.error_type, vda5050_core::errors::ActionBlockedByDrivingError);

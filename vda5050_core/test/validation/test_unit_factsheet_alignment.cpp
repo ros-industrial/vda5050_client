@@ -90,7 +90,7 @@ TEST(FactsheetAlignment, AlignedEdge_NoFindings)
 {
   auto graph = make_graph({make_prop("v1", 1.0)});
   auto res = check_factsheet_alignment(*graph, make_factsheet(2.0));
-  EXPECT_TRUE(res.errors.empty());
+  EXPECT_TRUE(res.warnings().empty());
   EXPECT_FALSE(res.has_fatal());
 }
 
@@ -98,14 +98,21 @@ TEST(FactsheetAlignment, EdgeSpeedExceedsCapability_Warns)
 {
   auto graph = make_graph({make_prop("v1", 3.0)});
   auto res = check_factsheet_alignment(*graph, make_factsheet(2.0));
-  ASSERT_EQ(res.errors.size(), 1u);
+  ASSERT_EQ(res.warnings().size(), 1u);
   EXPECT_EQ(
-    res.errors.front().error_type,
+    res.warnings().front().error_type,
     vda5050_core::errors::SpeedExceedsCapability);
   EXPECT_EQ(
-    res.errors.front().error_level, vda5050_core::types::ErrorLevel::WARNING);
+    res.warnings().front().error_level,
+    vda5050_core::types::ErrorLevel::WARNING);
   EXPECT_NE(
-    res.errors.front().error_description->find("v1"), std::string::npos);
+    res.warnings().front().error_description->find("v1"), std::string::npos);
+  ASSERT_TRUE(res.warnings().front().error_references.has_value());
+  EXPECT_EQ(
+    res.warnings().front().error_references->front().reference_key,
+    vda5050_core::errors::RefEdgeId);
+  EXPECT_EQ(
+    res.warnings().front().error_references->front().reference_value, "E1");
   EXPECT_FALSE(res.has_fatal());
 }
 
@@ -113,9 +120,9 @@ TEST(FactsheetAlignment, EdgeSpeedBelowMinimum_Warns)
 {
   auto graph = make_graph({make_prop("v1", 0.2)});
   auto res = check_factsheet_alignment(*graph, make_factsheet(2.0, 0.5));
-  ASSERT_EQ(res.errors.size(), 1u);
+  ASSERT_EQ(res.warnings().size(), 1u);
   EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::SpeedBelowMinimum);
+    res.warnings().front().error_type, vda5050_core::errors::SpeedBelowMinimum);
 }
 
 TEST(FactsheetAlignment, MultiVehicleType_ChecksEveryLane)
@@ -124,28 +131,28 @@ TEST(FactsheetAlignment, MultiVehicleType_ChecksEveryLane)
   // checked; only the exceeding lane is flagged, naming its vehicle_type_id.
   auto graph = make_graph({make_prop("v1", 1.0), make_prop("v2", 5.0)});
   auto res = check_factsheet_alignment(*graph, make_factsheet(2.0));
-  ASSERT_EQ(res.errors.size(), 1u);
+  ASSERT_EQ(res.warnings().size(), 1u);
   EXPECT_EQ(
-    res.errors.front().error_type,
+    res.warnings().front().error_type,
     vda5050_core::errors::SpeedExceedsCapability);
   EXPECT_NE(
-    res.errors.front().error_description->find("v2"), std::string::npos);
+    res.warnings().front().error_description->find("v2"), std::string::npos);
 }
 
 TEST(FactsheetAlignment, NoMaxSpeedOnLane_Skipped)
 {
   auto graph = make_graph({make_prop("v1", std::nullopt)});
   auto res = check_factsheet_alignment(*graph, make_factsheet(2.0));
-  EXPECT_TRUE(res.errors.empty());
+  EXPECT_TRUE(res.warnings().empty());
 }
 
 TEST(FactsheetAlignment, UnknownAgvCapability_SkipsAndWarnsOnce)
 {
   auto graph = make_graph({make_prop("v1", 5.0)});
   auto res = check_factsheet_alignment(*graph, make_factsheet(0.0));
-  ASSERT_EQ(res.errors.size(), 1u);
+  ASSERT_EQ(res.warnings().size(), 1u);
   EXPECT_EQ(
-    res.errors.front().error_type,
+    res.warnings().front().error_type,
     vda5050_core::errors::SpeedCapabilityUnknown);
 }
 

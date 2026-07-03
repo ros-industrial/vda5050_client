@@ -18,8 +18,9 @@
 
 #include "vda5050_core/validation/factsheet_alignment.hpp"
 
-#include <sstream>
+#include <fmt/format.h>
 #include <string>
+#include <vector>
 
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
@@ -37,9 +38,11 @@ vda5050_core::errors::ValidationResult check_factsheet_alignment(
   const double agv_speed_min = factsheet.physical_parameters.speed_min;
 
   auto add_warning =
-    [&](const std::string& code, const std::string& description) {
-      result.errors.push_back(vda5050_core::errors::create_error(
-        code, description, {}, vda5050_core::types::ErrorLevel::WARNING));
+    [&](
+      const std::string& code, const std::string& description,
+      std::vector<vda5050_core::types::ErrorReference> refs = {}) {
+      result.add_error(vda5050_core::errors::create_error(
+        code, description, refs, vda5050_core::types::ErrorLevel::WARNING));
     };
 
   // No usable speed capability reported (default-constructed or factsheet not
@@ -60,21 +63,23 @@ vda5050_core::errors::ValidationResult check_factsheet_alignment(
       const double edge_max = prop.max_speed.value();
       if (edge_max > agv_speed_max)
       {
-        std::ostringstream oss;
-        oss << "Edge '" << edge.edge_id << "' (vehicle_type '"
-            << prop.vehicle_type_id << "') max_speed=" << edge_max
-            << " m/s exceeds AGV factsheet physical_parameters.speed_max="
-            << agv_speed_max << " m/s.";
-        add_warning(vda5050_core::errors::SpeedExceedsCapability, oss.str());
+        add_warning(
+          vda5050_core::errors::SpeedExceedsCapability,
+          fmt::format(
+            "Edge '{}' (vehicle_type '{}') max_speed={} m/s exceeds AGV "
+            "factsheet physical_parameters.speed_max={} m/s.",
+            edge.edge_id, prop.vehicle_type_id, edge_max, agv_speed_max),
+          {{vda5050_core::errors::RefEdgeId, edge.edge_id}});
       }
       if (agv_speed_min > 0.0 && edge_max < agv_speed_min)
       {
-        std::ostringstream oss;
-        oss << "Edge '" << edge.edge_id << "' (vehicle_type '"
-            << prop.vehicle_type_id << "') max_speed=" << edge_max
-            << " m/s is below AGV factsheet physical_parameters.speed_min="
-            << agv_speed_min << " m/s.";
-        add_warning(vda5050_core::errors::SpeedBelowMinimum, oss.str());
+        add_warning(
+          vda5050_core::errors::SpeedBelowMinimum,
+          fmt::format(
+            "Edge '{}' (vehicle_type '{}') max_speed={} m/s is below AGV "
+            "factsheet physical_parameters.speed_min={} m/s.",
+            edge.edge_id, prop.vehicle_type_id, edge_max, agv_speed_min),
+          {{vda5050_core::errors::RefEdgeId, edge.edge_id}});
       }
     }
   });

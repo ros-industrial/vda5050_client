@@ -22,12 +22,12 @@
 #include <vector>
 
 #include "vda5050_core/errors/error_codes.hpp"
-#include "vda5050_core/validation/instant_action_mode_validator.hpp"
 #include "vda5050_core/types/action.hpp"
 #include "vda5050_core/types/blocking_type.hpp"
 #include "vda5050_core/types/instant_actions.hpp"
 #include "vda5050_core/types/operating_mode.hpp"
 #include "vda5050_core/types/state.hpp"
+#include "vda5050_core/validation/instant_action_mode_validator.hpp"
 
 namespace vda5050_core::validation {
 namespace test {
@@ -117,7 +117,8 @@ TEST(InstantActionModeValidator, NoState_NonExemptAction_Rejected)
     validate_instant_action_mode(ctx, wrap({make_action("customAction")}));
   EXPECT_FALSE(static_cast<bool>(res));
   EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::ModeValidationError);
+    res.fatal_errors().front().error_type,
+    vda5050_core::errors::ModeValidationError);
 }
 
 TEST(InstantActionModeValidator, NoState_ExemptAction_Passes)
@@ -171,10 +172,11 @@ TEST(InstantActionModeValidator, Manual_NonExemptAction_Rejected)
   auto res =
     validate_instant_action_mode(make_ctx(state), wrap({make_action("pick")}));
   EXPECT_FALSE(static_cast<bool>(res));
-  ASSERT_FALSE(res.errors.empty());
-  ASSERT_TRUE(res.errors.front().error_description.has_value());
+  ASSERT_FALSE(res.fatal_errors().empty());
+  ASSERT_TRUE(res.fatal_errors().front().error_description.has_value());
   EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::ModeValidationError);
+    res.fatal_errors().front().error_type,
+    vda5050_core::errors::ModeValidationError);
 }
 
 TEST(InstantActionModeValidator, Service_NonExemptAction_Rejected)
@@ -183,9 +185,10 @@ TEST(InstantActionModeValidator, Service_NonExemptAction_Rejected)
   auto res = validate_instant_action_mode(
     make_ctx(state), wrap({make_action("customAction")}));
   EXPECT_FALSE(static_cast<bool>(res));
-  ASSERT_TRUE(res.errors.front().error_description.has_value());
+  ASSERT_TRUE(res.fatal_errors().front().error_description.has_value());
   EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::ModeValidationError);
+    res.fatal_errors().front().error_type,
+    vda5050_core::errors::ModeValidationError);
 }
 
 TEST(InstantActionModeValidator, Teachin_ExemptAction_Passes)
@@ -198,12 +201,10 @@ TEST(InstantActionModeValidator, Teachin_ExemptAction_Passes)
   EXPECT_TRUE(static_cast<bool>(res));
 }
 
-TEST(
-  InstantActionModeValidator, Manual_MixedBatch_NonExemptShortCircuitsRejection)
+TEST(InstantActionModeValidator, Manual_MixedBatch_RejectsNonExemptAllowsExempt)
 {
-  // Batch order: [stateRequest (exempt), pick (non-exempt)]. Validator
-  // walks the batch and rejects on the first non-exempt action in
-  // non-AUTOMATIC mode.
+  // Batch order: [stateRequest (exempt), pick (non-exempt)]. The exempt action
+  // is allowed; only the non-exempt one is rejected.
   auto state = make_state(vda5050_core::types::OperatingMode::MANUAL);
   std::vector<vda5050_core::types::Action> batch = {
     make_action("stateRequest", "ok"),
@@ -211,10 +212,26 @@ TEST(
   };
   auto res = validate_instant_action_mode(make_ctx(state), wrap(batch));
   EXPECT_FALSE(static_cast<bool>(res));
-  ASSERT_EQ(res.errors.size(), 1u);
-  ASSERT_TRUE(res.errors.front().error_description.has_value());
+  ASSERT_EQ(res.fatal_errors().size(), 1u);
+  ASSERT_TRUE(res.fatal_errors().front().error_description.has_value());
   EXPECT_NE(
-    res.errors.front().error_description->find("pick"), std::string::npos);
+    res.fatal_errors().front().error_description->find("pick"),
+    std::string::npos);
+}
+
+TEST(InstantActionModeValidator, Manual_MultipleNonExempt_ErrorsAccumulate)
+{
+  // Non-AUTOMATIC mode: every non-exempt action is rejected and reported,
+  // not just the first (errors accumulate).
+  auto state = make_state(vda5050_core::types::OperatingMode::MANUAL);
+  std::vector<vda5050_core::types::Action> batch = {
+    make_action("pick", "a1"),
+    make_action("drop", "a2"),
+    make_action("customAction", "a3"),
+  };
+  auto res = validate_instant_action_mode(make_ctx(state), wrap(batch));
+  EXPECT_FALSE(static_cast<bool>(res));
+  EXPECT_EQ(res.fatal_errors().size(), 3u);
 }
 
 // =============================================================================
@@ -226,9 +243,10 @@ TEST(InstantActionModeValidator, RejectionTaggedAsModeValidationError)
   auto state = make_state(vda5050_core::types::OperatingMode::MANUAL);
   auto res =
     validate_instant_action_mode(make_ctx(state), wrap({make_action("pick")}));
-  ASSERT_FALSE(res.errors.empty());
+  ASSERT_FALSE(res.fatal_errors().empty());
   EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::ModeValidationError);
+    res.fatal_errors().front().error_type,
+    vda5050_core::errors::ModeValidationError);
 }
 
 }  // namespace test

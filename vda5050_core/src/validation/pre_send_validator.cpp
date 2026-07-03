@@ -53,7 +53,7 @@ vda5050_core::errors::ValidationResult validate_pre_send(
   vda5050_core::errors::ValidationResult res;
 
   auto add_error = [&](const std::string& description) {
-    res.errors.push_back(vda5050_core::errors::create_error(
+    res.add_error(vda5050_core::errors::create_error(
       vda5050_core::errors::PreSendValidationError, description, {}));
   };
 

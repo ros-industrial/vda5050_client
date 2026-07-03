@@ -32,7 +32,7 @@ namespace {
 ::testing::AssertionResult AllErrorsHaveTraversabilityType(
   const vda5050_core::errors::ValidationResult& res)
 {
-  for (const auto& e : res.errors)
+  for (const auto& e : res.fatal_errors())
   {
     if (e.error_level != vda5050_core::types::ErrorLevel::FATAL) continue;
     if (e.error_type != vda5050_core::errors::TraversabilityValidationError)
@@ -46,10 +46,9 @@ namespace {
 }
 
 ::testing::AssertionResult AnyErrorMentions(
-  const vda5050_core::errors::ValidationResult& res,
-  const std::string& needle)
+  const vda5050_core::errors::ValidationResult& res, const std::string& needle)
 {
-  for (const auto& e : res.errors)
+  for (const auto& e : res.fatal_errors())
   {
     if (
       e.error_description &&

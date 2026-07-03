@@ -36,7 +36,7 @@ errors::ValidationResult is_valid_graph(const vda5050_core::types::Order& order)
     refs.push_back({errors::RefOrderId, order.order_id});
     refs.push_back(
       {errors::RefOrderUpdateId, std::to_string(order.order_update_id)});
-    res.errors.push_back(errors::create_error(
+    res.add_error(errors::create_error(
       errors::GraphValidationError, description, refs,
       vda5050_core::types::ErrorLevel::WARNING));
   };
@@ -178,7 +178,7 @@ errors::ValidationResult is_valid_update(
     refs.push_back({errors::RefOrderId, next_order.order_id});
     refs.push_back(
       {errors::RefOrderUpdateId, std::to_string(next_order.order_update_id)});
-    res.errors.push_back(errors::create_error(
+    res.add_error(errors::create_error(
       errors::OrderUpdateError, description, refs,
       vda5050_core::types::ErrorLevel::WARNING));
   };

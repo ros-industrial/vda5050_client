@@ -94,8 +94,7 @@ ValidationResult validate_order_content(
       refs.push_back(
         {::vda5050_core::errors::RefOrderUpdateId,
          std::to_string(order.order_update_id)});
-      res.errors.push_back(
-        create_error(ContentValidationError, description, refs));
+      res.add_error(create_error(ContentValidationError, description, refs));
     };
 
   validate_header_common(order.header, add_error);
@@ -145,8 +144,7 @@ ValidationResult validate_instant_actions_content(
 
   auto add_error =
     [&](const std::string& description, std::vector<ErrorReference> refs) {
-      res.errors.push_back(
-        create_error(ContentValidationError, description, refs));
+      res.add_error(create_error(ContentValidationError, description, refs));
     };
 
   validate_header_common(actions.header, add_error);
@@ -166,8 +164,7 @@ ValidationResult validate_state_content(
 
   auto add_error =
     [&](const std::string& description, std::vector<ErrorReference> refs) {
-      res.errors.push_back(
-        create_error(ContentValidationError, description, refs));
+      res.add_error(create_error(ContentValidationError, description, refs));
     };
 
   validate_header_common(state.header, add_error);
@@ -212,8 +209,7 @@ ValidationResult validate_connection_content(
 
   auto add_error =
     [&](const std::string& description, std::vector<ErrorReference> refs) {
-      res.errors.push_back(
-        create_error(ContentValidationError, description, refs));
+      res.add_error(create_error(ContentValidationError, description, refs));
     };
 
   validate_header_common(connection.header, add_error);
@@ -227,8 +223,7 @@ ValidationResult validate_factsheet_content(
 
   auto add_error =
     [&](const std::string& description, std::vector<ErrorReference> refs) {
-      res.errors.push_back(
-        create_error(ContentValidationError, description, refs));
+      res.add_error(create_error(ContentValidationError, description, refs));
     };
 
   validate_header_common(factsheet.header, add_error);
@@ -242,8 +237,7 @@ ValidationResult validate_visualization_content(
 
   auto add_error =
     [&](const std::string& description, std::vector<ErrorReference> refs) {
-      res.errors.push_back(
-        create_error(ContentValidationError, description, refs));
+      res.add_error(create_error(ContentValidationError, description, refs));
     };
 
   validate_header_common(visualization.header, add_error);

@@ -135,10 +135,15 @@ AcceptanceResult OrderValidator::validate_order(
       types::ErrorLevel::WARNING));
   }
 
-  if (auto graph = validation::is_valid_graph(incoming_order); !graph)
+  if (auto graph = validation::is_valid_graph(incoming_order);
+      graph.has_fatal() || graph.has_warnings())
   {
-    for (auto& error : graph.errors) attach_order_refs(error, incoming_order);
-    return rejected(std::move(graph.errors));
+    std::vector<types::Error> graph_errors = graph.fatal_errors();
+    const auto& graph_warnings = graph.warnings();
+    graph_errors.insert(
+      graph_errors.end(), graph_warnings.begin(), graph_warnings.end());
+    for (auto& error : graph_errors) attach_order_refs(error, incoming_order);
+    return rejected(std::move(graph_errors));
   }
 
   // TODO(eileentyz): Add AGV capability/factsheet validation once capability

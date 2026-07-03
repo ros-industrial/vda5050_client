@@ -18,6 +18,7 @@
 
 #include "vda5050_core/validation/instant_action_mode_validator.hpp"
 
+#include <fmt/format.h>
 #include <set>
 #include <string>
 
@@ -70,15 +71,15 @@ vda5050_core::errors::ValidationResult validate_instant_action_mode(
   {
     if (is_mode_exempt_action_type(action.action_type)) continue;
 
-    res.errors.push_back(vda5050_core::errors::create_error(
+    res.add_error(vda5050_core::errors::create_error(
       vda5050_core::errors::ModeValidationError,
-      "action_type '" + action.action_type +
-        "' is not on the instant-scope allowlist and the AGV is not "
-        "confirmed to be in AUTOMATIC / SEMIAUTOMATIC operating_mode (master "
-        "must not send driving orders or non-recovery actions in MANUAL / "
-        "SERVICE / TEACHIN, or when the AGV's mode is unknown)",
+      fmt::format(
+        "action_type '{}' is not on the instant-scope allowlist and the AGV "
+        "is not confirmed to be in AUTOMATIC / SEMIAUTOMATIC operating_mode "
+        "(master must not send driving orders or non-recovery actions in "
+        "MANUAL / SERVICE / TEACHIN, or when the AGV's mode is unknown)",
+        action.action_type),
       {{vda5050_core::errors::RefActionId, action.action_id}}));
-    return res;  // short-circuit on first failure
   }
 
   return res;

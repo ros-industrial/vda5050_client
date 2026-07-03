@@ -19,8 +19,8 @@
 #ifndef VDA5050_CORE__VALIDATION__FACTSHEET_ALIGNMENT_HPP_
 #define VDA5050_CORE__VALIDATION__FACTSHEET_ALIGNMENT_HPP_
 
-#include "vda5050_core/layout/graph.hpp"
 #include "vda5050_core/errors/validation_result.hpp"
+#include "vda5050_core/layout/graph.hpp"
 #include "vda5050_core/types/factsheet.hpp"
 
 namespace vda5050_core::validation {

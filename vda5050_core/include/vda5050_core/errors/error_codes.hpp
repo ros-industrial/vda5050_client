@@ -64,7 +64,6 @@ inline const std::string RefEdgeId = "edgeId";
 inline const std::string RefActionId = "actionId";
 inline const std::string RefActionType = "actionType";
 inline const std::string RefSequenceId = "sequenceId";
-inline const std::string RefActionId = "actionId";
 
 }  // namespace errors
 }  // namespace vda5050_core

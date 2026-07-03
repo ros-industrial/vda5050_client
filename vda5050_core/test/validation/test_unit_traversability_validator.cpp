@@ -23,14 +23,14 @@
 
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/layout/graph.hpp"
-#include "vda5050_core/master/validation/traversability_validator.hpp"
+#include "vda5050_core/validation/traversability_validator.hpp"
 
 namespace {
 
 // Checks the rejection (FATAL) errors; advisory WARNING entries (e.g. the
 // graph-integrity skip) carry their own codes and are not rejections.
 ::testing::AssertionResult AllErrorsHaveTraversabilityType(
-  const vda5050_core::order_utils::ValidationResult& res)
+  const vda5050_core::errors::ValidationResult& res)
 {
   for (const auto& e : res.errors)
   {
@@ -46,7 +46,7 @@ namespace {
 }
 
 ::testing::AssertionResult AnyErrorMentions(
-  const vda5050_core::order_utils::ValidationResult& res,
+  const vda5050_core::errors::ValidationResult& res,
   const std::string& needle)
 {
   for (const auto& e : res.errors)
@@ -64,7 +64,9 @@ namespace {
 
 }  // namespace
 
-namespace vda5050_core::master::test {
+namespace vda5050_core::validation::test {
+
+using vda5050_core::master::AGVState;
 
 namespace {
 
@@ -426,4 +428,4 @@ TEST(TraversabilityValidatorTest, GraphIntegrity_SkippedWhenNoGraph_Accepts)
     std::string::npos);
 }
 
-}  // namespace vda5050_core::master::test
+}  // namespace vda5050_core::validation::test

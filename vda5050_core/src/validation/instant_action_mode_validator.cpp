@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-#include "vda5050_core/master/validation/instant_action_mode_validator.hpp"
+#include "vda5050_core/validation/instant_action_mode_validator.hpp"
 
 #include <set>
 #include <string>
@@ -24,7 +24,7 @@
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core::validation {
 
 namespace {
 
@@ -45,10 +45,10 @@ bool is_mode_exempt_action_type(const std::string& action_type)
   return exempt_action_types().count(action_type) != 0;
 }
 
-vda5050_core::order_utils::ValidationResult validate_instant_action_mode(
+vda5050_core::errors::ValidationResult validate_instant_action_mode(
   const PreSendContext& ctx, const vda5050_core::types::InstantActions& actions)
 {
-  vda5050_core::order_utils::ValidationResult res;
+  vda5050_core::errors::ValidationResult res;
 
   // The master may send arbitrary instant actions only when the AGV is
   // confirmed to be under its control (AUTOMATIC / SEMIAUTOMATIC). Any other
@@ -84,4 +84,4 @@ vda5050_core::order_utils::ValidationResult validate_instant_action_mode(
   return res;
 }
 
-}  // namespace vda5050_core::master
+}  // namespace vda5050_core::validation

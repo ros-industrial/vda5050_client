@@ -22,7 +22,7 @@
 #include <vector>
 
 #include "vda5050_core/errors/error_codes.hpp"
-#include "vda5050_core/master/validation/action_conflict_validator.hpp"
+#include "vda5050_core/validation/action_conflict_validator.hpp"
 #include "vda5050_core/types/action.hpp"
 #include "vda5050_core/types/action_state.hpp"
 #include "vda5050_core/types/action_status.hpp"
@@ -30,8 +30,10 @@
 #include "vda5050_core/types/instant_actions.hpp"
 #include "vda5050_core/types/state.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core::validation {
 namespace test {
+
+using vda5050_core::master::AGVState;
 
 namespace {
 
@@ -333,4 +335,4 @@ TEST(ActionConflictValidator, DrivingRejection_TaggedAsBlockedByDriving)
 }
 
 }  // namespace test
-}  // namespace vda5050_core::master
+}  // namespace vda5050_core::validation

@@ -22,15 +22,17 @@
 #include <vector>
 
 #include "vda5050_core/errors/error_codes.hpp"
-#include "vda5050_core/master/validation/instant_action_mode_validator.hpp"
+#include "vda5050_core/validation/instant_action_mode_validator.hpp"
 #include "vda5050_core/types/action.hpp"
 #include "vda5050_core/types/blocking_type.hpp"
 #include "vda5050_core/types/instant_actions.hpp"
 #include "vda5050_core/types/operating_mode.hpp"
 #include "vda5050_core/types/state.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core::validation {
 namespace test {
+
+using vda5050_core::master::AGVState;
 
 namespace {
 
@@ -230,4 +232,4 @@ TEST(InstantActionModeValidator, RejectionTaggedAsModeValidationError)
 }
 
 }  // namespace test
-}  // namespace vda5050_core::master
+}  // namespace vda5050_core::validation

@@ -16,26 +16,26 @@
  * limitations under the License.
  */
 
-#ifndef VDA5050_CORE__MASTER__VALIDATION__PROTOCOL_LIMITS_VALIDATOR_HPP_
-#define VDA5050_CORE__MASTER__VALIDATION__PROTOCOL_LIMITS_VALIDATOR_HPP_
+#ifndef VDA5050_CORE__VALIDATION__PROTOCOL_LIMITS_VALIDATOR_HPP_
+#define VDA5050_CORE__VALIDATION__PROTOCOL_LIMITS_VALIDATOR_HPP_
 
-#include "vda5050_core/master/validation/pre_send_validator.hpp"
-#include "vda5050_core/order_utils/validation_result.hpp"
+#include "vda5050_core/validation/pre_send_validator.hpp"
+#include "vda5050_core/errors/validation_result.hpp"
 #include "vda5050_core/types/instant_actions.hpp"
 #include "vda5050_core/types/order.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core::validation {
 
 /// \brief Does the message fit the AGV's declared array-size limits? Checks
 /// node / edge / action / parameter counts against the factsheet's
 /// protocol_limits. Skips when no factsheet is cached.
-vda5050_core::order_utils::ValidationResult validate_protocol_limits(
+vda5050_core::errors::ValidationResult validate_protocol_limits(
   const PreSendContext& ctx, const vda5050_core::types::Order& order);
 
-vda5050_core::order_utils::ValidationResult validate_protocol_limits(
+vda5050_core::errors::ValidationResult validate_protocol_limits(
   const PreSendContext& ctx,
   const vda5050_core::types::InstantActions& actions);
 
-}  // namespace vda5050_core::master
+}  // namespace vda5050_core::validation
 
-#endif  // VDA5050_CORE__MASTER__VALIDATION__PROTOCOL_LIMITS_VALIDATOR_HPP_
+#endif  // VDA5050_CORE__VALIDATION__PROTOCOL_LIMITS_VALIDATOR_HPP_

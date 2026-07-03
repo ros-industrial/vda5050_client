@@ -16,14 +16,14 @@
  * limitations under the License.
  */
 
-#ifndef VDA5050_CORE__MASTER__VALIDATION__FACTSHEET_ALIGNMENT_HPP_
-#define VDA5050_CORE__MASTER__VALIDATION__FACTSHEET_ALIGNMENT_HPP_
+#ifndef VDA5050_CORE__VALIDATION__FACTSHEET_ALIGNMENT_HPP_
+#define VDA5050_CORE__VALIDATION__FACTSHEET_ALIGNMENT_HPP_
 
 #include "vda5050_core/layout/graph.hpp"
-#include "vda5050_core/order_utils/validation_result.hpp"
+#include "vda5050_core/errors/validation_result.hpp"
 #include "vda5050_core/types/factsheet.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core::validation {
 
 // Cross-checks a loaded layout against an AGV's factsheet so the integrator
 // learns, before sending orders, whether the AGV can physically execute what
@@ -48,10 +48,10 @@ namespace vda5050_core::master {
 /// \return WARNING-level entries — one per detected mismatch, or a single
 ///         entry noting the check was skipped when the factsheet reports no
 ///         usable speed. No entries means full alignment
-vda5050_core::order_utils::ValidationResult check_factsheet_alignment(
+vda5050_core::errors::ValidationResult check_factsheet_alignment(
   const vda5050_core::layout::Graph& graph,
   const vda5050_core::types::Factsheet& factsheet);
 
-}  // namespace vda5050_core::master
+}  // namespace vda5050_core::validation
 
-#endif  // VDA5050_CORE__MASTER__VALIDATION__FACTSHEET_ALIGNMENT_HPP_
+#endif  // VDA5050_CORE__VALIDATION__FACTSHEET_ALIGNMENT_HPP_

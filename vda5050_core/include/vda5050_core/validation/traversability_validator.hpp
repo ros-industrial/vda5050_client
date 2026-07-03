@@ -16,22 +16,22 @@
  * limitations under the License.
  */
 
-#ifndef VDA5050_CORE__MASTER__VALIDATION__TRAVERSABILITY_VALIDATOR_HPP_
-#define VDA5050_CORE__MASTER__VALIDATION__TRAVERSABILITY_VALIDATOR_HPP_
+#ifndef VDA5050_CORE__VALIDATION__TRAVERSABILITY_VALIDATOR_HPP_
+#define VDA5050_CORE__VALIDATION__TRAVERSABILITY_VALIDATOR_HPP_
 
-#include "vda5050_core/master/validation/pre_send_validator.hpp"
-#include "vda5050_core/order_utils/validation_result.hpp"
+#include "vda5050_core/validation/pre_send_validator.hpp"
+#include "vda5050_core/errors/validation_result.hpp"
 #include "vda5050_core/types/order.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core::validation {
 
 /// \brief Can this AGV navigate the order's route? Validates first-node
 /// reachability (state-driven) and, when a layout is loaded, that every
 /// node/edge exists in it with matching map_id and directed endpoints. The
 /// graph-integrity check is skipped when no layout is cached.
-vda5050_core::order_utils::ValidationResult validate_traversability(
+vda5050_core::errors::ValidationResult validate_traversability(
   const PreSendContext& ctx, const vda5050_core::types::Order& order);
 
-}  // namespace vda5050_core::master
+}  // namespace vda5050_core::validation
 
-#endif  // VDA5050_CORE__MASTER__VALIDATION__TRAVERSABILITY_VALIDATOR_HPP_
+#endif  // VDA5050_CORE__VALIDATION__TRAVERSABILITY_VALIDATOR_HPP_

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-#include "vda5050_core/master/validation/factsheet_alignment.hpp"
+#include "vda5050_core/validation/factsheet_alignment.hpp"
 
 #include <sstream>
 #include <string>
@@ -25,13 +25,13 @@
 #include "vda5050_core/errors/error_factory.hpp"
 #include "vda5050_core/layout/edge.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core::validation {
 
-vda5050_core::order_utils::ValidationResult check_factsheet_alignment(
+vda5050_core::errors::ValidationResult check_factsheet_alignment(
   const vda5050_core::layout::Graph& graph,
   const vda5050_core::types::Factsheet& factsheet)
 {
-  vda5050_core::order_utils::ValidationResult result;
+  vda5050_core::errors::ValidationResult result;
 
   const double agv_speed_max = factsheet.physical_parameters.speed_max;
   const double agv_speed_min = factsheet.physical_parameters.speed_min;
@@ -82,4 +82,4 @@ vda5050_core::order_utils::ValidationResult check_factsheet_alignment(
   return result;
 }
 
-}  // namespace vda5050_core::master
+}  // namespace vda5050_core::validation

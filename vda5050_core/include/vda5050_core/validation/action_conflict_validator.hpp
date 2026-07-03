@@ -16,22 +16,22 @@
  * limitations under the License.
  */
 
-#ifndef VDA5050_CORE__MASTER__VALIDATION__ACTION_CONFLICT_VALIDATOR_HPP_
-#define VDA5050_CORE__MASTER__VALIDATION__ACTION_CONFLICT_VALIDATOR_HPP_
+#ifndef VDA5050_CORE__VALIDATION__ACTION_CONFLICT_VALIDATOR_HPP_
+#define VDA5050_CORE__VALIDATION__ACTION_CONFLICT_VALIDATOR_HPP_
 
-#include "vda5050_core/master/validation/pre_send_validator.hpp"
-#include "vda5050_core/order_utils/validation_result.hpp"
+#include "vda5050_core/validation/pre_send_validator.hpp"
+#include "vda5050_core/errors/validation_result.hpp"
 #include "vda5050_core/types/instant_actions.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core::validation {
 
 /// \brief Does an instant action collide with the AGV's running actions /
 /// driving? (blocking_type: NONE ok; SOFT blocked while driving; HARD blocked
 /// while driving or any active action.)
-vda5050_core::order_utils::ValidationResult validate_action_conflict(
+vda5050_core::errors::ValidationResult validate_action_conflict(
   const PreSendContext& ctx,
   const vda5050_core::types::InstantActions& actions);
 
-}  // namespace vda5050_core::master
+}  // namespace vda5050_core::validation
 
-#endif  // VDA5050_CORE__MASTER__VALIDATION__ACTION_CONFLICT_VALIDATOR_HPP_
+#endif  // VDA5050_CORE__VALIDATION__ACTION_CONFLICT_VALIDATOR_HPP_

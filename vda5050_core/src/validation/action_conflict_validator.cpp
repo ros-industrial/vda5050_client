@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-#include "vda5050_core/master/validation/action_conflict_validator.hpp"
+#include "vda5050_core/validation/action_conflict_validator.hpp"
 
 #include <string>
 #include <vector>
@@ -24,7 +24,7 @@
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core::validation {
 
 namespace {
 
@@ -32,7 +32,7 @@ using ::vda5050_core::errors::ActionBlockedByDrivingError;
 using ::vda5050_core::errors::create_error;
 using ::vda5050_core::errors::HardActionBlockedError;
 using ::vda5050_core::errors::RefActionId;
-using ::vda5050_core::order_utils::ValidationResult;
+using ::vda5050_core::errors::ValidationResult;
 using ::vda5050_core::types::ActionStatus;
 using ::vda5050_core::types::BlockingType;
 using ::vda5050_core::types::ErrorReference;
@@ -128,4 +128,4 @@ ValidationResult validate_action_conflict(
   return res;
 }
 
-}  // namespace vda5050_core::master
+}  // namespace vda5050_core::validation

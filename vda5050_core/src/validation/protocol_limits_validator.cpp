@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-#include "vda5050_core/master/validation/protocol_limits_validator.hpp"
+#include "vda5050_core/validation/protocol_limits_validator.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -28,13 +28,13 @@
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core::validation {
 
 namespace {
 
 using ::vda5050_core::errors::create_error;
 using ::vda5050_core::errors::ProtocolLimitError;
-using ::vda5050_core::order_utils::ValidationResult;
+using ::vda5050_core::errors::ValidationResult;
 using ::vda5050_core::types::ErrorReference;
 
 using AddErrorFn =
@@ -150,4 +150,4 @@ ValidationResult validate_protocol_limits(
   return res;
 }
 
-}  // namespace vda5050_core::master
+}  // namespace vda5050_core::validation

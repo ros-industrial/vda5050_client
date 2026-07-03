@@ -23,12 +23,12 @@
 #include <vector>
 
 #include "vda5050_core/errors/error_codes.hpp"
-#include "vda5050_core/master/validation/capability_validator.hpp"
+#include "vda5050_core/validation/capability_validator.hpp"
 
 namespace {
 
 ::testing::AssertionResult AllErrorsHaveCapabilityType(
-  const vda5050_core::order_utils::ValidationResult& res)
+  const vda5050_core::errors::ValidationResult& res)
 {
   for (const auto& e : res.errors)
   {
@@ -43,7 +43,7 @@ namespace {
 }
 
 ::testing::AssertionResult AnyErrorMentions(
-  const vda5050_core::order_utils::ValidationResult& res,
+  const vda5050_core::errors::ValidationResult& res,
   const std::string& needle)
 {
   for (const auto& e : res.errors)
@@ -61,7 +61,9 @@ namespace {
 
 }  // namespace
 
-namespace vda5050_core::master::test {
+namespace vda5050_core::validation::test {
+
+using vda5050_core::master::AGVState;
 
 namespace {
 
@@ -373,4 +375,4 @@ TEST(CapabilityValidatorTest, MultipleCapabilityErrorsAccumulate)
   EXPECT_TRUE(AnyErrorMentions(res, "teleport"));
 }
 
-}  // namespace vda5050_core::master::test
+}  // namespace vda5050_core::validation::test

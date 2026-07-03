@@ -24,9 +24,9 @@
 
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/layout/lif.hpp"
-#include "vda5050_core/master/validation/factsheet_alignment.hpp"
+#include "vda5050_core/validation/factsheet_alignment.hpp"
 
-namespace vda5050_core::master::test {
+namespace vda5050_core::validation::test {
 
 namespace {
 
@@ -149,4 +149,4 @@ TEST(FactsheetAlignment, UnknownAgvCapability_SkipsAndWarnsOnce)
     vda5050_core::errors::SpeedCapabilityUnknown);
 }
 
-}  // namespace vda5050_core::master::test
+}  // namespace vda5050_core::validation::test

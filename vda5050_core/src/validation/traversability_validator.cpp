@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-#include "vda5050_core/master/validation/traversability_validator.hpp"
+#include "vda5050_core/validation/traversability_validator.hpp"
 
 #include <cmath>
 #include <functional>
@@ -26,13 +26,13 @@
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core::validation {
 
 namespace {
 
 using ::vda5050_core::errors::create_error;
 using ::vda5050_core::errors::TraversabilityValidationError;
-using ::vda5050_core::order_utils::ValidationResult;
+using ::vda5050_core::errors::ValidationResult;
 using ::vda5050_core::types::ErrorReference;
 
 using AddErrorFn =
@@ -199,4 +199,4 @@ ValidationResult validate_traversability(
   return res;
 }
 
-}  // namespace vda5050_core::master
+}  // namespace vda5050_core::validation

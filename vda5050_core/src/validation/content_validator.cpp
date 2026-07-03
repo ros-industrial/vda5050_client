@@ -18,12 +18,11 @@
 
 #include "vda5050_core/validation/content_validator.hpp"
 
+#include <fmt/format.h>
 #include <algorithm>
 #include <functional>
 #include <string>
 #include <vector>
-
-#include <fmt/format.h>
 
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"

@@ -16,9 +16,8 @@
  * limitations under the License.
  */
 
-#include <algorithm>
-
 #include <fmt/format.h>
+#include <algorithm>
 
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"

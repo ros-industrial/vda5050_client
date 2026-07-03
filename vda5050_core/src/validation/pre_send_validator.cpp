@@ -18,9 +18,8 @@
 
 #include "vda5050_core/validation/pre_send_validator.hpp"
 
-#include <string>
-
 #include <fmt/format.h>
+#include <string>
 
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"

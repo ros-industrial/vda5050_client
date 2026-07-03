@@ -225,6 +225,8 @@ public:
     return "v" + major;
   }
 
+  void unsubscribe_all();
+
 private:
   ProtocolAdapter(
     std::shared_ptr<transport::MqttClientInterface> mqtt_client,

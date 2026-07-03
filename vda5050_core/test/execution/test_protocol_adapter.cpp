@@ -266,3 +266,45 @@ TYPED_TEST(ProtocolAdapterTest, HeaderIncrement)
   this->adapter_->template publish<TypeParam>(msg, this->qos_, this->retained_);
   this->adapter_->template publish<TypeParam>(msg, this->qos_, this->retained_);
 }
+
+TYPED_TEST(ProtocolAdapterTest, UnsubscribeAllOnlyUnsubscribesActiveTopics)
+{
+  // Nothing subscribed — unsubscribe_all() must not touch mqtt_client_.
+  EXPECT_CALL(*this->mock_, unsubscribe(testing::_)).Times(0);
+
+  this->adapter_->unsubscribe_all();
+}
+
+TYPED_TEST(ProtocolAdapterTest, UnsubscribeAllSilencesActiveCallbacks)
+{
+  MqttClientInterface::MessageHandler captured_handler;
+
+  EXPECT_CALL(
+    *this->mock_,
+    subscribe(testing::StartsWith(this->topic_prefix_), testing::_, this->qos_))
+    .WillOnce(testing::SaveArg<1>(&captured_handler));
+
+  std::atomic_bool callback_invoked = false;
+  this->adapter_->template subscribe<TypeParam>(
+    [&](TypeParam /*msg*/, std::optional<Error> err) {
+      if (!err.has_value()) callback_invoked = true;
+    },
+    this->qos_);
+
+  // While subscribed, the captured wrapper should dispatch to the
+  // user callback.
+  TypeParam msg = make_valid_message<TypeParam>();
+  nlohmann::json j = msg;
+  captured_handler(this->topic_prefix_, j.dump());
+  EXPECT_TRUE(callback_invoked);
+
+  // After unsubscribe_all, the wrapper should be inert.
+  EXPECT_CALL(
+    *this->mock_, unsubscribe(testing::StartsWith(this->topic_prefix_)))
+    .Times(1);
+  this->adapter_->unsubscribe_all();
+
+  callback_invoked = false;
+  captured_handler(this->topic_prefix_, j.dump());
+  EXPECT_FALSE(callback_invoked);
+}

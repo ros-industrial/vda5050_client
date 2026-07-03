@@ -27,7 +27,9 @@
 #include "vda5050_core/layout/node.hpp"
 #include "vda5050_core/layout/station.hpp"
 
-namespace vda5050_core::layout {
+namespace vda5050_core {
+
+namespace layout {
 
 struct Layout
 {
@@ -56,6 +58,7 @@ struct Layout
   }
 };
 
-}  // namespace vda5050_core::layout
+}  // namespace layout
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__LAYOUT__LAYOUT_HPP_

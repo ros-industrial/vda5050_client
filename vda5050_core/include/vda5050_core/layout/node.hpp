@@ -25,7 +25,9 @@
 
 #include "vda5050_core/layout/vehicle_type_node_property.hpp"
 
-namespace vda5050_core::layout {
+namespace vda5050_core {
+
+namespace layout {
 
 struct NodePosition
 {
@@ -67,6 +69,7 @@ struct Node
   }
 };
 
-}  // namespace vda5050_core::layout
+}  // namespace layout
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__LAYOUT__NODE_HPP_

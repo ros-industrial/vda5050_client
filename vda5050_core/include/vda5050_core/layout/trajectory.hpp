@@ -22,7 +22,9 @@
 #include <optional>
 #include <vector>
 
-namespace vda5050_core::layout {
+namespace vda5050_core {
+
+namespace layout {
 
 struct ControlPoint
 {
@@ -59,6 +61,7 @@ struct Trajectory
   }
 };
 
-}  // namespace vda5050_core::layout
+}  // namespace layout
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__LAYOUT__TRAJECTORY_HPP_

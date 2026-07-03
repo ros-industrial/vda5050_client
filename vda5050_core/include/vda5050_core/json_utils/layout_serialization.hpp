@@ -37,7 +37,9 @@
 #include "vda5050_core/layout/vehicle_type_node_property.hpp"
 #include "vda5050_core/types/blocking_type.hpp"
 
-namespace vda5050_core::layout {
+namespace vda5050_core {
+
+namespace layout {
 
 inline std::string to_string(RequirementType v)
 {
@@ -670,6 +672,7 @@ inline void from_json(const nlohmann::json& j, LIF& v)
   lif_detail::from_json(j, v);
 }
 
-}  // namespace vda5050_core::layout
+}  // namespace layout
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__JSON_UTILS__LAYOUT_SERIALIZATION_HPP_

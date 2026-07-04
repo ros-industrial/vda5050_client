@@ -877,7 +877,7 @@ void from_json(const nlohmann::json& j, EdgeT& msg)
   msg.start_node_id = j.at("startNodeId").get<std::string>();
   msg.end_node_id = j.at("endNodeId").get<std::string>();
   msg.released = j.at("released").get<bool>();
-  msg.actions = j.at("actions");
+  j.at("actions").get_to(msg.actions);
 
   if (j.contains("edgeDescription"))
   {
@@ -1368,7 +1368,7 @@ void from_json(const nlohmann::json& j, InstantActionsT& msg)
 {
   from_json(j, msg.header);
 
-  msg.actions = j.at("actions");
+  j.at("actions").get_to(msg.actions);
 }
 
 }  // namespace instant_actions_detail
@@ -2244,7 +2244,7 @@ void from_json(const nlohmann::json& j, NodeT& msg)
   msg.node_id = j.at("nodeId").get<std::string>();
   msg.sequence_id = j.at("sequenceId").get<uint32_t>();
   msg.released = j.at("released").get<bool>();
-  msg.actions = j.at("actions");
+  j.at("actions").get_to(msg.actions);
 
   if (j.contains("nodePosition"))
   {
@@ -2481,8 +2481,8 @@ void from_json(const nlohmann::json& j, OrderT& msg)
 
   msg.order_id = j.at("orderId").get<std::string>();
   msg.order_update_id = j.at("orderUpdateId").get<uint32_t>();
-  msg.nodes = j.at("nodes");
-  msg.edges = j.at("edges");
+  j.at("nodes").get_to(msg.nodes);
+  j.at("edges").get_to(msg.edges);
 
   if (j.contains("zoneSetId"))
   {
@@ -2633,8 +2633,8 @@ void to_json(nlohmann::json& j, const ProtocolFeaturesT& msg)
 template <typename ProtocolFeaturesT>
 void from_json(const nlohmann::json& j, ProtocolFeaturesT& msg)
 {
-  msg.optional_parameters = j.at("optionalParameters");
-  msg.agv_actions = j.at("agvActions");
+  j.at("optionalParameters").get_to(msg.optional_parameters);
+  j.at("agvActions").get_to(msg.agv_actions);
 }
 
 }  // namespace protocol_features_detail
@@ -2799,10 +2799,10 @@ void from_json(const nlohmann::json& j, StateT& msg)
     operating_mode_traits<decltype(msg.operating_mode)>::from_string(
       j.at("operatingMode").get<std::string>());
 
-  msg.node_states = j.at("nodeStates");
-  msg.edge_states = j.at("edgeStates");
-  msg.action_states = j.at("actionStates");
-  msg.errors = j.at("errors");
+  j.at("nodeStates").get_to(msg.node_states);
+  j.at("edgeStates").get_to(msg.edge_states);
+  j.at("actionStates").get_to(msg.action_states);
+  j.at("errors").get_to(msg.errors);
   msg.battery_state = j.at("batteryState");
   msg.safety_state = j.at("safetyState");
 

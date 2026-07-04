@@ -47,8 +47,7 @@ public:
 
   std::chrono::system_clock::time_point get_current_time() override
   {
-    VDA5050_INFO(
-      "get_current_time with skip of " + std::to_string(time_to_skip_));
+    VDA5050_INFO("get_current_time with skip of {}", time_to_skip_);
     return std::chrono::system_clock::now() +
            std::chrono::seconds(time_to_skip_);
   }
@@ -124,12 +123,9 @@ TEST(HeartbeatListenerTest, HeartbeatNotReceivedTimeout)
       // Timeout callback
       VDA5050_INFO("Timeout callback");
       VDA5050_INFO(
-        "Heartbeat_failed before store: " +
-        std::to_string(heartbeat_failed.load()));
+        "Heartbeat_failed before store: {}", heartbeat_failed.load());
       heartbeat_failed.store(true);
-      VDA5050_INFO(
-        "Heartbeat_failed after store: " +
-        std::to_string(heartbeat_failed.load()));
+      VDA5050_INFO("Heartbeat_failed after store: {}", heartbeat_failed.load());
       // ASSERT_TRUE(heartbeat_failed->load());
     },
     ConnectionHeartbeatInterval + 1);

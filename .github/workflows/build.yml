@@ -19,6 +19,8 @@ jobs:
         include:
           - {distro: jazzy, test_type: gcc-asan}
           - {distro: jazzy, test_type: gcc-tsan}
+          - {distro: jazzy, test_type: gcc-cpp20}
+          - {distro: jazzy, test_type: clang-cpp20}
     env:
       ISOLATION: "shell"
       UPSTREAM_WORKSPACE: 'github:ros-industrial/vda5050_interfaces#main github:eclipse-paho/paho.mqtt.cpp#v1.5.0'
@@ -54,6 +56,21 @@ jobs:
         uses: 'ros-industrial/industrial_ci@master'
         env:
           TARGET_CMAKE_ARGS: '-DENABLE_ROS2=ON -DCMAKE_C_FLAGS="-fsanitize=thread -O2 -g -fno-omit-frame-pointer" -DCMAKE_CXX_FLAGS="-fsanitize=thread -O2 -g -fno-omit-frame-pointer"'
+
+      # GCC with C++20
+      - if: ${{ matrix.test_type == 'gcc-cpp20' }}
+        uses: 'ros-industrial/industrial_ci@master'
+        env:
+          TARGET_CMAKE_ARGS: '-DENABLE_ROS2=ON -DCMAKE_CXX_STANDARD=20'
+
+      # Clang with C++20
+      - if: ${{ matrix.test_type == 'clang-cpp20' }}
+        uses: 'ros-industrial/industrial_ci@master'
+        env:
+          ADDITIONAL_DEBS: clang lld
+          CC: "clang"
+          CXX: "clang++"
+          TARGET_CMAKE_ARGS: '-DENABLE_ROS2=ON -DCMAKE_CXX_STANDARD=20'
 
       # Clang
       - if: ${{ matrix.test_type == 'clang' }}

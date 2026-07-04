@@ -50,7 +50,10 @@ types::Error make_error(
   refs.push_back({errors::RefOrderId, order.order_id});
   refs.push_back(
     {errors::RefOrderUpdateId, std::to_string(order.order_update_id)});
-  return errors::create_error(type, description, refs);
+  // Order rejections are WARNING-level: the AGV declines the order but stays
+  // operational (FATAL means it cannot start or continue).
+  return errors::create_error(
+    type, description, refs, types::ErrorLevel::WARNING);
 }
 
 AcceptanceResult rejected(types::Error error)
@@ -119,21 +122,28 @@ AcceptanceResult OrderValidator::validate_order(
 {
   if (!context)
   {
-    return rejected(
-      errors::create_error(errors::ValidationError, "context is null", {}));
+    return rejected(errors::create_error(
+      errors::ValidationError, "context is null", {},
+      types::ErrorLevel::WARNING));
   }
 
   auto execution = context->get_resource<OrderExecutionResource>();
   if (!execution)
   {
     return rejected(errors::create_error(
-      errors::ValidationError, "OrderExecutionResource is null", {}));
+      errors::ValidationError, "OrderExecutionResource is null", {},
+      types::ErrorLevel::WARNING));
   }
 
-  if (auto graph = validation::is_valid_graph(incoming_order); !graph)
+  if (auto graph = validation::is_valid_graph(incoming_order);
+      graph.has_fatal() || graph.has_warnings())
   {
-    for (auto& error : graph.errors) attach_order_refs(error, incoming_order);
-    return rejected(std::move(graph.errors));
+    std::vector<types::Error> graph_errors = graph.fatal_errors();
+    const auto& graph_warnings = graph.warnings();
+    graph_errors.insert(
+      graph_errors.end(), graph_warnings.begin(), graph_warnings.end());
+    for (auto& error : graph_errors) attach_order_refs(error, incoming_order);
+    return rejected(std::move(graph_errors));
   }
 
   // TODO(eileentyz): Add AGV capability/factsheet validation once capability

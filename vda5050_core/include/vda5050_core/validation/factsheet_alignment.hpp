@@ -16,37 +16,30 @@
  * limitations under the License.
  */
 
-#ifndef VDA5050_CORE__VALIDATION__PRE_SEND_VALIDATOR_HPP_
-#define VDA5050_CORE__VALIDATION__PRE_SEND_VALIDATOR_HPP_
-
-#include <optional>
+#ifndef VDA5050_CORE__VALIDATION__FACTSHEET_ALIGNMENT_HPP_
+#define VDA5050_CORE__VALIDATION__FACTSHEET_ALIGNMENT_HPP_
 
 #include "vda5050_core/errors/validation_result.hpp"
 #include "vda5050_core/layout/graph.hpp"
-#include "vda5050_core/master/agv.hpp"
-#include "vda5050_core/types/connection_state.hpp"
 #include "vda5050_core/types/factsheet.hpp"
-#include "vda5050_core/types/state.hpp"
 
 namespace vda5050_core {
 
 namespace validation {
 
-/// \brief Lock-free AGV snapshot captured once; serves the whole publish chain.
-struct PreSendContext
-{
-  vda5050_core::types::ConnectionState connection_status;
-  std::optional<vda5050_core::types::State> last_state;
-  std::optional<vda5050_core::types::Factsheet> last_factsheet;
-  vda5050_core::master::AGVState operational_state;
-  vda5050_core::layout::Graph::ConstPtr loaded_graph;
-};
-
-/// \brief AGV-readiness gate before publish (connection, mode, position).
-vda5050_core::errors::ValidationResult validate_pre_send(
-  const PreSendContext& ctx);
+/// \brief Advisory check: edge speeds in `graph` against the AGV factsheet's
+/// speed envelope. Stateless; safe to call concurrently.
+///
+/// \param graph      the master's loaded layout
+/// \param factsheet  the AGV's reported factsheet
+/// \return WARNING-level entries — one per detected mismatch, or a single
+///         entry noting the check was skipped when the factsheet reports no
+///         usable speed. No entries means full alignment
+vda5050_core::errors::ValidationResult check_factsheet_alignment(
+  const vda5050_core::layout::Graph& graph,
+  const vda5050_core::types::Factsheet& factsheet);
 
 }  // namespace validation
 }  // namespace vda5050_core
 
-#endif  // VDA5050_CORE__VALIDATION__PRE_SEND_VALIDATOR_HPP_
+#endif  // VDA5050_CORE__VALIDATION__FACTSHEET_ALIGNMENT_HPP_

@@ -29,7 +29,7 @@ namespace {
 ::testing::AssertionResult AllErrorsHavePreSendType(
   const vda5050_core::errors::ValidationResult& res)
 {
-  for (const auto& e : res.errors)
+  for (const auto& e : res.fatal_errors())
   {
     if (e.error_type != vda5050_core::errors::PreSendValidationError)
     {
@@ -45,7 +45,7 @@ namespace {
 ::testing::AssertionResult AnyErrorMentions(
   const vda5050_core::errors::ValidationResult& res, const std::string& needle)
 {
-  for (const auto& e : res.errors)
+  for (const auto& e : res.fatal_errors())
   {
     if (
       e.error_description &&
@@ -83,7 +83,7 @@ PreSendContext make_ready_context()
 {
   return PreSendContext{
     vda5050_core::types::ConnectionState::ONLINE, make_ready_state(),
-    AGVState::AVAILABLE};
+    std::nullopt, AGVState::AVAILABLE, nullptr};
 }
 
 }  // namespace
@@ -98,7 +98,7 @@ TEST(PreSendValidatorTest, ValidContextPasses)
   auto ctx = make_ready_context();
   auto res = validate_pre_send(ctx);
   EXPECT_TRUE(static_cast<bool>(res));
-  EXPECT_TRUE(res.errors.empty());
+  EXPECT_TRUE(res.fatal_errors().empty());
 }
 
 // ============================================================================
@@ -180,7 +180,7 @@ TEST(PreSendValidatorTest, AbsentLastStateRejectedAndShortCircuits)
   EXPECT_TRUE(AllErrorsHavePreSendType(res));
   // Only the "no State reported" error should fire — mode and position
   // checks are unreachable without last_state.
-  EXPECT_EQ(res.errors.size(), 1u);
+  EXPECT_EQ(res.fatal_errors().size(), 1u);
   EXPECT_TRUE(AnyErrorMentions(res, "State"));
 }
 
@@ -195,7 +195,7 @@ TEST(PreSendValidatorTest, SemiAutomaticModeAccepted)
     vda5050_core::types::OperatingMode::SEMIAUTOMATIC;
   auto res = validate_pre_send(ctx);
   EXPECT_TRUE(static_cast<bool>(res));
-  EXPECT_TRUE(res.errors.empty());
+  EXPECT_TRUE(res.fatal_errors().empty());
 }
 
 TEST(PreSendValidatorTest, ManualModeRejected)
@@ -286,7 +286,7 @@ TEST(PreSendValidatorTest, MultipleErrorsAccumulate)
   ctx.last_state->agv_position->position_initialized = false;
   auto res = validate_pre_send(ctx);
   EXPECT_FALSE(static_cast<bool>(res));
-  EXPECT_EQ(res.errors.size(), 3u);
+  EXPECT_EQ(res.fatal_errors().size(), 3u);
   EXPECT_TRUE(AllErrorsHavePreSendType(res));
   EXPECT_TRUE(AnyErrorMentions(res, "connection_status"));
   EXPECT_TRUE(AnyErrorMentions(res, "operating_mode"));

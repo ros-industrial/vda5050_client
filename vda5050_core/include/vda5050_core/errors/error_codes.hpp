@@ -31,6 +31,28 @@ inline const std::string OrderUpdateError = "orderUpdateError";
 inline const std::string ValidationError = "validationError";
 inline const std::string ContentValidationError = "contentValidationError";
 inline const std::string PreSendValidationError = "preSendValidationError";
+inline const std::string TraversabilityValidationError =
+  "traversabilityValidationError";
+inline const std::string CapabilityValidationError =
+  "capabilityValidationError";
+inline const std::string ProtocolLimitError = "protocolLimitError";
+inline const std::string ActionBlockedByDrivingError =
+  "actionBlockedByDrivingError";
+inline const std::string HardActionBlockedError = "hardActionBlockedError";
+inline const std::string ModeValidationError = "modeValidationError";
+
+// Factsheet-alignment finding codes (advisory, WARNING level).
+inline const std::string SpeedExceedsCapability = "speedExceedsCapability";
+inline const std::string SpeedBelowMinimum = "speedBelowMinimum";
+inline const std::string SpeedCapabilityUnknown = "speedCapabilityUnknown";
+
+// Check-skipped advisories (WARNING): the validator's input (layout /
+// factsheet) was absent, so the check could not run.
+inline const std::string GraphIntegrityCheckSkipped =
+  "graphIntegrityCheckSkipped";
+inline const std::string CapabilityCheckSkipped = "capabilityCheckSkipped";
+inline const std::string ProtocolLimitCheckSkipped =
+  "protocolLimitCheckSkipped";
 
 // Reference key string for vda5050_types::ErrorReference::key
 inline const std::string RefOrderId = "orderId";

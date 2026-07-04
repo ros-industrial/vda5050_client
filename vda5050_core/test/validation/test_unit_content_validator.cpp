@@ -29,7 +29,7 @@ namespace {
 ::testing::AssertionResult AllErrorsHaveContentType(
   const vda5050_core::errors::ValidationResult& res)
 {
-  for (const auto& e : res.errors)
+  for (const auto& e : res.fatal_errors())
   {
     if (e.error_type != vda5050_core::errors::ContentValidationError)
     {
@@ -45,7 +45,7 @@ namespace {
 ::testing::AssertionResult AnyErrorMentions(
   const vda5050_core::errors::ValidationResult& res, const std::string& needle)
 {
-  for (const auto& e : res.errors)
+  for (const auto& e : res.fatal_errors())
   {
     if (
       e.error_description &&
@@ -62,7 +62,7 @@ namespace {
 ::testing::AssertionResult AnyErrorHasRef(
   const vda5050_core::errors::ValidationResult& res, const std::string& key)
 {
-  for (const auto& e : res.errors)
+  for (const auto& e : res.fatal_errors())
   {
     if (!e.error_references) continue;
     for (const auto& r : *e.error_references)
@@ -161,7 +161,7 @@ TEST(ContentValidatorTest, HeaderVersionMatch)
   auto o = make_valid_order();
   auto res = validate_order_content(o);
   EXPECT_TRUE(static_cast<bool>(res));
-  EXPECT_TRUE(res.errors.empty());
+  EXPECT_TRUE(res.fatal_errors().empty());
 }
 
 TEST(ContentValidatorTest, HeaderVersionMismatchRejected)
@@ -170,9 +170,9 @@ TEST(ContentValidatorTest, HeaderVersionMismatchRejected)
   o.header.version = "1.3.2";
   auto res = validate_order_content(o);
   EXPECT_FALSE(static_cast<bool>(res));
-  ASSERT_FALSE(res.errors.empty());
+  ASSERT_FALSE(res.fatal_errors().empty());
   EXPECT_EQ(
-    res.errors.front().error_type,
+    res.fatal_errors().front().error_type,
     vda5050_core::errors::ContentValidationError);
 }
 
@@ -390,9 +390,9 @@ TEST(ContentValidatorTest, HeaderVersionEmptyRejected)
   c.header.version = "";
   auto res = validate_connection_content(c);
   EXPECT_FALSE(static_cast<bool>(res));
-  ASSERT_FALSE(res.errors.empty());
+  ASSERT_FALSE(res.fatal_errors().empty());
   EXPECT_EQ(
-    res.errors.front().error_type,
+    res.fatal_errors().front().error_type,
     vda5050_core::errors::ContentValidationError);
 }
 
@@ -417,7 +417,7 @@ TEST(ContentValidatorTest, MultipleErrorsAccumulate)
   o.nodes.front().node_id = "";  // -> 1 error
   auto res = validate_order_content(o);
   EXPECT_FALSE(static_cast<bool>(res));
-  EXPECT_EQ(res.errors.size(), 4u);
+  EXPECT_EQ(res.fatal_errors().size(), 4u);
   EXPECT_TRUE(AllErrorsHaveContentType(res));
   // Spot-check that each independent issue surfaced its own message.
   EXPECT_TRUE(AnyErrorMentions(res, "order_id"));

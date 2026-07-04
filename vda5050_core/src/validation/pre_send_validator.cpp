@@ -25,21 +25,20 @@
 #include "vda5050_core/errors/error_factory.hpp"
 
 namespace vda5050_core::validation {
-using vda5050_core::master::AGVState;
 
 namespace {
 
-const char* agv_state_name(AGVState state)
+const char* agv_state_name(master::AGVState state)
 {
   switch (state)
   {
-    case AGVState::STATE_UNKNOWN:
+    case master::AGVState::STATE_UNKNOWN:
       return "STATE_UNKNOWN";
-    case AGVState::AVAILABLE:
+    case master::AGVState::AVAILABLE:
       return "AVAILABLE";
-    case AGVState::UNAVAILABLE:
+    case master::AGVState::UNAVAILABLE:
       return "UNAVAILABLE";
-    case AGVState::ERROR:
+    case master::AGVState::ERROR:
       return "ERROR";
   }
   return "UNKNOWN";
@@ -47,22 +46,21 @@ const char* agv_state_name(AGVState state)
 
 }  // namespace
 
-vda5050_core::errors::ValidationResult validate_pre_send(
-  const PreSendContext& ctx)
+errors::ValidationResult validate_pre_send(const PreSendContext& ctx)
 {
-  vda5050_core::errors::ValidationResult res;
+  errors::ValidationResult res;
 
   auto add_error = [&](const std::string& description) {
-    res.errors.push_back(vda5050_core::errors::create_error(
-      vda5050_core::errors::PreSendValidationError, description, {}));
+    res.add_error(
+      errors::create_error(errors::PreSendValidationError, description, {}));
   };
 
-  if (ctx.connection_status != vda5050_core::types::ConnectionState::ONLINE)
+  if (ctx.connection_status != types::ConnectionState::ONLINE)
   {
     add_error("AGV connection_status is not ONLINE");
   }
 
-  if (ctx.operational_state != AGVState::AVAILABLE)
+  if (ctx.operational_state != master::AGVState::AVAILABLE)
   {
     add_error(fmt::format(
       "AGV operational_state is not AVAILABLE ({})",
@@ -76,10 +74,8 @@ vda5050_core::errors::ValidationResult validate_pre_send(
   }
 
   if (
-    ctx.last_state->operating_mode !=
-      vda5050_core::types::OperatingMode::AUTOMATIC &&
-    ctx.last_state->operating_mode !=
-      vda5050_core::types::OperatingMode::SEMIAUTOMATIC)
+    ctx.last_state->operating_mode != types::OperatingMode::AUTOMATIC &&
+    ctx.last_state->operating_mode != types::OperatingMode::SEMIAUTOMATIC)
   {
     add_error("AGV operating_mode is not AUTOMATIC or SEMIAUTOMATIC");
   }
@@ -89,7 +85,7 @@ vda5050_core::errors::ValidationResult validate_pre_send(
     add_error("AGV is paused");
   }
 
-  if (ctx.last_state->safety_state.e_stop != vda5050_core::types::EStop::NONE)
+  if (ctx.last_state->safety_state.e_stop != types::EStop::NONE)
   {
     add_error("AGV e-stop is engaged");
   }

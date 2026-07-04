@@ -26,18 +26,19 @@
 namespace vda5050_core::validation {
 
 //=============================================================================
-errors::ValidationResult is_valid_graph(const vda5050_core::types::Order& order)
+errors::ValidationResult is_valid_graph(const types::Order& order)
 {
   errors::ValidationResult res;
 
   auto add_error = [&](
                      const std::string& description,
-                     std::vector<vda5050_core::types::ErrorReference> refs) {
+                     std::vector<types::ErrorReference> refs) {
     refs.push_back({errors::RefOrderId, order.order_id});
     refs.push_back(
       {errors::RefOrderUpdateId, std::to_string(order.order_update_id)});
-    res.errors.push_back(
-      errors::create_error(errors::GraphValidationError, description, refs));
+    res.add_error(errors::create_error(
+      errors::GraphValidationError, description, refs,
+      types::ErrorLevel::WARNING));
   };
 
   // Check if there are nodes in the order, return if empty
@@ -166,19 +167,18 @@ errors::ValidationResult is_valid_graph(const vda5050_core::types::Order& order)
 
 //=============================================================================
 errors::ValidationResult is_valid_update(
-  const vda5050_core::types::Order& base_order,
-  const vda5050_core::types::Order& next_order)
+  const types::Order& base_order, const types::Order& next_order)
 {
   errors::ValidationResult res;
 
   auto add_error = [&](
                      const std::string& description,
-                     std::vector<vda5050_core::types::ErrorReference> refs) {
+                     std::vector<types::ErrorReference> refs) {
     refs.push_back({errors::RefOrderId, next_order.order_id});
     refs.push_back(
       {errors::RefOrderUpdateId, std::to_string(next_order.order_update_id)});
-    res.errors.push_back(
-      errors::create_error(errors::OrderUpdateError, description, refs));
+    res.add_error(errors::create_error(
+      errors::OrderUpdateError, description, refs, types::ErrorLevel::WARNING));
   };
 
   // Check if it is an existing order

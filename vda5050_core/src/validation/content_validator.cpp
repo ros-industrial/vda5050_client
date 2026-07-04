@@ -29,22 +29,16 @@
 #include "vda5050_core/master/standard_names.hpp"
 
 namespace vda5050_core::validation {
-using vda5050_core::master::SupportedSchemaVersions;
 
 namespace {
 
-using ::vda5050_core::errors::ContentValidationError;
-using ::vda5050_core::errors::create_error;
-using ::vda5050_core::errors::ValidationResult;
-using ::vda5050_core::types::ErrorReference;
-
 using AddErrorFn =
-  std::function<void(const std::string&, std::vector<ErrorReference>)>;
+  std::function<void(const std::string&, std::vector<types::ErrorReference>)>;
 
 void validate_header_common(
-  const ::vda5050_core::types::Header& header, const AddErrorFn& add_error)
+  const types::Header& header, const AddErrorFn& add_error)
 {
-  const auto& supported = SupportedSchemaVersions;
+  const auto& supported = master::SupportedSchemaVersions;
   if (
     std::find(supported.begin(), supported.end(), header.version) ==
     supported.end())
@@ -65,7 +59,7 @@ void validate_header_common(
 }
 
 void validate_action_content(
-  const ::vda5050_core::types::Action& action, const AddErrorFn& add_error)
+  const types::Action& action, const AddErrorFn& add_error)
 {
   if (action.action_id.empty())
   {
@@ -83,20 +77,19 @@ void validate_action_content(
 
 }  // namespace
 
-ValidationResult validate_order_content(
-  const ::vda5050_core::types::Order& order)
+errors::ValidationResult validate_order_content(const types::Order& order)
 {
-  ValidationResult res;
+  errors::ValidationResult res;
 
-  auto add_error =
-    [&](const std::string& description, std::vector<ErrorReference> refs) {
-      refs.push_back({::vda5050_core::errors::RefOrderId, order.order_id});
-      refs.push_back(
-        {::vda5050_core::errors::RefOrderUpdateId,
-         std::to_string(order.order_update_id)});
-      res.errors.push_back(
-        create_error(ContentValidationError, description, refs));
-    };
+  auto add_error = [&](
+                     const std::string& description,
+                     std::vector<types::ErrorReference> refs) {
+    refs.push_back({errors::RefOrderId, order.order_id});
+    refs.push_back(
+      {errors::RefOrderUpdateId, std::to_string(order.order_update_id)});
+    res.add_error(
+      errors::create_error(errors::ContentValidationError, description, refs));
+  };
 
   validate_header_common(order.header, add_error);
 
@@ -111,8 +104,7 @@ ValidationResult validate_order_content(
     {
       add_error(
         "Node.node_id must be non-empty",
-        {{::vda5050_core::errors::RefSequenceId,
-          std::to_string(node.sequence_id)}});
+        {{errors::RefSequenceId, std::to_string(node.sequence_id)}});
     }
     for (const auto& action : node.actions)
     {
@@ -126,8 +118,7 @@ ValidationResult validate_order_content(
     {
       add_error(
         "Edge.edge_id must be non-empty",
-        {{::vda5050_core::errors::RefSequenceId,
-          std::to_string(edge.sequence_id)}});
+        {{errors::RefSequenceId, std::to_string(edge.sequence_id)}});
     }
     for (const auto& action : edge.actions)
     {
@@ -138,16 +129,17 @@ ValidationResult validate_order_content(
   return res;
 }
 
-ValidationResult validate_instant_actions_content(
-  const ::vda5050_core::types::InstantActions& actions)
+errors::ValidationResult validate_instant_actions_content(
+  const types::InstantActions& actions)
 {
-  ValidationResult res;
+  errors::ValidationResult res;
 
-  auto add_error =
-    [&](const std::string& description, std::vector<ErrorReference> refs) {
-      res.errors.push_back(
-        create_error(ContentValidationError, description, refs));
-    };
+  auto add_error = [&](
+                     const std::string& description,
+                     std::vector<types::ErrorReference> refs) {
+    res.add_error(
+      errors::create_error(errors::ContentValidationError, description, refs));
+  };
 
   validate_header_common(actions.header, add_error);
 
@@ -159,16 +151,16 @@ ValidationResult validate_instant_actions_content(
   return res;
 }
 
-ValidationResult validate_state_content(
-  const ::vda5050_core::types::State& state)
+errors::ValidationResult validate_state_content(const types::State& state)
 {
-  ValidationResult res;
+  errors::ValidationResult res;
 
-  auto add_error =
-    [&](const std::string& description, std::vector<ErrorReference> refs) {
-      res.errors.push_back(
-        create_error(ContentValidationError, description, refs));
-    };
+  auto add_error = [&](
+                     const std::string& description,
+                     std::vector<types::ErrorReference> refs) {
+    res.add_error(
+      errors::create_error(errors::ContentValidationError, description, refs));
+  };
 
   validate_header_common(state.header, add_error);
 
@@ -179,8 +171,7 @@ ValidationResult validate_state_content(
     {
       add_error(
         "State.node_states[].node_id must be non-empty when populated",
-        {{::vda5050_core::errors::RefSequenceId,
-          std::to_string(ns.sequence_id)}});
+        {{errors::RefSequenceId, std::to_string(ns.sequence_id)}});
     }
   }
 
@@ -190,7 +181,7 @@ ValidationResult validate_state_content(
     {
       add_error(
         "State.action_states[].action_id must be non-empty",
-        {{::vda5050_core::errors::RefActionType, as.action_type.value_or("")}});
+        {{errors::RefActionType, as.action_type.value_or("")}});
     }
   }
 
@@ -205,46 +196,49 @@ ValidationResult validate_state_content(
   return res;
 }
 
-ValidationResult validate_connection_content(
-  const ::vda5050_core::types::Connection& connection)
+errors::ValidationResult validate_connection_content(
+  const types::Connection& connection)
 {
-  ValidationResult res;
+  errors::ValidationResult res;
 
-  auto add_error =
-    [&](const std::string& description, std::vector<ErrorReference> refs) {
-      res.errors.push_back(
-        create_error(ContentValidationError, description, refs));
-    };
+  auto add_error = [&](
+                     const std::string& description,
+                     std::vector<types::ErrorReference> refs) {
+    res.add_error(
+      errors::create_error(errors::ContentValidationError, description, refs));
+  };
 
   validate_header_common(connection.header, add_error);
   return res;
 }
 
-ValidationResult validate_factsheet_content(
-  const ::vda5050_core::types::Factsheet& factsheet)
+errors::ValidationResult validate_factsheet_content(
+  const types::Factsheet& factsheet)
 {
-  ValidationResult res;
+  errors::ValidationResult res;
 
-  auto add_error =
-    [&](const std::string& description, std::vector<ErrorReference> refs) {
-      res.errors.push_back(
-        create_error(ContentValidationError, description, refs));
-    };
+  auto add_error = [&](
+                     const std::string& description,
+                     std::vector<types::ErrorReference> refs) {
+    res.add_error(
+      errors::create_error(errors::ContentValidationError, description, refs));
+  };
 
   validate_header_common(factsheet.header, add_error);
   return res;
 }
 
-ValidationResult validate_visualization_content(
-  const ::vda5050_core::types::Visualization& visualization)
+errors::ValidationResult validate_visualization_content(
+  const types::Visualization& visualization)
 {
-  ValidationResult res;
+  errors::ValidationResult res;
 
-  auto add_error =
-    [&](const std::string& description, std::vector<ErrorReference> refs) {
-      res.errors.push_back(
-        create_error(ContentValidationError, description, refs));
-    };
+  auto add_error = [&](
+                     const std::string& description,
+                     std::vector<types::ErrorReference> refs) {
+    res.add_error(
+      errors::create_error(errors::ContentValidationError, description, refs));
+  };
 
   validate_header_common(visualization.header, add_error);
   return res;

@@ -23,7 +23,9 @@
 #include <string>
 #include <vector>
 
-namespace vda5050_core::layout {
+namespace vda5050_core {
+
+namespace layout {
 
 /// \brief Load-traversability rule on an edge (per vehicle-type bucket).
 ///
@@ -46,6 +48,7 @@ struct LoadRestriction
   }
 };
 
-}  // namespace vda5050_core::layout
+}  // namespace layout
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__LAYOUT__LOAD_RESTRICTION_HPP_

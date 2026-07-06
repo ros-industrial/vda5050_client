@@ -9,4 +9,6 @@ compile_commands.json
 .cache/
 build/
 install/
+log/
+out/
 tags/

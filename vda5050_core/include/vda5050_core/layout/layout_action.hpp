@@ -25,7 +25,9 @@
 
 #include "vda5050_core/types/blocking_type.hpp"
 
-namespace vda5050_core::layout {
+namespace vda5050_core {
+
+namespace layout {
 
 enum class RequirementType
 {
@@ -76,6 +78,7 @@ struct Action
   }
 };
 
-}  // namespace vda5050_core::layout
+}  // namespace layout
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__LAYOUT__LAYOUT_ACTION_HPP_

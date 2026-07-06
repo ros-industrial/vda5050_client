@@ -95,18 +95,21 @@ target_include_directories(vda5050_errors
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
-# Order Utils
-add_library(vda5050_order_utils SHARED src/order_utils/order_graph_validator.cpp)
+# Validation
+file(GLOB_RECURSE validation_srcs "src/validation/*.cpp")
+add_library(vda5050_validation SHARED ${validation_srcs})
 vda5050_configure_target_alias(
-  TARGET vda5050_order_utils
+  TARGET vda5050_validation
   NAMESPACE ${PROJECT_NAME}::
-  EXPORT_NAME order_utils
+  EXPORT_NAME validation
 )
-target_link_libraries(vda5050_order_utils PUBLIC
+target_link_libraries(vda5050_validation PUBLIC
   ${PROJECT_NAME}::types
   ${PROJECT_NAME}::errors
+  ${PROJECT_NAME}::layout
+  fmt::fmt
 )
-target_include_directories(vda5050_order_utils
+target_include_directories(vda5050_validation
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
@@ -162,7 +165,7 @@ target_link_libraries(vda5050_client
   PUBLIC
     ${PROJECT_NAME}::execution
     ${PROJECT_NAME}::types
-    ${PROJECT_NAME}::order_utils
+    ${PROJECT_NAME}::validation
     ${PROJECT_NAME}::logger
 )
 target_include_directories(vda5050_client
@@ -204,6 +207,9 @@ target_link_libraries(vda5050_master
     ${PROJECT_NAME}::json_utils
     ${PROJECT_NAME}::transport
     ${PROJECT_NAME}::execution
+    ${PROJECT_NAME}::validation
+    ${PROJECT_NAME}::errors
+    ${PROJECT_NAME}::layout
 )
 target_include_directories(vda5050_master
   PUBLIC
@@ -223,7 +229,7 @@ install(
     vda5050_json_utils
     vda5050_logger
     vda5050_errors
-    vda5050_order_utils
+    vda5050_validation
     vda5050_transport
     vda5050_execution
     vda5050_client
@@ -296,10 +302,6 @@ if(BUILD_TESTING)
   ament_add_gmock(test_json_utils ${json_tests})
   target_link_libraries(test_json_utils vda5050_core::json_utils)
 
-  ament_add_gmock(test_order_utils
-    test/order_utils/test_unit_order_graph_validator.cpp)
-  target_link_libraries(test_order_utils vda5050_core::order_utils)
-
   ament_add_gmock(test_logger
     test/logger/test_unit_default_logger.cpp
     test/logger/test_unit_logger.cpp
@@ -316,6 +318,8 @@ if(BUILD_TESTING)
     test/client/test_order_types.cpp
     test/client/test_order_execution_resource.cpp
     test/client/test_agv_context.cpp
+    test/client/test_order_validator.cpp
+    test/client/test_order_acceptance.cpp
   )
 
   target_link_libraries(test_client
@@ -350,6 +354,19 @@ if(BUILD_TESTING)
     test/master/test_unit_event_detector.cpp
   )
   target_link_libraries(test_master_event_detector vda5050_core::master)
+
+  ament_add_gmock(test_validation
+    test/validation/test_unit_content_validator.cpp
+    test/validation/test_unit_order_graph_validator.cpp
+    test/validation/test_unit_pre_send_validator.cpp
+    test/validation/test_unit_traversability_validator.cpp
+    test/validation/test_unit_capability_validator.cpp
+    test/validation/test_unit_protocol_limits_validator.cpp
+    test/validation/test_unit_action_conflict_validator.cpp
+    test/validation/test_unit_instant_action_mode_validator.cpp
+    test/validation/test_unit_factsheet_alignment.cpp
+  )
+  target_link_libraries(test_validation vda5050_core::validation)
 
   ament_add_gmock(test_layout_loader
     test/layout/test_unit_loader.cpp

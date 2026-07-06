@@ -33,14 +33,16 @@ namespace errors {
 /// \param type Error type
 /// \param description Brief description of error
 /// \param refs List of error references
-/// \param level Error level (Default: vda5050_types::ErrorLevel::WARNING)
+/// \param level Error level. Default is FATAL — create_error is used for
+///        rejections, which invalidate the result. Pass ErrorLevel::WARNING
+///        explicitly for advisory entries that should not invalidate it.
 ///
 /// \return Constructed error struct
 inline vda5050_core::types::Error create_error(
   const std::string& type, const std::string& description,
   const std::vector<vda5050_core::types::ErrorReference>& refs,
   vda5050_core::types::ErrorLevel level =
-    vda5050_core::types::ErrorLevel::WARNING)
+    vda5050_core::types::ErrorLevel::FATAL)
 {
   return vda5050_core::types::Error{type, refs, description, level};
 }

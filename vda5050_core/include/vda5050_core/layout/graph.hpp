@@ -30,7 +30,9 @@
 
 #include "vda5050_core/layout/lif.hpp"
 
-namespace vda5050_core::layout {
+namespace vda5050_core {
+
+namespace layout {
 
 /// \brief Master-side wrapper over a validated LIF.
 ///
@@ -312,6 +314,7 @@ void Graph::for_each_station_ordered(V&& visitor) const
   }
 }
 
-}  // namespace vda5050_core::layout
+}  // namespace layout
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__LAYOUT__GRAPH_HPP_

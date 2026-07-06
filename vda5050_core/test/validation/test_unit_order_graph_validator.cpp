@@ -22,7 +22,7 @@
 #include <vector>
 
 #include "vda5050_core/errors/error_codes.hpp"
-#include "vda5050_core/order_utils/order_graph_validator.hpp"
+#include "vda5050_core/validation/order_graph_validator.hpp"
 
 class OrderValidationTest : public testing::Test
 {
@@ -61,13 +61,15 @@ protected:
 TEST_F(OrderValidationTest, EmptyNodeList)
 {
   auto order = create_order("order_0", 0);
-  auto res = vda5050_core::order_utils::is_valid_graph(order);
+  auto res = vda5050_core::validation::is_valid_graph(order);
 
-  EXPECT_FALSE(res);
+  EXPECT_TRUE(res.has_warnings());
   EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::GraphValidationError);
+    res.warnings().front().error_type,
+    vda5050_core::errors::GraphValidationError);
   EXPECT_EQ(
-    res.errors.front().error_description.value(), "Order contains no nodes.");
+    res.warnings().front().error_description.value(),
+    "Order contains no nodes.");
 }
 
 TEST_F(OrderValidationTest, UnequalNodesEdges)
@@ -80,13 +82,14 @@ TEST_F(OrderValidationTest, UnequalNodesEdges)
 
   order.edges = {create_edge("edge_0", 1, "node_0", "node_1", true)};
 
-  auto res = vda5050_core::order_utils::is_valid_graph(order);
+  auto res = vda5050_core::validation::is_valid_graph(order);
 
-  EXPECT_FALSE(res);
+  EXPECT_TRUE(res.has_warnings());
   EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::GraphValidationError);
+    res.warnings().front().error_type,
+    vda5050_core::errors::GraphValidationError);
   EXPECT_EQ(
-    res.errors.front().error_description.value(),
+    res.warnings().front().error_description.value(),
     "Graph mismatch: Order contains 3 node(s) but 1 edge(s).");
 }
 
@@ -102,13 +105,14 @@ TEST_F(OrderValidationTest, FirstSequenceOfUpdate)
     create_edge("edge_0", 3, "node_0", "node_1", true),
     create_edge("edge_1", 5, "node_1", "node_2", true)};
 
-  auto res = vda5050_core::order_utils::is_valid_graph(order);
+  auto res = vda5050_core::validation::is_valid_graph(order);
 
-  EXPECT_FALSE(res);
+  EXPECT_TRUE(res.has_warnings());
   EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::GraphValidationError);
+    res.warnings().front().error_type,
+    vda5050_core::errors::GraphValidationError);
   EXPECT_EQ(
-    res.errors.front().error_description.value(),
+    res.warnings().front().error_description.value(),
     "Initial order (update 0) must start at sequence 0.");
 }
 
@@ -124,13 +128,14 @@ TEST_F(OrderValidationTest, UnreleasedFirstNode)
     create_edge("edge_0", 1, "node_0", "node_1", false),
     create_edge("edge_1", 3, "node_1", "node_2", false)};
 
-  auto res = vda5050_core::order_utils::is_valid_graph(order);
+  auto res = vda5050_core::validation::is_valid_graph(order);
 
-  EXPECT_FALSE(res);
+  EXPECT_TRUE(res.has_warnings());
   EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::GraphValidationError);
+    res.warnings().front().error_type,
+    vda5050_core::errors::GraphValidationError);
   EXPECT_EQ(
-    res.errors.front().error_description.value(),
+    res.warnings().front().error_description.value(),
     "First node of the order must always be released.");
 }
 
@@ -140,13 +145,14 @@ TEST_F(OrderValidationTest, EvenNodeSequences)
 
   order.nodes = {create_node("node_0", 1, true)};
 
-  auto res = vda5050_core::order_utils::is_valid_graph(order);
+  auto res = vda5050_core::validation::is_valid_graph(order);
 
-  EXPECT_FALSE(res);
+  EXPECT_TRUE(res.has_warnings());
   EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::GraphValidationError);
+    res.warnings().front().error_type,
+    vda5050_core::errors::GraphValidationError);
   EXPECT_EQ(
-    res.errors.front().error_description.value(),
+    res.warnings().front().error_description.value(),
     "Node sequences must be even.");
 }
 
@@ -162,13 +168,14 @@ TEST_F(OrderValidationTest, NodeBaseHorizonSeparation)
     create_edge("edge_0", 1, "node_0", "node_1", true),
     create_edge("edge_1", 3, "node_1", "node_2", false)};
 
-  auto res = vda5050_core::order_utils::is_valid_graph(order);
+  auto res = vda5050_core::validation::is_valid_graph(order);
 
-  EXPECT_FALSE(res);
+  EXPECT_TRUE(res.has_warnings());
   EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::GraphValidationError);
+    res.warnings().front().error_type,
+    vda5050_core::errors::GraphValidationError);
   EXPECT_EQ(
-    res.errors.front().error_description.value(),
+    res.warnings().front().error_description.value(),
     "Horizon cannot start at a node. "
     "The preceeding edge must also be released.");
 }
@@ -182,13 +189,14 @@ TEST_F(OrderValidationTest, OddEdgeSequences)
 
   order.edges = {create_edge("edge_0", 2, "node_0", "node_1", true)};
 
-  auto res = vda5050_core::order_utils::is_valid_graph(order);
+  auto res = vda5050_core::validation::is_valid_graph(order);
 
-  EXPECT_FALSE(res);
+  EXPECT_TRUE(res.has_warnings());
   EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::GraphValidationError);
+    res.warnings().front().error_type,
+    vda5050_core::errors::GraphValidationError);
   EXPECT_EQ(
-    res.errors.front().error_description.value(),
+    res.warnings().front().error_description.value(),
     "Edge sequences must be odd.");
 }
 
@@ -201,13 +209,15 @@ TEST_F(OrderValidationTest, DisconnectedGraph)
 
   order.edges = {create_edge("edge_0", 1, "node_0", "node_1", true)};
 
-  auto res = vda5050_core::order_utils::is_valid_graph(order);
+  auto res = vda5050_core::validation::is_valid_graph(order);
 
-  EXPECT_FALSE(res);
+  EXPECT_TRUE(res.has_warnings());
   EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::GraphValidationError);
+    res.warnings().front().error_type,
+    vda5050_core::errors::GraphValidationError);
   EXPECT_EQ(
-    res.errors.front().error_description.value(), "Sequence jump detected.");
+    res.warnings().front().error_description.value(),
+    "Sequence jump detected.");
 }
 
 TEST_F(OrderValidationTest, DisconnectedEdge)
@@ -219,13 +229,14 @@ TEST_F(OrderValidationTest, DisconnectedEdge)
 
   order.edges = {create_edge("edge_0", 1, "node_0", "node_2", true)};
 
-  auto res = vda5050_core::order_utils::is_valid_graph(order);
+  auto res = vda5050_core::validation::is_valid_graph(order);
 
-  EXPECT_FALSE(res);
+  EXPECT_TRUE(res.has_warnings());
   EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::GraphValidationError);
+    res.warnings().front().error_type,
+    vda5050_core::errors::GraphValidationError);
   EXPECT_EQ(
-    res.errors.front().error_description.value(),
+    res.warnings().front().error_description.value(),
     "Edge connectivity mismatch.");
 }
 
@@ -241,13 +252,14 @@ TEST_F(OrderValidationTest, EdgeBaseHorizonSeparation)
     create_edge("edge_0", 1, "node_0", "node_1", false),
     create_edge("edge_1", 3, "node_1", "node_2", true)};
 
-  auto res = vda5050_core::order_utils::is_valid_graph(order);
+  auto res = vda5050_core::validation::is_valid_graph(order);
 
-  EXPECT_FALSE(res);
+  EXPECT_TRUE(res.has_warnings());
   EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::GraphValidationError);
+    res.warnings().front().error_type,
+    vda5050_core::errors::GraphValidationError);
   EXPECT_EQ(
-    res.errors.front().error_description.value(),
+    res.warnings().front().error_description.value(),
     "Released edge found within horizon.");
 }
 
@@ -275,14 +287,14 @@ TEST_F(OrderValidationTest, OrderUpdateAgainstCurrentBase)
     create_edge("edge_3", 5, "node_2", "node_4", true),
   };
 
-  auto res = vda5050_core::order_utils::is_valid_update(base_order, next_order);
+  auto res = vda5050_core::validation::is_valid_update(base_order, next_order);
 
-  EXPECT_FALSE(res);
-  EXPECT_EQ(res.errors.size(), 1);
+  EXPECT_TRUE(res.has_warnings());
+  EXPECT_EQ(res.warnings().size(), 1);
   EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::OrderUpdateError);
+    res.warnings().front().error_type, vda5050_core::errors::OrderUpdateError);
   EXPECT_EQ(
-    res.errors.front().error_description.value(),
+    res.warnings().front().error_description.value(),
     "Order update must be strictly increasing.");
 }
 
@@ -303,14 +315,14 @@ TEST_F(OrderValidationTest, DisconnectedOrderUpdate)
 
   next_order.nodes = {create_node("node_4", 6, true)};
 
-  auto res = vda5050_core::order_utils::is_valid_update(base_order, next_order);
+  auto res = vda5050_core::validation::is_valid_update(base_order, next_order);
 
-  EXPECT_FALSE(res);
-  EXPECT_EQ(res.errors.size(), 1);
+  EXPECT_TRUE(res.has_warnings());
+  EXPECT_EQ(res.warnings().size(), 1);
   EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::OrderUpdateError);
+    res.warnings().front().error_type, vda5050_core::errors::OrderUpdateError);
   EXPECT_EQ(
-    res.errors.front().error_description.value(),
+    res.warnings().front().error_description.value(),
     "Stitching failure. The update must start exactly at the "
     "last released node of the base");
 }
@@ -332,14 +344,14 @@ TEST_F(OrderValidationTest, StitchingNewOrder)
 
   next_order.nodes = {create_node("node_4", 4, true)};
 
-  auto res = vda5050_core::order_utils::is_valid_update(base_order, next_order);
+  auto res = vda5050_core::validation::is_valid_update(base_order, next_order);
 
-  EXPECT_FALSE(res);
-  EXPECT_EQ(res.errors.size(), 1);
+  EXPECT_TRUE(res.has_warnings());
+  EXPECT_EQ(res.warnings().size(), 1);
   EXPECT_EQ(
-    res.errors.front().error_type, vda5050_core::errors::OrderUpdateError);
+    res.warnings().front().error_type, vda5050_core::errors::OrderUpdateError);
   EXPECT_EQ(
-    res.errors.front().error_description.value(),
+    res.warnings().front().error_description.value(),
     "Stitching failure. The update must start exactly at the "
     "last released node of the base");
 }
@@ -366,7 +378,7 @@ TEST_F(OrderValidationTest, OrderValidationSuccess)
     create_edge("edge_3", 5, "node_2", "node_4", true),
   };
 
-  auto res = vda5050_core::order_utils::is_valid_update(base_order, next_order);
+  auto res = vda5050_core::validation::is_valid_update(base_order, next_order);
 
   EXPECT_TRUE(res);
 }

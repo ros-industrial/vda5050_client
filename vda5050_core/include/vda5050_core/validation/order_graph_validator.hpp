@@ -16,35 +16,41 @@
  * limitations under the License.
  */
 
-#ifndef VDA5050_CORE__ORDER_UTILS__ORDER_GRAPH_VALIDATOR_HPP_
-#define VDA5050_CORE__ORDER_UTILS__ORDER_GRAPH_VALIDATOR_HPP_
+#ifndef VDA5050_CORE__VALIDATION__ORDER_GRAPH_VALIDATOR_HPP_
+#define VDA5050_CORE__VALIDATION__ORDER_GRAPH_VALIDATOR_HPP_
 
-#include "vda5050_core/order_utils/validation_result.hpp"
+#include "vda5050_core/errors/validation_result.hpp"
 #include "vda5050_core/types/order.hpp"
 
 namespace vda5050_core {
 
-namespace order_utils {
+namespace validation {
 
 /// \brief Checks that the nodes and edges in a VDA5050 Order form a valid
 /// graph according to the VDA5050 specification sheet.
 ///
 /// \param order The order to be checked.
 ///
-/// \return A result struct of type ValidationResult
-ValidationResult is_valid_graph(const vda5050_core::types::Order& order);
+/// \return A result struct of type errors::ValidationResult
+///
+/// \note Findings are advisory (WARNING) level: a rejected order does not make
+///       the AGV inoperable. Gate on has_fatal() || has_warnings(), not the
+///       bool operator (which only reports fatal errors). Same for
+///       is_valid_update().
+errors::ValidationResult is_valid_graph(
+  const vda5050_core::types::Order& order);
 
 /// \brief Checks if order update is valid for order stitching
 ///
 /// \param base_order The base order.
 /// \param next_order the update order.
 ///
-/// \return A result struct of type ValidationResult
-ValidationResult is_valid_update(
+/// \return A result struct of type errors::ValidationResult
+errors::ValidationResult is_valid_update(
   const vda5050_core::types::Order& base_order,
   const vda5050_core::types::Order& next_order);
 
-}  // namespace order_utils
+}  // namespace validation
 }  // namespace vda5050_core
 
-#endif  // VDA5050_CORE__ORDER_UTILS__ORDER_GRAPH_VALIDATOR_HPP_
+#endif  // VDA5050_CORE__VALIDATION__ORDER_GRAPH_VALIDATOR_HPP_

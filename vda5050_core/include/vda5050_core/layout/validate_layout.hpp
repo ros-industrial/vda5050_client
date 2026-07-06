@@ -25,7 +25,9 @@
 
 #include "vda5050_core/layout/lif.hpp"
 
-namespace vda5050_core::layout {
+namespace vda5050_core {
+
+namespace layout {
 
 enum class LayoutLoadErrorType : std::uint8_t
 {
@@ -53,6 +55,7 @@ struct LayoutLoadError
 /// \return Errors found; empty if the layout is valid.
 std::vector<LayoutLoadError> validate_layout(const LIF& lif);
 
-}  // namespace vda5050_core::layout
+}  // namespace layout
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__LAYOUT__VALIDATE_LAYOUT_HPP_

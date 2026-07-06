@@ -20,6 +20,7 @@
 #define VDA5050_CORE__MASTER__STANDARD_NAMES_HPP_
 
 #include <string>
+#include <vector>
 
 namespace vda5050_core {
 
@@ -61,6 +62,13 @@ constexpr QosLevel InstantActionsQos = QosLevel::AtMostOnce;
 
 constexpr int ConnectionHeartbeatInterval = 15;  // seconds
 constexpr int StateHeartbeatInterval = 30;       // seconds
+
+/// \brief VDA5050 protocol versions accepted by the schema validator.
+///
+/// The master rejects (outgoing) or drops (incoming) any message whose
+/// header.version is not in this set. Ships with 2.0.0 only; add a 2.1.0
+/// entry when that migration lands.
+inline const std::vector<std::string> SupportedSchemaVersions = {"2.0.0"};
 
 }  // namespace master
 }  // namespace vda5050_core

@@ -188,7 +188,8 @@ void OrderAcceptance::step(std::shared_ptr<execution::ContextInterface> context)
 
   switch (result.outcome)
   {
-    case AcceptanceOutcome::ACCEPTED: {
+    case AcceptanceOutcome::ACCEPTED:
+    {
       last_order_id_ = order.order_id;
       last_order_update_id_ = order.order_update_id;
       types::State state = execution->get_state();
@@ -208,7 +209,8 @@ void OrderAcceptance::step(std::shared_ptr<execution::ContextInterface> context)
       execution->set_executing_order(true);
       break;
     }
-    case AcceptanceOutcome::REJECTED: {
+    case AcceptanceOutcome::REJECTED:
+    {
       // Replace errors instead of appending, since step() may re-process the
       // same cached rejected order.
       types::State state = execution->get_state();

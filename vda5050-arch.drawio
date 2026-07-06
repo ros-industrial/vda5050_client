@@ -1,0 +1,519 @@
+<mxfile host="65bd71144e">
+    <diagram name="VDA5050 Architecture" id="vda5050-arch">
+        <mxGraphModel dx="1975" dy="1125" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="3400" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" value="High-Level Layer " parent="0"/>
+                <mxCell id="BDsuYAV3_ubE_1D9mCl0-149" style="edgeStyle=orthogonalEdgeStyle;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;fontSize=48;rounded=0;elbow=vertical;exitX=0.5;exitY=1;exitDx=0;exitDy=0;curved=1;" parent="1" source="22" target="35" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1185" y="620"/>
+                            <mxPoint x="1330" y="620"/>
+                            <mxPoint x="1330" y="810"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="102" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;" parent="1" source="12" target="13" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="580" y="440"/>
+                            <mxPoint x="580" y="440"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="103" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;" parent="1" source="12" target="14" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="610" y="470"/>
+                            <mxPoint x="610" y="470"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="legend" value="&lt;b&gt;Layers&lt;/b&gt;&lt;br&gt;• Types · JSON↔C++ · MQTT · Execution&lt;br&gt;• &lt;b&gt;AGV POC:&lt;/b&gt; vda5050_core_py (pybind) → example_autoxing_client.py → autoxing_bridge/ → Autoxing&lt;br&gt;• &lt;b&gt;Technical Layer:&lt;/b&gt; compact code flow + GameTL Plans Notes duplicate (①–⑫ code blocks) — View → Layers" style="text;html=1;strokeColor=#666666;fillColor=#f5f5f5;align=left;verticalAlign=top;whiteSpace=wrap;rounded=1;spacingLeft=8;spacingTop=6;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="660" width="360" height="140" as="geometry"/>
+                </mxCell>
+                <mxCell id="clientBox" value="AGV integration (GameTL POC)" style="swimlane;whiteSpace=wrap;html=1;startSize=32;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=14;allowArrows=1;connectable=0;pointerEvents=1;" parent="1" vertex="1">
+                    <mxGeometry x="1400" y="310" width="720" height="280" as="geometry"/>
+                </mxCell>
+                <mxCell id="clientMqtt" value="MQTT&lt;br&gt;(vda5050_core)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=14;arcSize=12;" parent="clientBox" vertex="1">
+                    <mxGeometry x="20" y="50" width="120" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="clientPyBind" value="Python binding&lt;br&gt;(library)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=13;arcSize=12;" parent="clientBox" vertex="1">
+                    <mxGeometry x="160" y="50" width="130" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="clientAxClient" value="example_autoxing&lt;br&gt;_client.py +&lt;br&gt;autoxing_bridge/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=10;arcSize=12;" parent="clientBox" vertex="1">
+                    <mxGeometry x="300" y="50" width="170" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="clientRest" value="Autoxing&lt;br&gt;(requests)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;fontSize=14;arcSize=12;" parent="clientBox" vertex="1">
+                    <mxGeometry x="480" y="50" width="120" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="clientLayerNote" value="pybind → Adapter (spin thread). on_navigate returns immediately; _drive_to_node worker → spellbook REST/WS → robot. node_reached from worker only." style="text;html=1;strokeColor=#d6b656;fillColor=#fff2cc;align=left;verticalAlign=top;whiteSpace=wrap;rounded=1;spacingLeft=6;spacingTop=4;fontSize=10;" parent="clientBox" vertex="1">
+                    <mxGeometry x="20" y="165" width="680" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="clientOrderIn" value="order" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;fontSize=11;verticalAlign=middle;labelBackgroundColor=#ffffff;" parent="clientBox" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="5" y="100" as="sourcePoint"/>
+                        <mxPoint x="20" y="100" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="clientStateOut" value="state" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=classic;startFill=1;endArrow=none;endFill=0;fontSize=11;verticalAlign=middle;labelBackgroundColor=#ffffff;" parent="clientBox" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="5" y="130" as="sourcePoint"/>
+                        <mxPoint x="20" y="130" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="clientBindCpp" value="pybind" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;fontSize=11;verticalAlign=middle;labelBackgroundColor=#ffffff;dashed=1;" parent="clientBox" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="140" y="100" as="sourcePoint"/>
+                        <mxPoint x="160" y="100" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="clientNavOut" value="requests" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;fontSize=11;verticalAlign=middle;labelBackgroundColor=#ffffff;" parent="clientBox" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="460" y="100" as="sourcePoint"/>
+                        <mxPoint x="480" y="100" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="clientUpdIn" value="node_reached" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=classic;startFill=1;endArrow=none;endFill=0;fontSize=10;verticalAlign=middle;labelBackgroundColor=#ffffff;dashed=1;" parent="clientBox" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="480" y="130" as="sourcePoint"/>
+                        <mxPoint x="310" y="130" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="clientClientBind" value="import" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;fontSize=10;verticalAlign=middle;labelBackgroundColor=#ffffff;" parent="clientBox" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="290" y="100" as="sourcePoint"/>
+                        <mxPoint x="310" y="100" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="pipeline" value="Architecture Pipeline" style="swimlane;whiteSpace=wrap;html=1;startSize=32;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=15;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="130" width="1390" height="510" as="geometry">
+                        <mxRectangle x="40" y="320" width="190" height="32" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="12" value="Context" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=16;verticalAlign=middle;" parent="pipeline" vertex="1">
+                    <mxGeometry x="480" y="430" width="140" height="65" as="geometry"/>
+                </mxCell>
+                <mxCell id="10" value="MQTT" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#4472C4;fontColor=#ffffff;strokeColor=#2F5597;fontStyle=1;fontSize=18;verticalAlign=middle;" parent="pipeline" vertex="1">
+                    <mxGeometry x="50" y="120" width="90" height="220" as="geometry"/>
+                </mxCell>
+                <mxCell id="11" value="Protocol-A" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#7030A0;fontColor=#ffffff;strokeColor=#502070;fontStyle=1;fontSize=16;verticalAlign=middle;" parent="pipeline" vertex="1">
+                    <mxGeometry x="200" y="120" width="100" height="220" as="geometry"/>
+                </mxCell>
+                <mxCell id="13" value="Strategy A" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#C55A11;fontColor=#ffffff;strokeColor=#843C0B;fontStyle=1;fontSize=14;verticalAlign=middle;" parent="pipeline" vertex="1">
+                    <mxGeometry x="480" y="120" width="140" height="58" as="geometry"/>
+                </mxCell>
+                <mxCell id="14" value="Strategy B" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#C55A11;fontColor=#ffffff;strokeColor=#843C0B;fontStyle=1;fontSize=14;verticalAlign=middle;" parent="pipeline" vertex="1">
+                    <mxGeometry x="480" y="201" width="140" height="58" as="geometry"/>
+                </mxCell>
+                <mxCell id="15" value="Strategy C" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#C55A11;fontColor=#ffffff;strokeColor=#843C0B;fontStyle=1;fontSize=14;verticalAlign=middle;" parent="pipeline" vertex="1">
+                    <mxGeometry x="480" y="282" width="140" height="58" as="geometry"/>
+                </mxCell>
+                <mxCell id="16" value="Handler&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size: 48px;&quot;&gt;↻&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ED7D31;fontColor=#ffffff;strokeColor=#C65911;fontStyle=1;fontSize=16;verticalAlign=middle;spacingTop=12;" parent="pipeline" vertex="1">
+                    <mxGeometry x="710" y="120" width="110" height="220" as="geometry"/>
+                </mxCell>
+                <mxCell id="17" value="Adapter" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#7030A0;fontColor=#ffffff;strokeColor=#502070;fontStyle=1;fontSize=16;verticalAlign=middle;" parent="pipeline" vertex="1">
+                    <mxGeometry x="880" y="120" width="100" height="220" as="geometry"/>
+                </mxCell>
+                <mxCell id="3" value="hooks for&lt;br&gt;integration" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=2;fontSize=12;fillStyle=hatch;verticalAlign=top;spacingTop=8;" parent="pipeline" vertex="1">
+                    <mxGeometry x="1040" y="60" width="200" height="350" as="geometry"/>
+                </mxCell>
+                <mxCell id="20" value="on_navigate(node)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;fontSize=11;dashed=1;" parent="pipeline" vertex="1">
+                    <mxGeometry x="1070" y="130" width="150" height="38" as="geometry"/>
+                </mxCell>
+                <mxCell id="21" value="action(...) = 0" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;fontSize=11;dashed=1;" parent="pipeline" vertex="1">
+                    <mxGeometry x="1065" y="211" width="150" height="38" as="geometry"/>
+                </mxCell>
+                <mxCell id="22" value="node_reached(node)&lt;br&gt;→ push&amp;lt;NodeAckUpdate&amp;gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;fontSize=10;dashed=1;" parent="pipeline" vertex="1">
+                    <mxGeometry x="1065" y="282" width="160" height="42" as="geometry"/>
+                </mxCell>
+                <mxCell id="BDsuYAV3_ubE_1D9mCl0-146" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;startArrow=blockThin;startFill=1;endArrow=blockThin;endFill=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="pipeline" source="11" target="12" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="260" y="441.04761904761904" as="sourcePoint"/>
+                        <mxPoint x="440" y="360" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="BDsuYAV3_ubE_1D9mCl0-147" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;startArrow=blockThin;startFill=1;endArrow=blockThin;endFill=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="pipeline" source="12" target="15" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="300" y="310" as="sourcePoint"/>
+                        <mxPoint x="490.0000000000002" y="282" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="BDsuYAV3_ubE_1D9mCl0-148" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;startArrow=blockThin;startFill=1;endArrow=blockThin;endFill=1;exitX=1.005;exitY=0.138;exitDx=0;exitDy=0;exitPerimeter=0;" parent="pipeline" source="11" target="14" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="350" y="149" as="sourcePoint"/>
+                        <mxPoint x="480" y="149" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="BDsuYAV3_ubE_1D9mCl0-162" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.133;entryDx=0;entryDy=0;entryPerimeter=0;" parent="pipeline" source="13" target="16" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="640" y="250" as="sourcePoint"/>
+                        <mxPoint x="730" y="250" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="BDsuYAV3_ubE_1D9mCl0-163" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.864;entryDx=0;entryDy=0;entryPerimeter=0;" parent="pipeline" source="15" target="16" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="630" y="159" as="sourcePoint"/>
+                        <mxPoint x="720" y="159.26" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="BDsuYAV3_ubE_1D9mCl0-172" style="rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;dashPattern=8 8;strokeWidth=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=1.01;exitY=0.832;exitDx=0;exitDy=0;exitPerimeter=0;snapToPoint=1;" parent="pipeline" source="17" target="22" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="990" y="240" as="sourcePoint"/>
+                        <mxPoint x="1075" y="240" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="BDsuYAV3_ubE_1D9mCl0-173" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;dashPattern=8 8;strokeWidth=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=0.994;exitY=0.134;exitDx=0;exitDy=0;exitPerimeter=0;" parent="pipeline" source="17" target="20" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="980" y="178" as="sourcePoint"/>
+                        <mxPoint x="1065" y="178" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="147" value="Get info from the context then read by the strategy --&amp;gt; next step.&amp;nbsp;&lt;br style=&quot;font-size: 8px;&quot;&gt;Find example at&amp;nbsp;&lt;a href=&quot;https://github.com/sauk2/vda5050_core/blob/throwaway/test-client/vda5050_execution/examples/vda5050_client/example_client.cpp&quot; style=&quot;font-size: 8px;&quot;&gt;exmapleclient.cpp&lt;/a&gt;" style="text;strokeColor=#6c8ebf;fillColor=#dae8fc;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;spacingLeft=0;spacingTop=0;fontSize=8;horizontal=1;html=1;spacing=2;" parent="pipeline" vertex="1">
+                    <mxGeometry x="1170" y="320" width="150" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="4" value="Strategy A Execution" style="swimlane;whiteSpace=wrap;html=1;startSize=28;fillColor=#fde9e8;strokeColor=#C55A11;fontStyle=1;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="580" y="670" width="970" height="200" as="geometry"/>
+                </mxCell>
+                <mxCell id="30" value="OrderUpdate&lt;br&gt;→ nodes_[]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#C55A11;fontSize=12;" parent="4" vertex="1">
+                    <mxGeometry x="30" y="70" width="130" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="31" value="emit&lt;br&gt;NodeDispatchEvent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#C55A11;fontSize=12;" parent="4" vertex="1">
+                    <mxGeometry x="220" y="45" width="170" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="32" value="suspend_for&lt;br&gt;NodeAckUpdate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#C55A11;fontSize=12;" parent="4" vertex="1">
+                    <mxGeometry x="220" y="115" width="210" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="33" value="NodeDispatch&lt;br&gt;Event" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;" parent="4" vertex="1">
+                    <mxGeometry x="450" y="40" width="90" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="34" value="engine()-&gt;step()&lt;br&gt;→ on_navigate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#C55A11;fontSize=11;" parent="4" vertex="1">
+                    <mxGeometry x="570" y="45" width="140" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="35" value="NodeAck&lt;br&gt;Update" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" parent="4" vertex="1">
+                    <mxGeometry x="530" y="115" width="80" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="4-note" value="NavigationStrategy — adapter.cpp:168-200 · node from order.nodes[current_idx++]" style="text;html=1;strokeColor=#C55A11;fillColor=#fde9e8;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=1;spacingLeft=6;fontSize=9;" parent="4" vertex="1">
+                    <mxGeometry x="730" y="70" width="220" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="5" value="Strategy B Execution" style="swimlane;whiteSpace=wrap;html=1;startSize=28;fillColor=#fde9e8;strokeColor=#C55A11;fontStyle=1;fontSize=13;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="580" y="910" width="970" height="200" as="geometry"/>
+                </mxCell>
+                <mxCell id="40" value="Context → get" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#C55A11;fontSize=13;" parent="5" vertex="1">
+                    <mxGeometry x="260" y="70" width="150" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="41" value="protocol adapter → publish(state)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#C55A11;fontSize=13;" parent="5" vertex="1">
+                    <mxGeometry x="550" y="70" width="260" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="BDsuYAV3_ubE_1D9mCl0-153" value="&lt;b&gt;state&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#C55A11;fontSize=13;" parent="5" vertex="1">
+                    <mxGeometry x="40" y="75" width="130" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="BDsuYAV3_ubE_1D9mCl0-158" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;startArrow=blockThin;startFill=1;endArrow=none;endFill=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" parent="5" source="BDsuYAV3_ubE_1D9mCl0-153" target="41" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="220" y="150" as="sourcePoint"/>
+                        <mxPoint x="450" y="272.5" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="100" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=blockThin;endFill=1;" parent="1" source="10" target="11" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="104" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;" parent="1" source="12" target="15" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="640" y="520"/>
+                            <mxPoint x="640" y="520"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="105" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;" parent="1" source="12" target="16" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="108" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;startArrow=blockThin;startFill=1;endArrow=blockThin;endFill=1;" parent="1" source="11" target="14" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="111" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;" parent="1" source="14" target="16" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="113" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;" parent="1" source="16" target="17" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="121" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;dashPattern=8 8;strokeWidth=1;" parent="1" source="17" target="21" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="130" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="30" target="31" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="131" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="30" target="32" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="132" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="31" target="33" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="133" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="33" target="34" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="134" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="32" target="35" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="141" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="40" target="41" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="graphBox" value="Order Node / Edge Graph (sequence_id)" style="swimlane;whiteSpace=wrap;html=1;startSize=32;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1160" width="785" height="450" as="geometry"/>
+                </mxCell>
+                <mxCell id="graph-n1" value="node_west&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#666666;&quot;&gt;sequenceId: 0&lt;/font&gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=12;" parent="graphBox" vertex="1">
+                    <mxGeometry x="85" y="160" width="100" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="graph-n2" value="intersection_A&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#666666;&quot;&gt;sequenceId: 2&lt;/font&gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=11;" parent="graphBox" vertex="1">
+                    <mxGeometry x="305" y="160" width="100" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="graph-n3" value="node_east&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#666666;&quot;&gt;sequenceId: 4&lt;/font&gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=12;" parent="graphBox" vertex="1">
+                    <mxGeometry x="525" y="160" width="100" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="graph-n4" value="N4&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#666666;&quot;&gt;sequence_id: 6&lt;/font&gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=14;" parent="graphBox" vertex="1">
+                    <mxGeometry x="525" y="310" width="100" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="graph-n5" value="N5&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#666666;&quot;&gt;sequence_id: 8&lt;/font&gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=14;" parent="graphBox" vertex="1">
+                    <mxGeometry x="305" y="310" width="100" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="graph-e1" value="edge_west→int&lt;br&gt;&lt;font style=&quot;font-size:9px;color:#666666;&quot;&gt;sequenceId: 1&lt;/font&gt;" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=2;" parent="graphBox" source="graph-n1" target="graph-n2" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="graph-e2" value="edge_int→east&lt;br&gt;&lt;font style=&quot;font-size:9px;color:#666666;&quot;&gt;sequenceId: 3&lt;/font&gt;" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=2;" parent="graphBox" source="graph-n2" target="graph-n3" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="graph-e3" value="E3&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#666666;&quot;&gt;sequence_id: 5&lt;/font&gt;" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;fontSize=13;labelBackgroundColor=#ffffff;strokeWidth=2;" parent="graphBox" source="graph-n3" target="graph-n4" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="graph-e4" value="E4&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#666666;&quot;&gt;sequence_id: 7&lt;/font&gt;" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;fontSize=13;labelBackgroundColor=#ffffff;strokeWidth=2;" parent="graphBox" source="graph-n4" target="graph-n5" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="graph-e5" value="E5&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#666666;&quot;&gt;sequence_id: 9&lt;/font&gt;" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;fontSize=13;labelBackgroundColor=#ffffff;strokeWidth=2;" parent="graphBox" source="graph-n5" target="graph-n2" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="graph-note" value="Generic intersection example (seq 0–9). &lt;b&gt;GameTL POC route&lt;/b&gt; uses node_table→node_row→node_west→node_east — see &lt;b&gt;Technical Layer&lt;/b&gt; swimlane for code refs." style="text;html=1;strokeColor=#9673a6;fillColor=#f3eaf6;align=left;verticalAlign=top;whiteSpace=wrap;rounded=1;spacingLeft=8;spacingTop=6;fontSize=11;" parent="graphBox" vertex="1">
+                    <mxGeometry x="30" y="40" width="560" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="149" value="" style="group" parent="graphBox" vertex="1" connectable="0">
+                    <mxGeometry x="20" y="300" width="107" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="graph-legend" value="&lt;b&gt;Legend&lt;/b&gt;" style="text;html=1;strokeColor=#666666;fillColor=#f5f5f5;align=left;verticalAlign=top;whiteSpace=wrap;rounded=1;spacingLeft=8;spacingTop=6;fontSize=11;" parent="149" vertex="1">
+                    <mxGeometry width="100" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="graph-legend-node" value="" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="149" vertex="1">
+                    <mxGeometry x="10" y="40" width="40" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="graph-legend-node-label" value="Node" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=11;" parent="149" vertex="1">
+                    <mxGeometry x="57" y="50" width="50" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="graph-legend-edge" style="endArrow=block;endFill=1;strokeWidth=2;html=1;strokeColor=#333333;" parent="149" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="10" y="90" as="sourcePoint"/>
+                        <mxPoint x="50" y="90" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="graph-legend-edge-label" value="Edge" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=11;" parent="149" vertex="1">
+                    <mxGeometry x="57" y="80" width="50" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="151" value="&lt;b&gt;Node (nodes[])&lt;/b&gt;&lt;br&gt;nodeId: intersection_A&lt;br&gt;sequenceId: 2&lt;br&gt;released: true&lt;br&gt;actions: []&lt;br&gt;nodePosition: {x:5, y:5, θ:0, mapId:floor_1}" style="text;html=1;strokeColor=#9673a6;fillColor=#fff2cc;align=left;verticalAlign=top;whiteSpace=wrap;rounded=1;spacingLeft=4;spacingTop=2;fontSize=6;dashed=1;" parent="graphBox" vertex="1">
+                    <mxGeometry x="310" y="120" width="85" height="65" as="geometry"/>
+                </mxCell>
+                <mxCell id="154" value="&lt;b&gt;Edge (edges[])&lt;/b&gt;&lt;br&gt;edgeId: edge_intersection_to_east&lt;br&gt;sequenceId: 3&lt;br&gt;startNodeId: intersection_A&lt;br&gt;endNodeId: node_east&lt;br&gt;released: true · direction: straight · maxSpeed: 1.5" style="text;html=1;strokeColor=#9673a6;fillColor=#e8f4fc;align=left;verticalAlign=top;whiteSpace=wrap;rounded=1;spacingLeft=4;spacingTop=2;fontSize=6;dashed=1;" parent="graphBox" vertex="1">
+                    <mxGeometry x="420" y="130" width="105" height="68" as="geometry"/>
+                </mxCell>
+                <mxCell id="152" value="&lt;b&gt;Node (nodes[])&lt;/b&gt;&lt;br&gt;nodeId: node_east&lt;br&gt;sequenceId: 4&lt;br&gt;released: true&lt;br&gt;actions: []&lt;br&gt;nodePosition: {x:10, y:5, θ:0, mapId:floor_1}" style="text;html=1;strokeColor=#9673a6;fillColor=#fff2cc;align=left;verticalAlign=top;whiteSpace=wrap;rounded=1;spacingLeft=4;spacingTop=2;fontSize=6;dashed=1;" parent="graphBox" vertex="1">
+                    <mxGeometry x="540" y="120" width="90" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="153" value="&lt;b&gt;Edge (edges[])&lt;/b&gt;&lt;br&gt;edgeId: edge_east_to_d&lt;br&gt;sequenceId: 5&lt;br&gt;startNodeId: node_east&lt;br&gt;endNodeId: node_loop_d&lt;br&gt;released: true · actions: []" style="text;html=1;strokeColor=#9673a6;fillColor=#e8f4fc;align=left;verticalAlign=top;whiteSpace=wrap;rounded=1;spacingLeft=4;spacingTop=2;fontSize=6;dashed=1;" parent="graphBox" vertex="1">
+                    <mxGeometry x="610" y="260" width="100" height="62" as="geometry"/>
+                </mxCell>
+                <mxCell id="155" value="&lt;b&gt;Node (nodes[])&lt;/b&gt;&lt;br&gt;nodeId: node_loop_c&lt;br&gt;sequenceId: 8&lt;br&gt;released: true&lt;br&gt;actions: []&lt;br&gt;nodePosition: {x, y, θ, mapId}" style="text;html=1;strokeColor=#9673a6;fillColor=#fff2cc;align=left;verticalAlign=top;whiteSpace=wrap;rounded=1;spacingLeft=4;spacingTop=2;fontSize=6;dashed=1;" parent="graphBox" vertex="1">
+                    <mxGeometry x="220" y="330" width="95" height="72" as="geometry"/>
+                </mxCell>
+                <mxCell id="156" value="&lt;b&gt;Edge (edges[])&lt;/b&gt;&lt;br&gt;edgeId: edge_c_to_intersection&lt;br&gt;sequenceId: 9&lt;br&gt;startNodeId: node_loop_c&lt;br&gt;endNodeId: intersection_A&lt;br&gt;released: true · actions: []" style="text;html=1;strokeColor=#9673a6;fillColor=#e8f4fc;align=left;verticalAlign=top;whiteSpace=wrap;rounded=1;spacingLeft=4;spacingTop=2;fontSize=6;dashed=1;" parent="graphBox" vertex="1">
+                    <mxGeometry x="220" y="250" width="95" height="62" as="geometry"/>
+                </mxCell>
+                <mxCell id="182" value="GameTL Plans Notes" style="swimlane;whiteSpace=wrap;html=1;startSize=32;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1890" width="1980" height="1280" as="geometry"/>
+                </mxCell>
+                <mxCell id="193" value="&lt;b&gt;GameTL POC — current stack (High-Level)&lt;/b&gt;&lt;br&gt;Node-RED / test script → MQTT Order → C++ Adapter → pybind on_navigate → &lt;b&gt;example_autoxing_client.py&lt;/b&gt; (worker thread) → &lt;b&gt;autoxing_bridge/&lt;/b&gt; → Autoxing. See &lt;b&gt;Technical Layer&lt;/b&gt; for duplicate with code blocks." style="text;html=1;strokeColor=#9673a6;fillColor=#f3eaf6;align=left;verticalAlign=top;whiteSpace=wrap;rounded=1;spacingLeft=8;spacingTop=6;fontSize=11;" parent="182" vertex="1">
+                    <mxGeometry x="20" y="45" width="1940" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="seq-l-rmf" value="RMF2-UI" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;size=40;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=12;" parent="182" vertex="1">
+                    <mxGeometry x="40" y="220" width="110" height="820" as="geometry"/>
+                </mxCell>
+                <mxCell id="seq-l-mqtt" value="MQTT Broker" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;size=40;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=12;" parent="182" vertex="1">
+                    <mxGeometry x="225" y="220" width="110" height="820" as="geometry"/>
+                </mxCell>
+                <mxCell id="seq-bypass-teardrop" value="Bypassing&lt;br&gt;vda5050_core&lt;br&gt;Master" style="shape=mxgraph.basic.teardrop;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=9;fontStyle=2;align=center;verticalAlign=middle;size=0.14;direction=south;" parent="182" vertex="1">
+                    <mxGeometry x="360" y="400" width="130" height="72" as="geometry"/>
+                </mxCell>
+                <mxCell id="seq-l-robot" value="Autoxing&lt;br&gt;(physical robot)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;size=40;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;fontSize=11;" parent="182" vertex="1">
+                    <mxGeometry x="1090" y="220" width="120" height="820" as="geometry"/>
+                </mxCell>
+                <mxCell id="seq-act-robot" value="" style="points=[];perimeter=orthogonalPerimeter;outlineConnect=0;portConstraint=eastwest;fillColor=#f8cecc;strokeColor=#b85450;" parent="seq-l-robot" vertex="1">
+                    <mxGeometry x="55" y="240" width="10" height="360" as="geometry"/>
+                </mxCell>
+                <mxCell id="seq-m01" value="① waypoints: node_table…node_east (4 nodes)" style="html=1;verticalAlign=bottom;endArrow=open;endFill=0;dashed=1;fontSize=10;fontStyle=2;fontColor=#444444;labelBackgroundColor=#ffffff;" parent="182" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="105" y="300"/>
+                            <mxPoint x="105" y="325"/>
+                        </Array>
+                        <mxPoint x="95" y="300" as="sourcePoint"/>
+                        <mxPoint x="95" y="325" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="seq-m05" value="⑤ emit NodeDispatchEvent → on_navigate(node)&lt;br&gt;(spin thread, must return fast)" style="html=1;verticalAlign=bottom;endArrow=block;endFill=1;fontSize=9;fontStyle=2;fontColor=#444444;labelBackgroundColor=#ffffff;" parent="182" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="475" y="560" as="sourcePoint"/>
+                        <mxPoint x="665" y="560" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="seq-m05b" value="⑤b Thread.start(_drive_to_node)&lt;br&gt;then suspend_for&amp;lt;NodeAckUpdate&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=block;endFill=1;fontSize=9;fontStyle=2;fontColor=#444444;labelBackgroundColor=#ffffff;" parent="182" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="665" y="600" as="sourcePoint"/>
+                        <mxPoint x="900" y="600" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="seq-loop" value="loop per node&lt;br&gt;[node_table → node_row → node_west → node_east]" style="shape=umlFrame;whiteSpace=wrap;html=1;width=90;height=24;boundedLbl=1;verticalAlign=top;align=left;spacingLeft=4;fontSize=10;fillColor=#ffffff;strokeColor=#9673a6;dashed=1;" parent="182" vertex="1">
+                    <mxGeometry x="400" y="530" width="850" height="380" as="geometry"/>
+                </mxCell>
+                <mxCell id="seq-legend" value="&lt;b&gt;Current files&lt;/b&gt;&lt;br&gt;• &lt;b&gt;C++:&lt;/b&gt; vda5050_core/src/adapter/adapter.cpp (NavigationStrategy), navigation_manager.cpp&lt;br&gt;• &lt;b&gt;Python:&lt;/b&gt; vda5050_core_py/autoxing-l300/example_autoxing_client.py&lt;br&gt;• &lt;b&gt;Bridge:&lt;/b&gt; autoxing_bridge/bridge.py (dispatch_move, wait_for_arrival)&lt;br&gt;• &lt;b&gt;Demo order:&lt;/b&gt; vda5050_core_py/autoxing-l300/publish_autoxing_l300_route.py&lt;br&gt;• &lt;b&gt;Critical:&lt;/b&gt; on_navigate non-blocking — worker calls node_reached after suspend_for registered" style="text;html=1;strokeColor=#666666;fillColor=#f5f5f5;align=left;verticalAlign=top;whiteSpace=wrap;rounded=1;spacingLeft=8;spacingTop=6;fontSize=10;" parent="182" vertex="1">
+                    <mxGeometry x="20" y="1080" width="1940" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="seq-m02" value="② build Order (nodes seq 0,2,4 + edges 1,3)" style="html=1;verticalAlign=bottom;endArrow=block;endFill=1;fontSize=9;fontStyle=2;fontColor=#444444;labelBackgroundColor=#ffffff;" parent="182" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="95" y="370" as="sourcePoint"/>
+                        <mxPoint x="280" y="370" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="seq-m03" value="③ MQTT publish order&lt;br&gt;{interface}/v2/.../order" style="html=1;verticalAlign=bottom;endArrow=block;endFill=1;fontSize=9;fontStyle=2;fontColor=#444444;labelBackgroundColor=#ffffff;" parent="182" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="280" y="430" as="sourcePoint"/>
+                        <mxPoint x="475" y="430" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="seq-m04" value="④ OrderUpdate → mirror AgvState" style="html=1;verticalAlign=bottom;endArrow=open;endFill=0;dashed=1;fontSize=9;fontStyle=2;fontColor=#666666;labelBackgroundColor=#ffffff;" parent="182" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="495" y="480"/>
+                            <mxPoint x="495" y="505"/>
+                        </Array>
+                        <mxPoint x="475" y="480" as="sourcePoint"/>
+                        <mxPoint x="475" y="505" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="seq-m06" value="⑥ dispatch_move(node) POST /chassis/moves" style="html=1;verticalAlign=bottom;endArrow=block;endFill=1;fontSize=9;fontStyle=2;fontColor=#444444;labelBackgroundColor=#ffffff;" parent="182" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="900" y="660" as="sourcePoint"/>
+                        <mxPoint x="1145" y="660" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="seq-m07" value="⑦ wait_for_arrival — WS /tracked_pose poll" style="html=1;verticalAlign=bottom;endArrow=open;endFill=0;dashed=1;fontSize=9;fontStyle=2;fontColor=#666666;labelBackgroundColor=#ffffff;" parent="182" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1165" y="710"/>
+                            <mxPoint x="1165" y="740"/>
+                            <mxPoint x="920" y="740"/>
+                            <mxPoint x="920" y="710"/>
+                        </Array>
+                        <mxPoint x="1145" y="710" as="sourcePoint"/>
+                        <mxPoint x="900" y="710" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="seq-m08" value="⑧ set_agv_position() / set_driving(true)" style="html=1;verticalAlign=bottom;endArrow=block;endFill=1;fontSize=9;fontStyle=2;fontColor=#444444;labelBackgroundColor=#ffffff;" parent="182" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="900" y="770"/>
+                            <mxPoint x="665" y="770"/>
+                            <mxPoint x="475" y="770"/>
+                        </Array>
+                        <mxPoint x="900" y="770" as="sourcePoint"/>
+                        <mxPoint x="475" y="770" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="seq-m09" value="⑨ nav.node_reached(node) worker thread" style="html=1;verticalAlign=bottom;endArrow=open;endFill=0;dashed=1;fontSize=9;fontStyle=2;fontColor=#444444;labelBackgroundColor=#ffffff;" parent="182" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="900" y="830"/>
+                            <mxPoint x="665" y="830"/>
+                            <mxPoint x="475" y="830"/>
+                        </Array>
+                        <mxPoint x="900" y="830" as="sourcePoint"/>
+                        <mxPoint x="475" y="830" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="seq-m10" value="⑩ engine.notify(NodeAckUpdate) → next nodes_[idx]" style="html=1;verticalAlign=bottom;endArrow=open;endFill=0;dashed=1;fontSize=8;fontStyle=2;fontColor=#666666;labelBackgroundColor=#ffffff;" parent="182" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="495" y="890"/>
+                            <mxPoint x="495" y="915"/>
+                        </Array>
+                        <mxPoint x="475" y="890" as="sourcePoint"/>
+                        <mxPoint x="475" y="915" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="seq-m11" value="⑪ publish State (lastNodeId, nodeStates, ~1s)" style="html=1;verticalAlign=bottom;endArrow=block;endFill=1;fontSize=9;fontStyle=2;fontColor=#444444;labelBackgroundColor=#ffffff;" parent="182" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="475" y="980" as="sourcePoint"/>
+                        <mxPoint x="280" y="980" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="seq-m12" value="⑫ MQTT publish state" style="html=1;verticalAlign=bottom;endArrow=block;endFill=1;fontSize=10;fontStyle=2;fontColor=#444444;labelBackgroundColor=#ffffff;" parent="182" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="280" y="1040" as="sourcePoint"/>
+                        <mxPoint x="95" y="1040" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="157" value="&lt;b&gt;Scratch / variants&lt;/b&gt;&lt;br&gt;alt: cancel instantAction · connection handshake · orderUpdate" style="text;html=1;strokeColor=#9673a6;fillColor=#fff2cc;align=left;verticalAlign=top;whiteSpace=wrap;rounded=1;spacingLeft=6;spacingTop=4;fontSize=10;dashed=1;" parent="182" vertex="1">
+                    <mxGeometry x="20" y="1220" width="400" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="seq-order-note" value="&lt;b&gt;GameTL order&lt;/b&gt; publish_autoxing_l300_route.py&lt;br&gt;node_table(0) → node_row(2) → node_west(4) → node_east(6)&lt;br&gt;mapId: LargeARTC · edges seq 1,3,5" style="text;html=1;strokeColor=#9673a6;fillColor=#fff2cc;align=left;verticalAlign=top;whiteSpace=wrap;rounded=1;spacingLeft=6;spacingTop=4;fontSize=9;dashed=1;" parent="182" vertex="1">
+                    <mxGeometry x="1280" y="115" width="220" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="seq-l-cpp" value="C++ Adapter&lt;br&gt;(vda5050_core)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;size=40;fillColor=#7030A0;fontColor=#ffffff;strokeColor=#502070;fontStyle=1;fontSize=11;" parent="182" vertex="1">
+                    <mxGeometry x="415" y="220" width="120" height="820" as="geometry"/>
+                </mxCell>
+                <mxCell id="seq-act-cpp" value="" style="points=[];perimeter=orthogonalPerimeter;outlineConnect=0;portConstraint=eastwest;fillColor=#d0bce0;strokeColor=#502070;" parent="seq-l-cpp" vertex="1">
+                    <mxGeometry x="60" y="150" width="10" height="500" as="geometry"/>
+                </mxCell>
+                <mxCell id="seq-l-py" value="Python binding&lt;br&gt;(library, pybind)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;size=40;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=10;" parent="182" vertex="1">
+                    <mxGeometry x="595" y="220" width="140" height="820" as="geometry"/>
+                </mxCell>
+                <mxCell id="seq-act-py" value="" style="points=[];perimeter=orthogonalPerimeter;outlineConnect=0;portConstraint=eastwest;fillColor=#d5e8d4;strokeColor=#82b366;" parent="seq-l-py" vertex="1">
+                    <mxGeometry x="65" y="240" width="10" height="340" as="geometry"/>
+                </mxCell>
+                <mxCell id="seq-l-axclient" value="example_autoxing&lt;br&gt;_client + bridge" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;size=40;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=10;" parent="182" vertex="1">
+                    <mxGeometry x="825" y="220" width="170" height="820" as="geometry"/>
+                </mxCell>
+                <mxCell id="seq-act-axclient" value="" style="points=[];perimeter=orthogonalPerimeter;outlineConnect=0;portConstraint=eastwest;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="seq-l-axclient" vertex="1">
+                    <mxGeometry x="85" y="240" width="10" height="340" as="geometry"/>
+                </mxCell>
+                <mxCell id="seq-pybind" value="&amp;lt;&amp;lt;pybind&amp;gt;&amp;gt;" style="html=1;endArrow=open;endFill=0;dashed=1;dashPattern=8 8;strokeColor=#82b366;fontSize=9;fontStyle=2;fontColor=#666666;labelBackgroundColor=#ffffff;verticalAlign=middle;" parent="182" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="665" y="250" as="sourcePoint"/>
+                        <mxPoint x="475" y="250" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="seq-import" value="import" style="html=1;endArrow=open;endFill=0;dashed=1;dashPattern=4 4;strokeColor=#9673a6;fontSize=8;fontStyle=2;fontColor=#666666;labelBackgroundColor=#ffffff;verticalAlign=middle;" parent="182" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="825" y="265" as="sourcePoint"/>
+                        <mxPoint x="735" y="265" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="142" value="Comment Layer" parent="0"/>
+                <mxCell id="144" value="This file has 2 layers, background &amp;amp; comment. &lt;b&gt;View &amp;gt; Layers&lt;/b&gt;, to disable comment boxes" style="html=1;shadow=0;dashed=0;shape=mxgraph.bootstrap.rrect;rSize=5;strokeColor=none;strokeWidth=1;fillColor=#FFBC26;fontColor=#000000;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=0;fontStyle=0;fontSize=14;spacing=5;" parent="142" vertex="1">
+                    <mxGeometry x="40" y="60" width="810" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="146" value="Technical Layer" parent="0"/>
+                <mxCell id="148" value="Technical Layer — toggle via &lt;b&gt;View → Layers&lt;/b&gt;. Top: compact Order→on_navigate→node_reached flow. Below: GameTL Plans Notes duplicate with per-step code blocks (current: example_autoxing_client.py + autoxing_bridge/)." style="html=1;shadow=0;dashed=0;shape=mxgraph.bootstrap.rrect;rSize=5;strokeColor=none;strokeWidth=1;fillColor=#FFBC26;fontColor=#000000;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=0;fontStyle=0;fontSize=14;spacing=5;" parent="146" vertex="1">
+                    <mxGeometry x="40" y="60" width="1200" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="tech-order-header" value="&lt;b&gt;Order JSON (flat arrays)&lt;/b&gt;&lt;br&gt;orderId · orderUpdateId · nodes[] (even sequenceId) · edges[] (odd sequenceId)&lt;br&gt;Connectivity via startNodeId / endNodeId — types/order.hpp:49-55" style="text;html=1;strokeColor=#9673a6;fillColor=#f3eaf6;align=left;verticalAlign=top;whiteSpace=wrap;rounded=1;spacingLeft=6;spacingTop=4;fontSize=9;" parent="146" vertex="1">
+                    <mxGeometry x="1640" y="100" width="380" height="48" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

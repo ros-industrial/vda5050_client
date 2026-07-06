@@ -20,6 +20,10 @@
   <depend>libpaho-mqtt-dev</depend>
   <depend>libpaho-mqttpp-dev</depend>
   <depend>fmt</depend>
+  <depend>pybind11-dev</depend>
+
+  <exec_depend>python3</exec_depend>
+  <exec_depend>python3-paho-mqtt</exec_depend>
 
   <test_depend>ament_cmake_cppcheck</test_depend>
   <test_depend>ament_cmake_cpplint</test_depend>

@@ -92,7 +92,7 @@ protected:
   void SetUp()
   {
     interface_ = "uagv";
-    version_ = "v2";
+    version_ = "2.0.0";
     manufacturer_ = "ROS-I";
     serial_number_ = "S001";
 
@@ -102,7 +102,8 @@ protected:
       mock_, interface_, version_, manufacturer_, serial_number_);
 
     topic_prefix_ = fmt::format(
-      "{}/{}/{}/{}/", interface_, version_, manufacturer_, serial_number_);
+      "{}/{}/{}/{}/", interface_, ProtocolAdapter::get_topic_version(version_),
+      manufacturer_, serial_number_);
 
     qos_ = 0;
     retained_ = false;
@@ -265,6 +266,29 @@ TYPED_TEST(ProtocolAdapterTest, HeaderIncrement)
 
   this->adapter_->template publish<TypeParam>(msg, this->qos_, this->retained_);
   this->adapter_->template publish<TypeParam>(msg, this->qos_, this->retained_);
+}
+
+TYPED_TEST(ProtocolAdapterTest, SetWill)
+{
+  TypeParam msg = make_valid_message<TypeParam>();
+
+  EXPECT_CALL(
+    *this->mock_, set_will(
+                    testing::StartsWith(this->topic_prefix_), testing::_,
+                    this->qos_, this->retained_))
+    .WillOnce([&](
+                const std::string& /*topic*/, const std::string& message,
+                int /*qos*/, bool /*retained*/) {
+      auto j = nlohmann::json::parse(message);
+
+      EXPECT_EQ(j["headerId"], 0);
+      EXPECT_EQ(j["version"], this->version_);
+      EXPECT_EQ(j["manufacturer"], this->manufacturer_);
+      EXPECT_EQ(j["serialNumber"], this->serial_number_);
+    });
+
+  this->adapter_->template set_will<TypeParam>(
+    msg, this->qos_, this->retained_);
 }
 
 TYPED_TEST(ProtocolAdapterTest, UnsubscribeAllOnlyUnsubscribesActiveTopics)

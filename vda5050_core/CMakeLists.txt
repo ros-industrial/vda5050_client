@@ -217,6 +217,11 @@ target_include_directories(vda5050_master
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
+option(BUILD_PYTHON "Build Python bindings" ON)
+
+if(BUILD_PYTHON)
+  add_subdirectory(python)
+endif()
 
 install(
   DIRECTORY include/${PROJECT_NAME}/
@@ -254,37 +259,7 @@ endif()
 option(BUILD_EXAMPLES "Build examples" ON)
 
 if(BUILD_EXAMPLES)
-  add_executable(custom_base examples/custom_base.cpp)
-  target_link_libraries(custom_base PUBLIC
-    ${PROJECT_NAME}::execution
-    ${PROJECT_NAME}::logger
-  )
-
-  add_executable(provider_example examples/provider_example.cpp)
-  target_link_libraries(provider_example PUBLIC
-    ${PROJECT_NAME}::execution
-    ${PROJECT_NAME}::logger
-  )
-
-  add_executable(engine_example examples/engine_example.cpp)
-  target_link_libraries(engine_example PUBLIC
-    ${PROJECT_NAME}::execution
-    ${PROJECT_NAME}::logger
-  )
-
-  add_executable(handler_integration examples/handler_integration.cpp)
-  target_link_libraries(handler_integration PUBLIC
-    ${PROJECT_NAME}::execution
-    ${PROJECT_NAME}::logger
-  )
-
-  install(TARGETS
-      custom_base
-      provider_example
-      engine_example
-      handler_integration
-    DESTINATION lib/${PROJECT_NAME}
-  )
+  add_subdirectory(examples)
 endif()
 
 option(BUILD_TESTING "Build tests" ON)

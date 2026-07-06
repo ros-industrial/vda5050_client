@@ -74,6 +74,47 @@ bool ProtocolAdapter::connected()
 }
 
 //=============================================================================
+void ProtocolAdapter::unsubscribe_all()
+{
+  // Deactivate the wrapper flags for currently active subscriptions
+  // so any in-flight or post-unsubscribe dispatches become a no-op
+  // at the adapter layer, and collect their topics to unsubscribe
+  // from below, outside the lock.
+  std::vector<std::string> topics_to_unsubscribe;
+  {
+    std::lock_guard<std::mutex> lock(active_flags_mutex_);
+    for (auto& entry : active_flags_)
+    {
+      *(entry.second) = false;
+
+      auto topic_it = topic_names_.find(entry.first);
+      if (topic_it != topic_names_.end())
+      {
+        topics_to_unsubscribe.push_back(topic_it->second);
+      }
+    }
+    active_flags_.clear();
+  }
+
+  if (mqtt_client_)
+  {
+    for (const auto& topic : topics_to_unsubscribe)
+    {
+      mqtt_client_->unsubscribe(topic);
+    }
+  }
+}
+
+//=============================================================================
+std::string ProtocolAdapter::get_topic_version(const std::string& version)
+{
+  // TODO(sauk2): Enforce stricter version checking before parsing string
+  auto position = version.find('.');
+  std::string major = version.substr(0, position);
+  return "v" + major;
+}
+
+//=============================================================================
 ProtocolAdapter::ProtocolAdapter(
   std::shared_ptr<vda5050_core::transport::MqttClientInterface> mqtt_client,
   const std::string& interface, const std::string& version,
@@ -85,7 +126,8 @@ ProtocolAdapter::ProtocolAdapter(
   serial_number_(serial_number)
 {
   std::string topic_prefix = fmt::format(
-    "{}/{}/{}/{}", interface_, version_, manufacturer_, serial_number_);
+    "{}/{}/{}/{}", interface_, get_topic_version(version_), manufacturer_,
+    serial_number_);
 
   topic_names_ = {
     {std::type_index(typeid(vda5050_core::types::Connection)),

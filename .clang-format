@@ -17,6 +17,7 @@ BraceWrapping:
   BeforeElse: true
   BeforeCatch: true
   SplitEmptyRecord: false
+  AfterCaseLabel: true
 ColumnLimit: 80
 ConstructorInitializerIndentWidth: 0
 ContinuationIndentWidth: 2

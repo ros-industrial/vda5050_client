@@ -28,6 +28,7 @@ namespace errors {
 // Error Codes for vda5050_types::Error::error_type field
 inline const std::string GraphValidationError = "graphValidationError";
 inline const std::string OrderUpdateError = "orderUpdateError";
+inline const std::string NavigationFailedError = "navigationFailedError";
 inline const std::string ValidationError = "validationError";
 inline const std::string ContentValidationError = "contentValidationError";
 inline const std::string PreSendValidationError = "preSendValidationError";

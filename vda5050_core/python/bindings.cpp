@@ -188,7 +188,7 @@ PYBIND11_MODULE(vda5050_core_python, m)
 
   py::class_<StateManager, std::shared_ptr<StateManager>>(
     m_client, "StateManager")
-    .def("set_agv_position", &StateManager::set_agv_position)
+    .def("set_position", &StateManager::set_position)
     .def("set_velocity", &StateManager::set_velocity)
     .def("set_driving", &StateManager::set_driving)
     .def("set_paused", &StateManager::set_paused)

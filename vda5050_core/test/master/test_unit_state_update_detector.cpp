@@ -18,9 +18,9 @@
 
 #include <gtest/gtest.h>
 
-#include "vda5050_core/master/state/state_event_detector.hpp"
+#include "vda5050_core/master/state/state_update_detector.hpp"
 
-namespace vda5050_core::master::event::test {
+namespace vda5050_core::master::update::test {
 
 namespace {
 // Helpers for building synthetic State objects without ceremony.
@@ -53,7 +53,7 @@ vda5050_core::types::Load make_load(const std::string& id)
 // newly_reached_node
 // ============================================================================
 
-TEST(StateEventDetectorTest, NewlyReachedNodeOnLastNodeAdvance)
+TEST(StateUpdateDetectorTest, NewlyReachedNodeOnLastNodeAdvance)
 {
   vda5050_core::types::State prev;
   prev.last_node_id = "n0";
@@ -68,7 +68,7 @@ TEST(StateEventDetectorTest, NewlyReachedNodeOnLastNodeAdvance)
   EXPECT_EQ(r->sequence_id, 2u);
 }
 
-TEST(StateEventDetectorTest, NewlyReachedNodeOnSameIdNewSequence)
+TEST(StateUpdateDetectorTest, NewlyReachedNodeOnSameIdNewSequence)
 {
   vda5050_core::types::State prev;
   prev.last_node_id = "n1";
@@ -83,7 +83,7 @@ TEST(StateEventDetectorTest, NewlyReachedNodeOnSameIdNewSequence)
   EXPECT_EQ(r->sequence_id, 4u);
 }
 
-TEST(StateEventDetectorTest, NewlyReachedNodeNulloptWhenUnchanged)
+TEST(StateUpdateDetectorTest, NewlyReachedNodeNulloptWhenUnchanged)
 {
   vda5050_core::types::State prev;
   prev.last_node_id = "n1";
@@ -97,7 +97,7 @@ TEST(StateEventDetectorTest, NewlyReachedNodeNulloptWhenUnchanged)
 
 // Regression: a released-flag flip (master releasing a horizon node) is an
 // order update, NOT a traversal — must not report a reached node.
-TEST(StateEventDetectorTest, NewlyReachedNodeNulloptOnReleasedFlipOnly)
+TEST(StateUpdateDetectorTest, NewlyReachedNodeNulloptOnReleasedFlipOnly)
 {
   vda5050_core::types::State prev;
   prev.last_node_id = "n1";
@@ -111,7 +111,7 @@ TEST(StateEventDetectorTest, NewlyReachedNodeNulloptOnReleasedFlipOnly)
   EXPECT_FALSE(newly_reached_node(prev, curr).has_value());
 }
 
-TEST(StateEventDetectorTest, NewlyReachedNodeOnFirstStateWithNode)
+TEST(StateUpdateDetectorTest, NewlyReachedNodeOnFirstStateWithNode)
 {
   vda5050_core::types::State prev;  // default: empty last_node_id, seq 0
   vda5050_core::types::State curr;
@@ -123,7 +123,7 @@ TEST(StateEventDetectorTest, NewlyReachedNodeOnFirstStateWithNode)
   EXPECT_EQ(r->node_id, "n0");
 }
 
-TEST(StateEventDetectorTest, NewlyReachedNodeNulloptWhenNoLastNode)
+TEST(StateUpdateDetectorTest, NewlyReachedNodeNulloptWhenNoLastNode)
 {
   vda5050_core::types::State prev;
   vda5050_core::types::State curr;  // both empty last_node_id
@@ -134,7 +134,7 @@ TEST(StateEventDetectorTest, NewlyReachedNodeNulloptWhenNoLastNode)
 // errors_appeared / errors_resolved
 // ============================================================================
 
-TEST(StateEventDetectorTest, ErrorsAppearedReturnsNewOnly)
+TEST(StateUpdateDetectorTest, ErrorsAppearedReturnsNewOnly)
 {
   vda5050_core::types::State prev;
   prev.errors = {make_error("E1", "old")};
@@ -146,7 +146,7 @@ TEST(StateEventDetectorTest, ErrorsAppearedReturnsNewOnly)
   EXPECT_EQ(appeared[0].error_type, "E2");
 }
 
-TEST(StateEventDetectorTest, ErrorsDistinguishedByReferences)
+TEST(StateUpdateDetectorTest, ErrorsDistinguishedByReferences)
 {
   // Same type + description on different sources (error_references) must be
   // treated as distinct, not collapsed.
@@ -171,7 +171,7 @@ TEST(StateEventDetectorTest, ErrorsDistinguishedByReferences)
   EXPECT_EQ(appeared[0].error_references->front().reference_value, "n2");
 }
 
-TEST(StateEventDetectorTest, ErrorsAppearedEmptyWhenNoNewErrors)
+TEST(StateUpdateDetectorTest, ErrorsAppearedEmptyWhenNoNewErrors)
 {
   vda5050_core::types::State prev;
   prev.errors = {make_error("E1")};
@@ -181,7 +181,7 @@ TEST(StateEventDetectorTest, ErrorsAppearedEmptyWhenNoNewErrors)
   EXPECT_TRUE(errors_appeared(prev, curr).empty());
 }
 
-TEST(StateEventDetectorTest, ErrorsResolvedReturnsRemovedOnly)
+TEST(StateUpdateDetectorTest, ErrorsResolvedReturnsRemovedOnly)
 {
   vda5050_core::types::State prev;
   prev.errors = {make_error("E1", "old"), make_error("E2", "vanishing")};
@@ -193,7 +193,7 @@ TEST(StateEventDetectorTest, ErrorsResolvedReturnsRemovedOnly)
   EXPECT_EQ(resolved[0].error_type, "E2");
 }
 
-TEST(StateEventDetectorTest, ErrorsResolvedEmptyWhenNothingRemoved)
+TEST(StateUpdateDetectorTest, ErrorsResolvedEmptyWhenNothingRemoved)
 {
   vda5050_core::types::State prev;
   prev.errors = {make_error("E1")};
@@ -207,7 +207,7 @@ TEST(StateEventDetectorTest, ErrorsResolvedEmptyWhenNothingRemoved)
 // new_base_requested
 // ============================================================================
 
-TEST(StateEventDetectorTest, NewBaseRequestedOnRisingEdge)
+TEST(StateUpdateDetectorTest, NewBaseRequestedOnRisingEdge)
 {
   vda5050_core::types::State prev;
   prev.new_base_request = false;
@@ -217,7 +217,7 @@ TEST(StateEventDetectorTest, NewBaseRequestedOnRisingEdge)
   EXPECT_TRUE(new_base_requested(prev, curr));
 }
 
-TEST(StateEventDetectorTest, NewBaseRequestedFalseWhenSustained)
+TEST(StateUpdateDetectorTest, NewBaseRequestedFalseWhenSustained)
 {
   vda5050_core::types::State prev;
   prev.new_base_request = true;
@@ -227,7 +227,7 @@ TEST(StateEventDetectorTest, NewBaseRequestedFalseWhenSustained)
   EXPECT_FALSE(new_base_requested(prev, curr));
 }
 
-TEST(StateEventDetectorTest, NewBaseRequestedHandlesAbsentPrev)
+TEST(StateUpdateDetectorTest, NewBaseRequestedHandlesAbsentPrev)
 {
   vda5050_core::types::State prev;  // optional<bool> defaults to nullopt
   vda5050_core::types::State curr;
@@ -240,7 +240,7 @@ TEST(StateEventDetectorTest, NewBaseRequestedHandlesAbsentPrev)
 // mode_changed
 // ============================================================================
 
-TEST(StateEventDetectorTest, ModeChangedOnTransition)
+TEST(StateUpdateDetectorTest, ModeChangedOnTransition)
 {
   vda5050_core::types::State prev;
   prev.operating_mode = vda5050_core::types::OperatingMode::AUTOMATIC;
@@ -250,7 +250,7 @@ TEST(StateEventDetectorTest, ModeChangedOnTransition)
   EXPECT_TRUE(mode_changed(prev, curr));
 }
 
-TEST(StateEventDetectorTest, ModeChangedFalseWhenSame)
+TEST(StateUpdateDetectorTest, ModeChangedFalseWhenSame)
 {
   vda5050_core::types::State prev;
   prev.operating_mode = vda5050_core::types::OperatingMode::AUTOMATIC;
@@ -264,7 +264,7 @@ TEST(StateEventDetectorTest, ModeChangedFalseWhenSame)
 // paused_changed
 // ============================================================================
 
-TEST(StateEventDetectorTest, PausedChangedOnRisingEdge)
+TEST(StateUpdateDetectorTest, PausedChangedOnRisingEdge)
 {
   vda5050_core::types::State prev;
   prev.paused = false;
@@ -274,7 +274,7 @@ TEST(StateEventDetectorTest, PausedChangedOnRisingEdge)
   EXPECT_TRUE(paused_changed(prev, curr));
 }
 
-TEST(StateEventDetectorTest, PausedChangedOnFallingEdge)
+TEST(StateUpdateDetectorTest, PausedChangedOnFallingEdge)
 {
   vda5050_core::types::State prev;
   prev.paused = true;
@@ -284,7 +284,7 @@ TEST(StateEventDetectorTest, PausedChangedOnFallingEdge)
   EXPECT_TRUE(paused_changed(prev, curr));
 }
 
-TEST(StateEventDetectorTest, PausedChangedFalseWhenSame)
+TEST(StateUpdateDetectorTest, PausedChangedFalseWhenSame)
 {
   vda5050_core::types::State prev;
   prev.paused = true;
@@ -298,7 +298,7 @@ TEST(StateEventDetectorTest, PausedChangedFalseWhenSame)
 // driving_changed
 // ============================================================================
 
-TEST(StateEventDetectorTest, DrivingChangedOnRisingEdge)
+TEST(StateUpdateDetectorTest, DrivingChangedOnRisingEdge)
 {
   vda5050_core::types::State prev;
   prev.driving = false;
@@ -308,7 +308,7 @@ TEST(StateEventDetectorTest, DrivingChangedOnRisingEdge)
   EXPECT_TRUE(driving_changed(prev, curr));
 }
 
-TEST(StateEventDetectorTest, DrivingChangedFalseWhenSame)
+TEST(StateUpdateDetectorTest, DrivingChangedFalseWhenSame)
 {
   vda5050_core::types::State prev;
   prev.driving = true;
@@ -322,7 +322,7 @@ TEST(StateEventDetectorTest, DrivingChangedFalseWhenSame)
 // loads_changed
 // ============================================================================
 
-TEST(StateEventDetectorTest, LoadsChangedOnAddition)
+TEST(StateUpdateDetectorTest, LoadsChangedOnAddition)
 {
   vda5050_core::types::State prev;
   prev.loads = std::vector<vda5050_core::types::Load>{};
@@ -332,7 +332,7 @@ TEST(StateEventDetectorTest, LoadsChangedOnAddition)
   EXPECT_TRUE(loads_changed(prev, curr));
 }
 
-TEST(StateEventDetectorTest, LoadsChangedOnRemoval)
+TEST(StateUpdateDetectorTest, LoadsChangedOnRemoval)
 {
   vda5050_core::types::State prev;
   prev.loads = std::vector<vda5050_core::types::Load>{make_load("L1")};
@@ -342,7 +342,7 @@ TEST(StateEventDetectorTest, LoadsChangedOnRemoval)
   EXPECT_TRUE(loads_changed(prev, curr));
 }
 
-TEST(StateEventDetectorTest, LoadsChangedFalseWhenSame)
+TEST(StateUpdateDetectorTest, LoadsChangedFalseWhenSame)
 {
   vda5050_core::types::State prev;
   prev.loads = std::vector<vda5050_core::types::Load>{make_load("L1")};
@@ -352,4 +352,4 @@ TEST(StateEventDetectorTest, LoadsChangedFalseWhenSame)
   EXPECT_FALSE(loads_changed(prev, curr));
 }
 
-}  // namespace vda5050_core::master::event::test
+}  // namespace vda5050_core::master::update::test

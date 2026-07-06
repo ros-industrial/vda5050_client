@@ -16,33 +16,31 @@
  * limitations under the License.
  */
 
-#include "vda5050_core/master/connection/connection_event_detector.hpp"
+#include "vda5050_core/master/connection/connection_update_detector.hpp"
 
 namespace vda5050_core {
 namespace master {
 
-ConnectionEventKind detect_connection_transition(
+ConnectionTransition detect_connection_transition(
   const std::optional<vda5050_core::types::Connection>& prev,
   const vda5050_core::types::Connection& curr)
 {
-  using vda5050_core::types::ConnectionState;
-
   if (prev.has_value() && prev->connection_state == curr.connection_state)
   {
-    return ConnectionEventKind::NONE;
+    return ConnectionTransition::NONE;
   }
 
   switch (curr.connection_state)
   {
-    case ConnectionState::ONLINE:
-      return ConnectionEventKind::CONNECTED;
-    case ConnectionState::OFFLINE:
-      return ConnectionEventKind::OFFLINE;
-    case ConnectionState::CONNECTIONBROKEN:
-      return ConnectionEventKind::CONNECTIONBROKEN;
+    case types::ConnectionState::ONLINE:
+      return ConnectionTransition::CONNECTED;
+    case types::ConnectionState::OFFLINE:
+      return ConnectionTransition::OFFLINE;
+    case types::ConnectionState::CONNECTIONBROKEN:
+      return ConnectionTransition::CONNECTIONBROKEN;
   }
 
-  return ConnectionEventKind::NONE;
+  return ConnectionTransition::NONE;
 }
 
 }  // namespace master

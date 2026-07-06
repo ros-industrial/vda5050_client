@@ -16,20 +16,21 @@
  * limitations under the License.
  */
 
-#ifndef VDA5050_CORE__MASTER__CONNECTION__CONNECTION_EVENT_DETECTOR_HPP_
-#define VDA5050_CORE__MASTER__CONNECTION__CONNECTION_EVENT_DETECTOR_HPP_
+#ifndef VDA5050_CORE__MASTER__CONNECTION__CONNECTION_UPDATE_DETECTOR_HPP_
+#define VDA5050_CORE__MASTER__CONNECTION__CONNECTION_UPDATE_DETECTOR_HPP_
 
 #include <optional>
 
 #include "vda5050_core/types/connection.hpp"
 
 namespace vda5050_core {
+
 namespace master {
 
 /// \brief Kind of connection-state transition detected.
 ///
 /// CONNECTIONBROKEN = broker last-will (unexpected drop); OFFLINE = graceful.
-enum class ConnectionEventKind
+enum class ConnectionTransition
 {
   NONE,
   CONNECTED,
@@ -39,11 +40,11 @@ enum class ConnectionEventKind
 
 /// \brief Edge-detect a connection-state transition; non-NONE only on a change
 /// (or first message). Sustained states return NONE.
-ConnectionEventKind detect_connection_transition(
+ConnectionTransition detect_connection_transition(
   const std::optional<vda5050_core::types::Connection>& prev,
   const vda5050_core::types::Connection& curr);
 
 }  // namespace master
 }  // namespace vda5050_core
 
-#endif  // VDA5050_CORE__MASTER__CONNECTION__CONNECTION_EVENT_DETECTOR_HPP_
+#endif  // VDA5050_CORE__MASTER__CONNECTION__CONNECTION_UPDATE_DETECTOR_HPP_

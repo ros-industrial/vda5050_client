@@ -16,13 +16,13 @@
  * limitations under the License.
  */
 
-#include "vda5050_core/master/state/state_event_detector.hpp"
+#include "vda5050_core/master/state/state_update_detector.hpp"
 
 #include <algorithm>
 
 namespace vda5050_core {
 namespace master {
-namespace event {
+namespace update {
 
 namespace {
 
@@ -118,6 +118,6 @@ bool loads_changed(
   return prev.loads != curr.loads;
 }
 
-}  // namespace event
+}  // namespace update
 }  // namespace master
 }  // namespace vda5050_core

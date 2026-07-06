@@ -18,7 +18,7 @@
 
 #include <gtest/gtest.h>
 
-#include "vda5050_core/master/connection/connection_event_detector.hpp"
+#include "vda5050_core/master/connection/connection_update_detector.hpp"
 
 namespace vda5050_core::master::test {
 
@@ -35,102 +35,102 @@ vda5050_core::types::Connection make_msg(vda5050_core::types::ConnectionState s)
 // First message (no prev) — every state is a transition.
 // ============================================================================
 
-TEST(ConnectionEventDetectorTest, ConnectedFromAbsentPrev)
+TEST(ConnectionUpdateDetectorTest, ConnectedFromAbsentPrev)
 {
   auto curr = make_msg(vda5050_core::types::ConnectionState::ONLINE);
   EXPECT_EQ(
     detect_connection_transition(std::nullopt, curr),
-    ConnectionEventKind::CONNECTED);
+    ConnectionTransition::CONNECTED);
 }
 
-TEST(ConnectionEventDetectorTest, OfflineFromAbsentPrev)
+TEST(ConnectionUpdateDetectorTest, OfflineFromAbsentPrev)
 {
   auto curr = make_msg(vda5050_core::types::ConnectionState::OFFLINE);
   EXPECT_EQ(
     detect_connection_transition(std::nullopt, curr),
-    ConnectionEventKind::OFFLINE);
+    ConnectionTransition::OFFLINE);
 }
 
-TEST(ConnectionEventDetectorTest, ConnectionBrokenFromAbsentPrev)
+TEST(ConnectionUpdateDetectorTest, ConnectionBrokenFromAbsentPrev)
 {
   auto curr = make_msg(vda5050_core::types::ConnectionState::CONNECTIONBROKEN);
   EXPECT_EQ(
     detect_connection_transition(std::nullopt, curr),
-    ConnectionEventKind::CONNECTIONBROKEN);
+    ConnectionTransition::CONNECTIONBROKEN);
 }
 
 // ============================================================================
 // Real transitions
 // ============================================================================
 
-TEST(ConnectionEventDetectorTest, OfflineFromOnline)
+TEST(ConnectionUpdateDetectorTest, OfflineFromOnline)
 {
   auto prev = make_msg(vda5050_core::types::ConnectionState::ONLINE);
   auto curr = make_msg(vda5050_core::types::ConnectionState::OFFLINE);
   EXPECT_EQ(
-    detect_connection_transition(prev, curr), ConnectionEventKind::OFFLINE);
+    detect_connection_transition(prev, curr), ConnectionTransition::OFFLINE);
 }
 
-TEST(ConnectionEventDetectorTest, ConnectionBrokenFromOnline)
+TEST(ConnectionUpdateDetectorTest, ConnectionBrokenFromOnline)
 {
   auto prev = make_msg(vda5050_core::types::ConnectionState::ONLINE);
   auto curr = make_msg(vda5050_core::types::ConnectionState::CONNECTIONBROKEN);
   EXPECT_EQ(
     detect_connection_transition(prev, curr),
-    ConnectionEventKind::CONNECTIONBROKEN);
+    ConnectionTransition::CONNECTIONBROKEN);
 }
 
-TEST(ConnectionEventDetectorTest, ConnectedFromOffline)
+TEST(ConnectionUpdateDetectorTest, ConnectedFromOffline)
 {
   auto prev = make_msg(vda5050_core::types::ConnectionState::OFFLINE);
   auto curr = make_msg(vda5050_core::types::ConnectionState::ONLINE);
   EXPECT_EQ(
-    detect_connection_transition(prev, curr), ConnectionEventKind::CONNECTED);
+    detect_connection_transition(prev, curr), ConnectionTransition::CONNECTED);
 }
 
-TEST(ConnectionEventDetectorTest, ConnectedFromConnectionBroken)
+TEST(ConnectionUpdateDetectorTest, ConnectedFromConnectionBroken)
 {
   auto prev = make_msg(vda5050_core::types::ConnectionState::CONNECTIONBROKEN);
   auto curr = make_msg(vda5050_core::types::ConnectionState::ONLINE);
   EXPECT_EQ(
-    detect_connection_transition(prev, curr), ConnectionEventKind::CONNECTED);
+    detect_connection_transition(prev, curr), ConnectionTransition::CONNECTED);
 }
 
-TEST(ConnectionEventDetectorTest, ConnectionBrokenFromOffline)
+TEST(ConnectionUpdateDetectorTest, ConnectionBrokenFromOffline)
 {
   auto prev = make_msg(vda5050_core::types::ConnectionState::OFFLINE);
   auto curr = make_msg(vda5050_core::types::ConnectionState::CONNECTIONBROKEN);
   EXPECT_EQ(
     detect_connection_transition(prev, curr),
-    ConnectionEventKind::CONNECTIONBROKEN);
+    ConnectionTransition::CONNECTIONBROKEN);
 }
 
 // ============================================================================
 // Sustained states — no event fires
 // ============================================================================
 
-TEST(ConnectionEventDetectorTest, NoneOnSustainedOnline)
+TEST(ConnectionUpdateDetectorTest, NoneOnSustainedOnline)
 {
   auto prev = make_msg(vda5050_core::types::ConnectionState::ONLINE);
   auto curr = make_msg(vda5050_core::types::ConnectionState::ONLINE);
   EXPECT_EQ(
-    detect_connection_transition(prev, curr), ConnectionEventKind::NONE);
+    detect_connection_transition(prev, curr), ConnectionTransition::NONE);
 }
 
-TEST(ConnectionEventDetectorTest, NoneOnSustainedOffline)
+TEST(ConnectionUpdateDetectorTest, NoneOnSustainedOffline)
 {
   auto prev = make_msg(vda5050_core::types::ConnectionState::OFFLINE);
   auto curr = make_msg(vda5050_core::types::ConnectionState::OFFLINE);
   EXPECT_EQ(
-    detect_connection_transition(prev, curr), ConnectionEventKind::NONE);
+    detect_connection_transition(prev, curr), ConnectionTransition::NONE);
 }
 
-TEST(ConnectionEventDetectorTest, NoneOnSustainedConnectionBroken)
+TEST(ConnectionUpdateDetectorTest, NoneOnSustainedConnectionBroken)
 {
   auto prev = make_msg(vda5050_core::types::ConnectionState::CONNECTIONBROKEN);
   auto curr = make_msg(vda5050_core::types::ConnectionState::CONNECTIONBROKEN);
   EXPECT_EQ(
-    detect_connection_transition(prev, curr), ConnectionEventKind::NONE);
+    detect_connection_transition(prev, curr), ConnectionTransition::NONE);
 }
 
 }  // namespace vda5050_core::master::test

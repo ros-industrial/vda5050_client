@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#ifndef VDA5050_CORE__MASTER__STATE__STATE_EVENT_DETECTOR_HPP_
-#define VDA5050_CORE__MASTER__STATE__STATE_EVENT_DETECTOR_HPP_
+#ifndef VDA5050_CORE__MASTER__STATE__STATE_UPDATE_DETECTOR_HPP_
+#define VDA5050_CORE__MASTER__STATE__STATE_UPDATE_DETECTOR_HPP_
 
 #include <cstdint>
 #include <optional>
@@ -28,8 +28,10 @@
 #include "vda5050_core/types/state.hpp"
 
 namespace vda5050_core {
+
 namespace master {
-namespace event {
+
+namespace update {
 
 /// \brief A node the AGV reports as reached (lastNodeId + lastNodeSequenceId).
 struct ReachedNode
@@ -78,8 +80,8 @@ bool loads_changed(
   const vda5050_core::types::State& prev,
   const vda5050_core::types::State& curr);
 
-}  // namespace event
+}  // namespace update
 }  // namespace master
 }  // namespace vda5050_core
 
-#endif  // VDA5050_CORE__MASTER__STATE__STATE_EVENT_DETECTOR_HPP_
+#endif  // VDA5050_CORE__MASTER__STATE__STATE_UPDATE_DETECTOR_HPP_

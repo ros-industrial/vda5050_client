@@ -56,7 +56,12 @@ void Adapter::Implementation::subscribe_orders()
 
         if (!result)
         {
-          for (const auto& e : result.errors)
+          for (const auto& e : result.fatal_errors())
+          {
+            state_manager->add_error(e);
+          }
+
+          for (const auto& e : result.warnings())
           {
             state_manager->add_error(e);
           }
@@ -97,7 +102,12 @@ void Adapter::Implementation::subscribe_orders()
 
       if (!result)
       {
-        for (const auto& e : result.errors)
+        for (const auto& e : result.fatal_errors())
+        {
+          state_manager->add_error(e);
+        }
+
+        for (const auto& e : result.warnings())
         {
           state_manager->add_error(e);
         }

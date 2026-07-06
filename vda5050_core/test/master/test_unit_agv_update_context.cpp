@@ -26,8 +26,7 @@
 #include <thread>
 #include <vector>
 
-#include "vda5050_core/execution/provider.hpp"
-#include "vda5050_core/master/event_detector.hpp"
+#include "vda5050_core/master/contexts/agv_update_context.hpp"
 
 namespace vda5050_core::master::test {
 
@@ -52,55 +51,52 @@ types::Connection connection(types::ConnectionState s)
 
 // A node advance on a later State pushes exactly one NodeReachedUpdate, tagged
 // with the AGV id. The first State only seeds the baseline.
-TEST(EventDetectorTest, NodeReachedOnLastNodeAdvance)
+TEST(AGVUpdateContextTest, NodeReachedOnLastNodeAdvance)
 {
-  auto provider = std::make_shared<execution::Provider>();
-  EventDetector detector("agv1", provider);
+  AGVUpdateContext context("agv1");
 
   std::vector<NodeReachedUpdate> reached;
-  provider->on<NodeReachedUpdate>(
+  context.provider()->on<NodeReachedUpdate>(
     [&](std::shared_ptr<NodeReachedUpdate> u) { reached.push_back(*u); });
 
-  detector.on_state(state_with_last_node("n0", 0));
+  context.on_state(state_with_last_node("n0", 0));
   EXPECT_TRUE(reached.empty());
 
-  detector.on_state(state_with_last_node("n1", 2));
+  context.on_state(state_with_last_node("n1", 2));
   ASSERT_EQ(reached.size(), 1u);
   EXPECT_EQ(reached[0].agv_id, "agv1");
   EXPECT_EQ(reached[0].node.node_id, "n1");
   EXPECT_EQ(reached[0].node.sequence_id, 2u);
 
   // Re-sending the same State pushes nothing further.
-  detector.on_state(state_with_last_node("n1", 2));
+  context.on_state(state_with_last_node("n1", 2));
   EXPECT_EQ(reached.size(), 1u);
 }
 
 // The first Connection message is itself a transition (CONNECTED for ONLINE);
 // a sustained state is not.
-TEST(EventDetectorTest, ConnectionTransition)
+TEST(AGVUpdateContextTest, ConnectionTransitionReport)
 {
-  auto provider = std::make_shared<execution::Provider>();
-  EventDetector detector("agv1", provider);
+  AGVUpdateContext context("agv1");
 
   std::vector<ConnectionChangedUpdate> updates;
-  provider->on<ConnectionChangedUpdate>(
+  context.provider()->on<ConnectionChangedUpdate>(
     [&](std::shared_ptr<ConnectionChangedUpdate> u) { updates.push_back(*u); });
 
-  detector.on_connection(connection(types::ConnectionState::ONLINE));
+  context.on_connection(connection(types::ConnectionState::ONLINE));
   ASSERT_EQ(updates.size(), 1u);
   EXPECT_EQ(updates[0].agv_id, "agv1");
-  EXPECT_EQ(updates[0].kind, ConnectionEventKind::CONNECTED);
+  EXPECT_EQ(updates[0].kind, ConnectionTransition::CONNECTED);
 
-  detector.on_connection(connection(types::ConnectionState::ONLINE));
+  context.on_connection(connection(types::ConnectionState::ONLINE));
   EXPECT_EQ(updates.size(), 1u);
 }
 
 // Flipping every state flag in one update pushes one value-carrying update per
 // concern, and a new error pushes an ErrorsChangedUpdate.
-TEST(EventDetectorTest, FlagChangesCarryValuesAndErrors)
+TEST(AGVUpdateContextTest, FlagChangesCarryValuesAndErrors)
 {
-  auto provider = std::make_shared<execution::Provider>();
-  EventDetector detector("agv1", provider);
+  AGVUpdateContext context("agv1");
 
   std::optional<OperatingModeChangedUpdate> mode;
   std::optional<PausedChangedUpdate> paused;
@@ -109,20 +105,22 @@ TEST(EventDetectorTest, FlagChangesCarryValuesAndErrors)
   std::optional<LoadsChangedUpdate> loads;
   std::optional<ErrorsChangedUpdate> errors;
 
-  provider->on<OperatingModeChangedUpdate>(
+  context.provider()->on<OperatingModeChangedUpdate>(
     [&](std::shared_ptr<OperatingModeChangedUpdate> u) { mode = *u; });
-  provider->on<PausedChangedUpdate>(
+  context.provider()->on<PausedChangedUpdate>(
     [&](std::shared_ptr<PausedChangedUpdate> u) { paused = *u; });
-  provider->on<DrivingChangedUpdate>(
+  context.provider()->on<DrivingChangedUpdate>(
     [&](std::shared_ptr<DrivingChangedUpdate> u) { driving = *u; });
-  provider->on<NewBaseRequestUpdate>(
+  context.provider()->on<NewBaseRequestUpdate>(
     [&](std::shared_ptr<NewBaseRequestUpdate> u) { new_base = *u; });
-  provider->on<LoadsChangedUpdate>(
+  context.provider()->on<LoadsChangedUpdate>(
     [&](std::shared_ptr<LoadsChangedUpdate> u) { loads = *u; });
-  provider->on<ErrorsChangedUpdate>(
+  context.provider()->on<ErrorsChangedUpdate>(
     [&](std::shared_ptr<ErrorsChangedUpdate> u) { errors = *u; });
 
-  detector.on_state(types::State{});  // baseline: all defaults
+  types::State baseline;  // all defaults
+  baseline.operating_mode = types::OperatingMode::AUTOMATIC;
+  context.on_state(baseline);
 
   types::State s;
   s.new_base_request = true;
@@ -136,11 +134,12 @@ TEST(EventDetectorTest, FlagChangesCarryValuesAndErrors)
   err.error_type = "someError";
   s.errors.push_back(err);
 
-  detector.on_state(s);
+  context.on_state(s);
 
   ASSERT_TRUE(mode.has_value());
   EXPECT_EQ(mode->agv_id, "agv1");
   EXPECT_EQ(mode->mode, types::OperatingMode::SEMIAUTOMATIC);
+  EXPECT_EQ(mode->prev_mode, types::OperatingMode::AUTOMATIC);
   ASSERT_TRUE(paused.has_value());
   EXPECT_EQ(paused->agv_id, "agv1");
   EXPECT_TRUE(paused->paused);
@@ -161,13 +160,12 @@ TEST(EventDetectorTest, FlagChangesCarryValuesAndErrors)
 
 // An error present in the prev State but gone from the current one is reported
 // as resolved.
-TEST(EventDetectorTest, ErrorResolvedIsReported)
+TEST(AGVUpdateContextTest, ErrorResolvedIsReported)
 {
-  auto provider = std::make_shared<execution::Provider>();
-  EventDetector detector("agv1", provider);
+  AGVUpdateContext context("agv1");
 
   std::vector<ErrorsChangedUpdate> updates;
-  provider->on<ErrorsChangedUpdate>(
+  context.provider()->on<ErrorsChangedUpdate>(
     [&](std::shared_ptr<ErrorsChangedUpdate> u) { updates.push_back(*u); });
 
   types::State with_error;
@@ -175,10 +173,10 @@ TEST(EventDetectorTest, ErrorResolvedIsReported)
   err.error_type = "someError";
   with_error.errors.push_back(err);
 
-  detector.on_state(with_error);  // baseline carries the error
+  context.on_state(with_error);  // baseline carries the error
   EXPECT_TRUE(updates.empty());
 
-  detector.on_state(types::State{});  // error cleared
+  context.on_state(types::State{});  // error cleared
   ASSERT_EQ(updates.size(), 1u);
   EXPECT_EQ(updates[0].agv_id, "agv1");
   EXPECT_TRUE(updates[0].appeared.empty());
@@ -187,67 +185,80 @@ TEST(EventDetectorTest, ErrorResolvedIsReported)
 }
 
 // Each connection-state change is reported with its mapped kind.
-TEST(EventDetectorTest, OfflineAndBrokenTransitions)
+TEST(AGVUpdateContextTest, OfflineAndBrokenTransitions)
 {
-  auto provider = std::make_shared<execution::Provider>();
-  EventDetector detector("agv1", provider);
+  AGVUpdateContext context("agv1");
 
   std::vector<ConnectionChangedUpdate> updates;
-  provider->on<ConnectionChangedUpdate>(
+  context.provider()->on<ConnectionChangedUpdate>(
     [&](std::shared_ptr<ConnectionChangedUpdate> u) { updates.push_back(*u); });
 
-  detector.on_connection(connection(types::ConnectionState::ONLINE));
-  detector.on_connection(connection(types::ConnectionState::OFFLINE));
-  detector.on_connection(connection(types::ConnectionState::CONNECTIONBROKEN));
+  context.on_connection(connection(types::ConnectionState::ONLINE));
+  context.on_connection(connection(types::ConnectionState::OFFLINE));
+  context.on_connection(connection(types::ConnectionState::CONNECTIONBROKEN));
 
   ASSERT_EQ(updates.size(), 3u);
-  EXPECT_EQ(updates[0].kind, ConnectionEventKind::CONNECTED);
-  EXPECT_EQ(updates[1].kind, ConnectionEventKind::OFFLINE);
-  EXPECT_EQ(updates[2].kind, ConnectionEventKind::CONNECTIONBROKEN);
+  EXPECT_EQ(updates[0].kind, ConnectionTransition::CONNECTED);
+  EXPECT_EQ(updates[1].kind, ConnectionTransition::OFFLINE);
+  EXPECT_EQ(updates[2].kind, ConnectionTransition::CONNECTIONBROKEN);
   for (const auto& u : updates) EXPECT_EQ(u.agv_id, "agv1");
 }
 
-// Two threads both drive on_state (contending on the same prev_state_
-// snapshot) while a third drives on_connection. Counts are interleaving-
-// dependent, so we only assert progress; the value is running this under TSan
-// to prove the snapshot mutex serialises concurrent access.
-TEST(EventDetectorTest, ConcurrentCallsAreThreadSafe)
+// The context caches the latest update of each type for get_update<T>().
+TEST(AGVUpdateContextTest, CachesLatestUpdateForGetUpdate)
 {
-  auto provider = std::make_shared<execution::Provider>();
-  EventDetector detector("agv1", provider);
+  AGVUpdateContext context("agv1");
 
-  std::atomic<int> node_updates{0};
-  std::atomic<int> conn_updates{0};
-  provider->on<NodeReachedUpdate>(
-    [&](std::shared_ptr<NodeReachedUpdate>) { node_updates.fetch_add(1); });
-  provider->on<ConnectionChangedUpdate>(
-    [&](std::shared_ptr<ConnectionChangedUpdate>) {
-      conn_updates.fetch_add(1);
-    });
+  // Nothing produced yet.
+  EXPECT_EQ(context.get_update<OperatingModeChangedUpdate>(), nullptr);
 
+  types::State baseline;
+  baseline.operating_mode = types::OperatingMode::AUTOMATIC;
+  context.on_state(baseline);
+
+  types::State s;
+  s.operating_mode = types::OperatingMode::SEMIAUTOMATIC;
+  context.on_state(s);
+
+  auto cached = context.get_update<OperatingModeChangedUpdate>();
+  ASSERT_NE(cached, nullptr);
+  EXPECT_EQ(cached->mode, types::OperatingMode::SEMIAUTOMATIC);
+  EXPECT_EQ(cached->prev_mode, types::OperatingMode::AUTOMATIC);
+}
+
+// One thread drives on_state (the single writer) while others read the cache
+// via get_update. Counts are timing-dependent, so we only assert progress; the
+// value is running this under TSan to prove storage_mutex_ serialises the
+// cache against concurrent readers.
+TEST(AGVUpdateContextTest, ConcurrentCacheAccessIsThreadSafe)
+{
+  AGVUpdateContext context("agv1");
+
+  std::atomic<bool> stop{false};
   constexpr int kIterations = 1000;
-  auto push_states = [&](const std::string& prefix) {
+  std::thread writer([&] {
     for (int i = 0; i < kIterations; ++i)
     {
-      detector.on_state(state_with_last_node(prefix + std::to_string(i), i));
+      context.on_state(state_with_last_node("n" + std::to_string(i), i));
+    }
+    stop.store(true);
+  });
+
+  std::atomic<int> reads{0};
+  auto reader = [&] {
+    while (!stop.load())
+    {
+      if (context.get_update<NodeReachedUpdate>()) reads.fetch_add(1);
     }
   };
-  std::thread state_a([&] { push_states("a"); });
-  std::thread state_b([&] { push_states("b"); });
-  std::thread conn_thread([&] {
-    for (int i = 0; i < kIterations; ++i)
-    {
-      detector.on_connection(connection(
-        i % 2 == 0 ? types::ConnectionState::ONLINE
-                   : types::ConnectionState::OFFLINE));
-    }
-  });
-  state_a.join();
-  state_b.join();
-  conn_thread.join();
+  std::thread r1(reader);
+  std::thread r2(reader);
 
-  EXPECT_GT(node_updates.load(), 0);
-  EXPECT_GT(conn_updates.load(), 0);
+  writer.join();
+  r1.join();
+  r2.join();
+
+  EXPECT_GT(reads.load(), 0);
 }
 
 }  // namespace vda5050_core::master::test

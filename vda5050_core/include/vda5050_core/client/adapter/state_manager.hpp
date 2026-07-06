@@ -22,6 +22,7 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <vector>
 
 #include "vda5050_core/types/action_state.hpp"

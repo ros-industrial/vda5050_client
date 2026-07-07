@@ -20,6 +20,7 @@
 
 #include <cstdint>
 
+#include "vda5050_core/logger/logger.hpp"
 #include "vda5050_core/master/order/order_lifecycle_manager.hpp"
 #include "vda5050_core/master/standard_names.hpp"
 #include "vda5050_core/validation/capability_validator.hpp"
@@ -90,6 +91,12 @@ vda5050_core::errors::ValidationResult OrderPublisher::publish(
   {
     auto graph_result = vda5050_core::validation::is_valid_graph(order);
     if (!graph_result) return graph_result;
+    if (graph_result.has_warnings())
+    {
+      VDA5050_WARN(
+        "[OrderPublisher] order {} has {} graph advisory(ies); publishing",
+        order.order_id, graph_result.warnings().size());
+    }
   }
 
   auto traversability_result =

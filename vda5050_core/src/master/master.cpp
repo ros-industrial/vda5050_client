@@ -455,7 +455,7 @@ AssignmentResult VDA5050Master::assign_order(
     return res;
   }
 
-  // Step 2: connection ONLINE (VM-VDA-6-14-1).
+  // Step 2: connection ONLINE.
   if (
     agv->get_connection_status() !=
     vda5050_core::types::ConnectionState::ONLINE)

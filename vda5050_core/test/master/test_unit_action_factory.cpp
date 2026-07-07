@@ -115,7 +115,7 @@ TEST(ActionFactory, GenerateActionIdBatchOf100AllUnique)
 }
 
 // =============================================================================
-// V0 BACKLOG predefined-action factories
+// Predefined-action factories
 // =============================================================================
 
 TEST(ActionFactory, BuildStateRequest_HasCanonicalActionType)

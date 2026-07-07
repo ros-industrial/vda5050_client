@@ -29,59 +29,13 @@
 namespace vda5050_core {
 namespace master {
 
-// =============================================================================
-// ActionFactory.
-// =============================================================================
-//
-// Helper to construct vda5050_core::types::Action structs ergonomically.
-//
-// - `build_custom`: generic builder for arbitrary action_types
-// - `generate_action_id`: UUIDv4 helper for callers without their own ID
-// - `build_state_request`: the predefined stateRequest action
-// - `build_factsheet_request`: the predefined factsheetRequest action
-//
-// Header building (header_id sequence, timestamp, version, manufacturer,
-// serial_number) is owned by ProtocolAdapter; the factory MUST NOT touch it.
-// Callers wrap the produced Action(s) in a vda5050_core::types::InstantActions
-// with default-initialized header — the adapter overwrites it on publish.
-//
-// **stateRequest / factsheetRequest workflow** (VM-VDA-6-8-2-6 [BACKLOG]
-// "stateRequest failed workflow", VM-VDA-6-8-2-8 [BACKLOG]
-// "factsheetRequest finished workflow"):
-//
-// Per the spec, neither action
-// takes parameters. The factory builders below produce a default-blocking
-// (NONE) action with the canonical action_type spelling and the
-// caller-supplied action_id. The action_id is what FMS uses to correlate
-// the response.
-//
-// **FMS observation pattern** (master gives the hooks; FMS owns tracking):
-//
-//     // 1. FMS sends the request via assign_instant_actions:
-//     auto req = ActionFactory::build_state_request("req-42");
-//     master.assign_instant_actions(mfg, serial, wrap({req}));
-//
-//     // 2. FMS subclass overrides on_state(...) to inspect actionStates:
-//     void MyMaster::on_state(const std::string& agv_id,
-//                             const vda5050_core::types::State& state) {
-//       for (const auto& as : state.action_states) {
-//         if (as.action_id != "req-42") continue;
-//         if (as.action_status == ActionStatus::FINISHED) { ... }
-//         if (as.action_status == ActionStatus::FAILED)   { ... }
-//       }
-//     }
-//
-//     // 3. For factsheetRequest specifically, the AGV publishes on the
-//     //    retained `factsheet` topic; on_factsheet(...) fires too.
-//     //    Either callback can be the trigger.
-//
-// **Spec ambiguity on stateRequest "failed" workflow**
-// shows only FINISHED for stateRequest ("the state has been communicated").
-// FAILED is technically a legal action_status enum value but spec doesn't
-// describe when AGV would emit it for stateRequest. FMS should handle
-// FAILED (log + retry) and treat absent-action_id-in-state
-// as "still pending".
-
+/// \brief Builds Action structs (arbitrary custom actions plus the predefined
+///        stateRequest / factsheetRequest).
+///
+/// Never sets the header — ProtocolAdapter owns it and overwrites it on
+/// publish. The predefined builders take no parameters and default to NONE
+/// blocking; the caller-supplied action_id correlates the AGV's response in
+/// on_state's action_states.
 class ActionFactory
 {
 public:

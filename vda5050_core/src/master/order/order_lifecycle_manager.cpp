@@ -124,8 +124,7 @@ CombineResult combine_order(
   {
     fail(
       "AGV has already passed the stitch point",
-      {{::vda5050_core::errors::RefSequenceId,
-        std::to_string(last_node_sequence_id)}});
+      {{errors::RefSequenceId, std::to_string(last_node_sequence_id)}});
     return res;
   }
 
@@ -351,9 +350,11 @@ void OrderLifecycleManager::record_published(
     adopt_active_locked(order);
     if (!same_order)
     {
-      // New order entirely — reset sticky flags.
+      // New order entirely — reset sticky flags and the mismatch counter so
+      // stale mismatches from the previous order can't trip recovery on it.
       order_complete_ = false;
       needs_more_base_ = false;
+      mismatch_count_ = 0;
     }
   }
 }
@@ -614,7 +615,7 @@ OrderLifecycleManager::drain_pending_locked(
       VDA5050_ERROR(
         "[OrderLifecycle] {} combine_order failed for pending update {}; "
         "dropping ({} errors)",
-        agv_id_, candidate.order_update_id, combined.errors.size());
+        agv_id_, to_publish.order_update_id, combined.errors.size());
       continue;
     }
     ready.push_back(std::move(to_publish));

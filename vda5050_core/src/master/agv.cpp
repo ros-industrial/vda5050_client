@@ -25,10 +25,8 @@
 #include "vda5050_core/execution/protocol_adapter.hpp"
 #include "vda5050_core/json_utils/serialization.hpp"
 #include "vda5050_core/logger/logger.hpp"
-#include "vda5050_core/master/connection/connection_update_detector.hpp"
 #include "vda5050_core/master/master.hpp"
 #include "vda5050_core/master/standard_names.hpp"
-#include "vda5050_core/master/state/state_update_detector.hpp"
 #include "vda5050_core/validation/content_validator.hpp"
 #include "vda5050_core/validation/pre_send_validator.hpp"
 
@@ -87,9 +85,11 @@ AGV::AGV(
   parent_raw_(parent.lock().get()),
   state_heartbeat_interval_(state_heartbeat_interval),
   created_time_(Clock::now()),
+  update_context_(agv_id_),
   max_queue_size_(max_queue_size),
   drop_oldest_(drop_oldest)
 {
+  register_update_dispatch();
   VDA5050_INFO("[AGV] Created AGV instance: {}", agv_id_);
   // setup_subscriptions() must be called by the constructor's caller
   // after make_shared returns — weak_from_this() is only valid once
@@ -141,6 +141,114 @@ void AGV::setup_subscriptions()
     [this](const auto& msg) { handle_factsheet(msg); }, FactsheetQos);
   create_subscription<vda5050_core::types::Visualization>(
     [this](const auto& msg) { handle_visualization(msg); }, VisualizationQos);
+}
+
+void AGV::register_update_dispatch()
+{
+  auto provider = update_context_.provider();
+
+  provider->on<NodeReachedUpdate>([this](std::shared_ptr<NodeReachedUpdate> u) {
+    if (auto p = parent_.lock())
+    {
+      p->on_node_reached(agv_id_, u->node.node_id);
+    }
+  });
+
+  provider->on<ErrorsChangedUpdate>(
+    [this](std::shared_ptr<ErrorsChangedUpdate> u) {
+      if (auto p = parent_.lock())
+      {
+        if (!u->appeared.empty())
+        {
+          p->on_errors_appeared(agv_id_, u->appeared);
+        }
+        if (!u->resolved.empty())
+        {
+          p->on_errors_resolved(agv_id_, u->resolved);
+        }
+      }
+    });
+
+  provider->on<NewBaseRequestUpdate>(
+    [this](std::shared_ptr<NewBaseRequestUpdate>) {
+      if (auto p = parent_.lock())
+      {
+        p->on_new_base_requested(agv_id_);
+      }
+    });
+
+  provider->on<OperatingModeChangedUpdate>(
+    [this](std::shared_ptr<OperatingModeChangedUpdate> u) {
+      // capture+drain runs BEFORE on_mode_changed so the FMS override
+      // sees the queue already drained and the buffer populated.
+      if (
+        u->prev_mode == vda5050_core::types::OperatingMode::AUTOMATIC &&
+        u->mode != vda5050_core::types::OperatingMode::AUTOMATIC)
+      {
+        capture_and_drain_on_leave_automatic(u->prev_mode, u->mode);
+      }
+      if (auto p = parent_.lock())
+      {
+        p->on_mode_changed(agv_id_, u->mode, u->prev_mode);
+      }
+    });
+
+  provider->on<PausedChangedUpdate>(
+    [this](std::shared_ptr<PausedChangedUpdate> u) {
+      if (auto p = parent_.lock())
+      {
+        p->on_paused(agv_id_, u->paused);
+      }
+    });
+
+  provider->on<DrivingChangedUpdate>(
+    [this](std::shared_ptr<DrivingChangedUpdate> u) {
+      if (auto p = parent_.lock())
+      {
+        p->on_driving(agv_id_, u->driving);
+      }
+    });
+
+  provider->on<LoadsChangedUpdate>(
+    [this](std::shared_ptr<LoadsChangedUpdate> u) {
+      if (auto p = parent_.lock())
+      {
+        p->on_loads_changed(agv_id_, u->loads);
+      }
+    });
+
+  provider->on<ConnectionChangedUpdate>(
+    [this](std::shared_ptr<ConnectionChangedUpdate> u) {
+      // Last-will cleanup runs BEFORE on_connection_broken so user code
+      // can rely on the queue already being clean.
+      if (u->kind == ConnectionTransition::CONNECTIONBROKEN)
+      {
+        VDA5050_WARN(
+          "[AGV] Last-will fired for {}: connection broken unexpectedly. "
+          "Clearing pending queues; firing on_connection_broken.",
+          agv_id_);
+        cancel_pending_orders();
+      }
+      if (auto p = parent_.lock())
+      {
+        switch (u->kind)
+        {
+          case ConnectionTransition::CONNECTED:
+            p->on_connect(agv_id_);
+            break;
+          case ConnectionTransition::OFFLINE:
+            p->on_offline(agv_id_);
+            break;
+          case ConnectionTransition::CONNECTIONBROKEN:
+            p->on_connection_broken(agv_id_);
+            break;
+          case ConnectionTransition::NONE:
+            break;
+        }
+      }
+    });
+
+  update_context_.init();
 }
 
 void AGV::stop()
@@ -418,9 +526,6 @@ void AGV::handle_connection(const vda5050_core::types::Connection& msg)
     last_connection_time_ = Clock::now();
   }
 
-  // Detect transition BEFORE updating prev_connection_.
-  auto kind = detect_connection_transition(prev_connection_, msg);
-
   // Update connection status
   set_connection_status(msg.connection_state);
 
@@ -444,49 +549,10 @@ void AGV::handle_connection(const vda5050_core::types::Connection& msg)
     p->on_connection(agv_id_, msg);
   }
 
-  // Last-will baseline handling. When CONNECTIONBROKEN fires (broker
-  // delivered the AGV's pre-registered last-will because the AGV's
-  // TCP connection unexpectedly dropped), the AGV is gone — any
-  // queued outbound orders/instant-actions are stale. Clear them so
-  // a brief reconnect doesn't trigger a flood of pre-disconnect
-  // messages to a freshly-recovered AGV. This runs BEFORE the user's
-  // on_connection_broken virtual so user code can rely on the queue
-  // already being clean.
-  if (kind == ConnectionTransition::CONNECTIONBROKEN)
-  {
-    VDA5050_WARN(
-      "[AGV] Last-will fired for {} — AGV connection broken unexpectedly. "
-      "Clearing pending queues; firing on_connection_broken.",
-      agv_id_);
-    cancel_pending_orders();
-  }
-
-  // Connection event triggers. Fire the named virtual matching the
-  // transition kind. The three ConnectionState values map to three
-  // distinct master-observable events; we surface each as its own
-  // virtual so users override only the ones they care about (e.g.,
-  // on_connection_broken handles the last-will firing — additional
-  // FMS reactions, alerting, etc.).
-  if (auto p = parent_.lock())
-  {
-    switch (kind)
-    {
-      case ConnectionTransition::CONNECTED:
-        p->on_connect(agv_id_);
-        break;
-      case ConnectionTransition::OFFLINE:
-        p->on_offline(agv_id_);
-        break;
-      case ConnectionTransition::CONNECTIONBROKEN:
-        p->on_connection_broken(agv_id_);
-        break;
-      case ConnectionTransition::NONE:
-        break;  // sustained state — no event
-    }
-  }
-
-  // Snapshot for next call's prev/curr diff.
-  prev_connection_ = msg;
+  // Diff the connection and fan the transition out to the named hooks.
+  // The dispatch clears pending queues on a last-will fire before
+  // on_connection_broken.
+  update_context_.on_connection(msg);
 }
 
 void AGV::cancel_pending_orders()
@@ -502,8 +568,8 @@ void AGV::cancel_pending_orders()
 // ============================================================================
 
 void AGV::capture_and_drain_on_leave_automatic(
-  const vda5050_core::types::State& prev,
-  const vda5050_core::types::State& curr)
+  vda5050_core::types::OperatingMode from,
+  vda5050_core::types::OperatingMode to)
 {
   std::lock_guard<std::mutex> lock(queue_mutex_);
   mode_cancelled_queue_.orders.clear();
@@ -520,8 +586,8 @@ void AGV::capture_and_drain_on_leave_automatic(
     instant_actions_queue_.pop();
   }
   mode_cancelled_queue_.cancelled_at = Clock::now();
-  mode_cancelled_queue_.from_mode = prev.operating_mode;
-  mode_cancelled_queue_.to_mode = curr.operating_mode;
+  mode_cancelled_queue_.from_mode = from;
+  mode_cancelled_queue_.to_mode = to;
 
   if (
     !mode_cancelled_queue_.orders.empty() ||
@@ -696,80 +762,11 @@ void AGV::handle_state(const vda5050_core::types::State& msg)
     p->on_state(agv_id_, msg);
   }
 
-  // Event triggers. Only fire when we have a prev to diff against
-  // — first State message has no transition to detect. Event scope
-  // covers the State message trigger list (excluding action_states
-  // transitions, owned by ActionLifecycleTracker).
-  if (prev_state_)
-  {
-    if (auto p = parent_.lock())
-    {
-      const auto& prev = *prev_state_;
-
-      // Node reached (lastNodeId/sequence advanced vs the previous State).
-      if (auto reached = update::newly_reached_node(prev, msg))
-      {
-        p->on_node_reached(agv_id_, reached->node_id);
-      }
-
-      // Errors that newly appeared.
-      auto new_errors = update::errors_appeared(prev, msg);
-      if (!new_errors.empty())
-      {
-        p->on_errors_appeared(agv_id_, new_errors);
-      }
-
-      // Errors that resolved (symmetric counterpart).
-      auto resolved = update::errors_resolved(prev, msg);
-      if (!resolved.empty())
-      {
-        p->on_errors_resolved(agv_id_, resolved);
-      }
-
-      // Single-shot transitions.
-      if (update::new_base_requested(prev, msg))
-      {
-        p->on_new_base_requested(agv_id_);
-      }
-      if (update::mode_changed(prev, msg))
-      {
-        // When the AGV leaves AUTOMATIC it stops executing its order, so
-        // the master's queued outbound orders
-        // / instant actions are now stale; capture them into the
-        // resumable buffer + drain the live queue eagerly to avoid
-        // per-item validator-chain rejections at publish time.
-        // CRITICAL: capture+drain runs BEFORE on_mode_changed
-        // dispatch so the FMS override observes the queue already
-        // drained AND the buffer already populated — symmetric
-        // snapshot.
-        if (
-          prev.operating_mode ==
-            vda5050_core::types::OperatingMode::AUTOMATIC &&
-          msg.operating_mode != vda5050_core::types::OperatingMode::AUTOMATIC)
-        {
-          capture_and_drain_on_leave_automatic(prev, msg);
-        }
-        p->on_mode_changed(agv_id_, msg.operating_mode, prev.operating_mode);
-      }
-      if (update::paused_changed(prev, msg))
-      {
-        p->on_paused(agv_id_, msg.paused.value_or(false));
-      }
-      if (update::driving_changed(prev, msg))
-      {
-        p->on_driving(agv_id_, msg.driving);
-      }
-      if (update::loads_changed(prev, msg))
-      {
-        p->on_loads_changed(
-          agv_id_,
-          msg.loads.value_or(std::vector<vda5050_core::types::Load>{}));
-      }
-    }
-  }
-
-  // Snapshot for next call's prev/curr diff.
-  prev_state_ = msg;
+  // Diff the state and fan each transition out to the named hooks via
+  // the update context (the first State only seeds — no hooks fire).
+  // The dispatch drains outbound queues on an AUTOMATIC→non-AUTOMATIC
+  // edge before on_mode_changed.
+  update_context_.on_state(msg);
 }
 
 void AGV::handle_factsheet(const vda5050_core::types::Factsheet& msg)

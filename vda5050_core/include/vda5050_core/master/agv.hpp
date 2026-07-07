@@ -36,6 +36,7 @@
 #include "vda5050_core/execution/protocol_adapter.hpp"
 #include "vda5050_core/logger/logger.hpp"
 #include "vda5050_core/master/actions/instant_actions_publisher.hpp"
+#include "vda5050_core/master/contexts/agv_update_context.hpp"
 #include "vda5050_core/master/heartbeat.hpp"
 #include "vda5050_core/master/master_types.hpp"
 #include "vda5050_core/master/order/order_lifecycle_manager.hpp"
@@ -605,11 +606,10 @@ private:
   std::optional<vda5050_core::types::Visualization> last_visualization_;
   std::optional<TimePoint> last_visualization_time_;
 
-  // Previous-message snapshots for stateless event detection. Touched
-  // only from the MQTT-callback thread inside handle_state /
-  // handle_connection — single writer/reader, so no mutex needed.
-  std::optional<vda5050_core::types::State> prev_state_;
-  std::optional<vda5050_core::types::Connection> prev_connection_;
+  // Per-AGV update context: diffs inbound State / Connection into typed
+  // updates on its Provider; this AGV subscribes to fan them out to the
+  // master's virtual hooks. Fed only from the MQTT-callback thread.
+  AGVUpdateContext update_context_;
 
   // Outgoing message queues (protected by queue_mutex_)
   size_t max_queue_size_;
@@ -625,12 +625,15 @@ private:
   // resume_mode_cancelled_queue / discard_mode_cancelled_queue.
   ModeCancelledQueue mode_cancelled_queue_;
 
-  // Capture the live queues into mode_cancelled_queue_ and drain
-  // them. Called from handle_state on the AUTOMATIC→non-AUTOMATIC
-  // edge BEFORE on_mode_changed dispatches to user.
+  // Capture the live queues into mode_cancelled_queue_ and drain them.
+  // Called on the AUTOMATIC→non-AUTOMATIC edge BEFORE on_mode_changed.
   void capture_and_drain_on_leave_automatic(
-    const vda5050_core::types::State& prev,
-    const vda5050_core::types::State& curr);
+    vda5050_core::types::OperatingMode from,
+    vda5050_core::types::OperatingMode to);
+
+  // Subscribe to update_context_'s Provider, fanning each typed update
+  // out to the matching master virtual hook.
+  void register_update_dispatch();
 
   // Queue processing thread
   std::mutex thread_mutex_;

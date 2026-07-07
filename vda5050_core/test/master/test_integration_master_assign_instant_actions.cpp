@@ -18,13 +18,12 @@
 
 /**
  * @file master_assign_instant_actions_test.cpp
- * @brief Integration tests for VDA5050Master::assign_instant_actions
- *        (Task #20).
+ * @brief Integration tests for VDA5050Master::assign_instant_actions.
  *
  * Verifies that the synchronous pre-flight (onboarded, connection
  * ONLINE, action_id uniqueness) returns the right
  * InstantActionDecision and rich error feedback. Mirrors the pattern
- * from master_assign_order_test.cpp (#15) but with a deliberately
+ * from master_assign_order_test.cpp but with a deliberately
  * lighter pre-flight: instantActions are designed to function in
  * degraded states (cancelOrder during ERROR, factsheetRequest before
  * any state report, initPosition before position is initialized).
@@ -67,7 +66,7 @@ constexpr const char* kManufacturer = "ACME";
 constexpr const char* kSerial = "AGV001";
 
 // Minimal map used by all assign_instant_actions tests — satisfies the
-// no-map gate (Task #39); the IA tests don't reference specific nodes
+// no-map gate; the IA tests don't reference specific nodes
 // or edges so a single-node map suffices.
 vda5050_core::layout::Graph::ConstPtr make_test_graph()
 {
@@ -279,7 +278,7 @@ TEST_F(MasterAssignInstantActionsTest, HappyPath_ReturnsAssigned_AndQueues)
 TEST_F(
   MasterAssignInstantActionsTest, OperatingModeManual_ExemptAction_StillAssigns)
 {
-  // Per §6.10.6 + §6.8.1 mode-gate: instant-scope predefined actions
+  // Mode gate: instant-scope predefined actions
   // (stateRequest etc.) are exempt from the AUTOMATIC requirement and
   // can be sent in MANUAL/SERVICE/TEACHIN — they're designed for
   // diagnostic + recovery use cases.
@@ -314,7 +313,7 @@ TEST_F(
 TEST_F(MasterAssignInstantActionsTest, PositionNotInitialized_StillAssigns)
 {
   // initPosition is itself an instant action and runs BEFORE position is
-  // initialized. The skip is deliberate per Task #20 design.
+  // initialized. The skip is deliberate by design.
   inject_online_and_state(
     vda5050_core::types::OperatingMode::AUTOMATIC,
     /*position_initialized=*/false);
@@ -429,7 +428,7 @@ TEST_F(
 }
 
 // =============================================================================
-// Action conflict checks (Task #22)
+// Action conflict checks
 // =============================================================================
 
 TEST_F(
@@ -437,7 +436,7 @@ TEST_F(
   HardActionWhileActiveAction_Returns_HardActionBlocked)
 {
   // Inject a state that has a RUNNING action; candidate is HARD.
-  // §6.12 mandates HARD must not be parallel — sync path should reject.
+  // HARD blocking actions must not run in parallel — sync path should reject.
   auto agv = master_->get_agv(kManufacturer, kSerial);
   ASSERT_NE(agv, nullptr);
   agv->handle_connection(make_online_connection());
@@ -462,7 +461,7 @@ TEST_F(
   SoftActionWhileDriving_Returns_ActionBlockedByDriving)
 {
   // Inject a state with driving=true; candidate is SOFT.
-  // §6.12 mandates SOFT must not drive — sync path should reject.
+  // SOFT blocking actions must not run while driving — sync path rejects.
   auto agv = master_->get_agv(kManufacturer, kSerial);
   ASSERT_NE(agv, nullptr);
   agv->handle_connection(make_online_connection());

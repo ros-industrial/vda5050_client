@@ -242,21 +242,13 @@ TEST_F(
 }
 
 // =============================================================================
-// Operational-state precedence (Task #27)
+// Operational-state precedence
 // =============================================================================
 //
-// The state-heartbeat timer's STATE_UNKNOWN write must not clobber a
-// connection-loss-driven UNAVAILABLE. A connection drop is the more
-// authoritative signal — the AGV is offline, not merely silent. Without
-// the precedence rule, pre-send rejections would mislead operators
-// ("STATE_UNKNOWN" instead of the real "connection lost") during
-// reconnection windows.
-//
-// ERROR-vs-STATE_UNKNOWN precedence is not exercised here because
-// nothing in the current master codebase sets AGVState::ERROR — the
-// state is reserved for error-classification work post-V0 (#26). The
-// suppression rule in agv.cpp covers ERROR symmetrically; it will be
-// validated when the ERROR-setting path lands.
+// A connection-loss UNAVAILABLE outranks the heartbeat timer's
+// STATE_UNKNOWN write — a connection drop is the more authoritative signal.
+// ERROR precedence is not exercised here since nothing currently sets
+// AGVState::ERROR; agv.cpp covers it symmetrically.
 
 TEST_F(
   AGVOperationalStateTestFixture, StateUnknownTimeoutDoesNotClobberUnavailable)

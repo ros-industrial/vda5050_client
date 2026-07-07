@@ -19,8 +19,7 @@
 /**
  * @file master_broker_status_test.cpp
  * @brief Tests for VDA5050Master::on_broker_disconnected /
- *        on_broker_reconnected virtuals + get_broker_status() snapshot
- *        (Task #70).
+ *        on_broker_reconnected virtuals + get_broker_status() snapshot.
  *
  * Uses a fake MqttClientInterface that captures the connection-state
  * handlers registered by VDA5050Master in connect() and exposes a way

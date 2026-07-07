@@ -18,7 +18,7 @@
 
 /**
  * @file master_mode_handling_test.cpp
- * @brief Integration tests for AGV mode handling (Task #24).
+ * @brief Integration tests for AGV mode handling.
  *
  * Verifies the capture-and-resume contract for the AGV's outbound
  * queue when operating_mode transitions out of / back to AUTOMATIC.

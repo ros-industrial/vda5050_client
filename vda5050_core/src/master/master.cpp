@@ -493,7 +493,7 @@ AssignmentResult VDA5050Master::assign_order(
     !last_state->agv_position->position_initialized)
   {
     res.decision = AssignmentDecision::AGV_POSITION_NOT_INITIALIZED;
-    add_error("AGV position is not initialized (VM-VDA-6-6-1-3 #7)");
+    add_error("AGV position is not initialized");
     return res;
   }
 

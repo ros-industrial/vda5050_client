@@ -25,7 +25,8 @@
 #include "vda5050_core/types/agv_position.hpp"
 #include "vda5050_core/types/velocity.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core {
+namespace master {
 
 /// \brief Which cached message supplied the position / velocity in a PoseView.
 enum class PoseSource
@@ -50,6 +51,7 @@ struct PoseView
   std::chrono::nanoseconds data_age{0};
 };
 
-}  // namespace vda5050_core::master
+}  // namespace master
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__MASTER__POSE_VIEW_HPP_

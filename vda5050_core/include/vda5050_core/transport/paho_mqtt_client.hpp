@@ -170,12 +170,12 @@ private:
   /// \brief Mutex protecting list of message handlers
   std::mutex handler_mutex_;
 
-  /// \brief Optional handler invoked when broker connection is lost
-  /// (Task #70). Stored under handler_mutex_.
+  /// \brief Optional handler invoked when broker connection is lost.
+  /// Stored under handler_mutex_.
   ConnectionStateHandler connection_lost_handler_;
 
   /// \brief Optional handler invoked when broker connection is
-  /// (re)established (Task #70). Stored under handler_mutex_.
+  /// (re)established. Stored under handler_mutex_.
   ConnectionStateHandler connected_handler_;
 
   /// \brief MQTT connection options

@@ -31,12 +31,6 @@ namespace vda5050_core::master {
 
 namespace {
 
-using vda5050_core::errors::create_error;
-using vda5050_core::errors::OrderUpdateError;
-using vda5050_core::errors::RefOrderId;
-using vda5050_core::errors::RefOrderUpdateId;
-using vda5050_core::errors::RefSequenceId;
-
 // Build an OrderUpdateError with order_id + order_update_id refs attached.
 vda5050_core::types::Error make_error(
   const vda5050_core::types::Order& candidate, const std::string& description,
@@ -44,10 +38,11 @@ vda5050_core::types::Error make_error(
 {
   std::vector<vda5050_core::types::ErrorReference> refs;
   refs.reserve(2 + extra_refs.size());
-  refs.push_back({RefOrderId, candidate.order_id});
-  refs.push_back({RefOrderUpdateId, std::to_string(candidate.order_update_id)});
+  refs.push_back({errors::RefOrderId, candidate.order_id});
+  refs.push_back(
+    {errors::RefOrderUpdateId, std::to_string(candidate.order_update_id)});
   for (auto& r : extra_refs) refs.push_back(std::move(r));
-  return create_error(OrderUpdateError, description, refs);
+  return errors::create_error(errors::OrderUpdateError, description, refs);
 }
 
 // Find sequence_id of the last released base node in `nodes`.
@@ -186,7 +181,8 @@ StitchResult OrderStitcher::decide(
   {
     reject(
       "AGV has already passed the stitch point",
-      {{RefSequenceId, std::to_string(snapshot.last_node_sequence_id)}});
+      {{errors::RefSequenceId,
+        std::to_string(snapshot.last_node_sequence_id)}});
     return res;
   }
 
@@ -196,7 +192,8 @@ StitchResult OrderStitcher::decide(
     queue(
       GuardFailure::STITCH_NOT_REACHED,
       "AGV has not yet reached the stitch point",
-      {{RefSequenceId, std::to_string(snapshot.last_node_sequence_id)}});
+      {{errors::RefSequenceId,
+        std::to_string(snapshot.last_node_sequence_id)}});
     return res;
   }
 

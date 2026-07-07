@@ -23,21 +23,13 @@
 
 #include "vda5050_core/types/error.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core {
+namespace master {
 
-// =============================================================================
-// AssignmentResult / AssignmentDecision.
-// =============================================================================
-//
-// Returned by VDA5050Master::assign_order. Synchronous, caller-visible
-// outcome of an FMS attempt to assign an outbound Order to a specific AGV.
-// Implements VM-VDA-6-6-3-1 #1 ("Master must check that the vehicle is
-// in a state to receive a new order") at the public API level.
-//
-// On ASSIGNED / STITCH_QUEUED, the order has been handed off to the AGV's
-// outbound queue; the validator chain (schema, PreSend, graph,
-// #19 update path, traversability) still runs asynchronously on the
-// queue-processor thread as defense-in-depth.
+// Synchronous, caller-visible outcome of an FMS attempt to assign an
+// outbound Order to a specific AGV. Checks at the public API that the
+// vehicle is in a state to receive a new order; the async validator chain
+// still runs on the queue-processor thread as defense-in-depth.
 
 /// \brief Outcome category returned by `VDA5050Master::assign_order`.
 enum class AssignmentDecision
@@ -52,7 +44,7 @@ enum class AssignmentDecision
   AGV_NOT_READY,
   /// Operating mode != AUTOMATIC (master control requires AUTOMATIC).
   AGV_MODE_NOT_AUTO,
-  /// AGV reports position not initialized (VM-VDA-6-6-1-3 #7).
+  /// AGV reports position not initialized.
   AGV_POSITION_NOT_INITIALIZED,
   /// AGV has not yet reported any State message.
   AGV_NO_STATE_YET,
@@ -86,6 +78,7 @@ struct AssignmentResult
   }
 };
 
-}  // namespace vda5050_core::master
+}  // namespace master
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__MASTER__ASSIGNMENT_RESULT_HPP_

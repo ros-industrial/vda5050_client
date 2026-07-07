@@ -25,7 +25,8 @@
 #include "vda5050_core/types/error.hpp"
 #include "vda5050_core/types/order.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core {
+namespace master {
 
 // =============================================================================
 // OrderStitcher — 4-condition stitch guard.
@@ -115,6 +116,7 @@ public:
     const ActiveOrderSnapshot& snapshot) const;
 };
 
-}  // namespace vda5050_core::master
+}  // namespace master
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__MASTER__ORDER__ORDER_STITCHER_HPP_

@@ -18,7 +18,7 @@
 
 /**
  * @file test_order_publisher.cpp
- * @brief Wire-up test for the OrderPublisher validator chain (Task #11).
+ * @brief Wire-up test for the OrderPublisher validator chain.
  *
  * Confirms that a graph-invalid Order short-circuits the publisher chain
  * (returning ValidationResult with GraphValidationError) AND does NOT
@@ -68,7 +68,7 @@ public:
     (override));
 };
 
-// Build a PreSendContext that satisfies all #16 readiness checks so
+// Build a PreSendContext that satisfies all pre-send readiness checks so
 // the chain reaches the graph step. Optional `last_node_id` parks the
 // AGV on a specific node so traversability's "trivially reachable"
 // check (state.last_node_id == first_node.node_id) passes — orders
@@ -312,7 +312,7 @@ TEST(OrderPublisherTest, GraphInvalidOrderIsAdvisoryNotBlocking)
 }
 
 // =============================================================================
-// #19: publisher chain branches on update vs new order.
+// Publisher chain branches on update vs new order.
 // - No active_order, or different order_id → is_valid_graph(candidate)
 // - Same order_id with active → combine_order(active, candidate) for
 //   spec-strict structural validation (sparse seqs are expected).

@@ -18,7 +18,7 @@
 
 /**
  * @file master_assign_order_test.cpp
- * @brief Integration tests for VDA5050Master::assign_order (Task #15).
+ * @brief Integration tests for VDA5050Master::assign_order.
  *
  * Verifies that the synchronous pre-flight readiness checks
  * (onboarding, connection, operational state, mode, position

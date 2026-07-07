@@ -19,7 +19,7 @@
 /**
  * @file master_state_timeout_test.cpp
  * @brief Integration tests for VDA5050Master::on_state_timeout and
- *        on_state_resumed virtuals (Task #28).
+ *        on_state_resumed virtuals.
  *
  * Verifies that the named state-heartbeat edges fire on the AGV's
  * background timer thread (timeout) and on the next state-message
@@ -71,7 +71,8 @@ public:
     (override));
 };
 
-// Subclass that records every #28 edge dispatch. Counters use atomics
+// Subclass that records every state-heartbeat edge dispatch. Counters use
+// atomics
 // because on_state_timeout fires from the HeartbeatListener's monitor
 // thread.
 class CallbackTrackingMaster : public VDA5050Master

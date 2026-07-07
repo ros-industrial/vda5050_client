@@ -121,7 +121,7 @@ protected:
     msg.header.manufacturer = manufacturer_;
     msg.header.serial_number = serial_number_;
     // Generous protocol_limits.max_array_lens so tests publishing
-    // minimal Orders pass the traversability validator (#12). Tests
+    // minimal Orders pass the traversability validator. Tests
     // that need stricter limits clobber these in-place.
     msg.protocol_limits.max_array_lens.order_nodes = 100;
     msg.protocol_limits.max_array_lens.order_edges = 100;

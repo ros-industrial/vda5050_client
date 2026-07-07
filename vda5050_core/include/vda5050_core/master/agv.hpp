@@ -46,7 +46,8 @@
 #include "vda5050_core/master/standard_names.hpp"
 #include "vda5050_core/types/error.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core {
+namespace master {
 
 // Forward declaration
 class VDA5050Master;
@@ -642,6 +643,7 @@ private:
   std::thread queue_thread_;
 };
 
-}  // namespace vda5050_core::master
+}  // namespace master
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__MASTER__AGV_HPP_

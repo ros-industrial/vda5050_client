@@ -41,7 +41,8 @@
 #include "vda5050_core/transport/mqtt_client_interface.hpp"
 #include "vda5050_core/types/operating_mode.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core {
+namespace master {
 
 /// \brief VDA5050 Master for multi-AGV fleet management
 ///
@@ -108,20 +109,10 @@ public:
   /// \brief Check if MQTT client is connected
   bool is_connected() const;
 
-  // ===========================================================================
-  // Master-broker connection observability
-  // ===========================================================================
-  //
-  // Surfaces the master's own MQTT-broker connection state to the FMS.
-  // Distinct from per-AGV connection state (`AGV::get_connection_status()`):
-  // an AGV can be ONLINE while the master itself has lost its broker, and
-  // vice versa. The library tracks connection events fired by the underlying
-  // MQTT client and exposes them via the `on_broker_*` virtuals + the
-  // `get_broker_status()` snapshot.
-  //
-  // Initial state (before connect() succeeds): connected=false,
-  // last_disconnect_at=nullopt, reconnect_count=0. Each successful
-  // (re)connect increments reconnect_count by 1.
+  // Master-broker connection observability. Surfaces the master's own
+  // MQTT-broker connection state to the FMS via the on_broker_* virtuals and
+  // the get_broker_status() snapshot. Distinct from per-AGV connection state:
+  // an AGV can be ONLINE while the master has lost its broker, and vice versa.
 
   /// \brief Read-only snapshot of the master's broker-connection state.
   ///
@@ -347,8 +338,8 @@ public:
   /// exist for.
   ///
   /// On ASSIGNED: actions are queued via `AGV::send_instant_actions`; the
-  /// async validator chain (schema #23, PreSend #16, traversability
-  /// capability #12) runs on the queue-processor thread as defense-in-depth.
+  /// async validator chain (schema, pre-send, traversability, capability)
+  /// runs on the queue-processor thread as defense-in-depth.
   ///
   /// On any rejection: returns an InstantActionDecision identifying which
   /// check failed plus diagnostic errors; nothing is queued.
@@ -722,6 +713,7 @@ private:
   void handle_broker_connected(const std::string& cause);
 };
 
-}  // namespace vda5050_core::master
+}  // namespace master
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__MASTER__MASTER_HPP_

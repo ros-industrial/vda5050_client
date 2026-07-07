@@ -300,7 +300,7 @@ TEST(MismatchCounter, SkippedWhenStateOrderIdEmpty)
   OrderLifecycleManager mgr(kAGV, /*threshold=*/2, /*cap=*/8);
   mgr.record_published(make_base_order());
 
-  // §6.10.6: empty state.order_id is benign (initial / post-reset).
+  // Empty state.order_id is benign (initial / post-reset).
   for (int i = 0; i < 5; ++i)
   {
     mgr.on_state_update(make_state("", 0, "", 0));
@@ -328,7 +328,7 @@ TEST(PendingQueue, ReleasedWhenStateReachesStitch)
   EXPECT_TRUE(ready1.empty());
   EXPECT_EQ(mgr.pending_update_count(), 1u);
 
-  // AGV reaches stitch — drain returns the candidate (#19: spec-strict;
+  // AGV reaches stitch — drain returns the candidate (spec-strict;
   // adoption is deferred to record_published).
   auto ready2 = mgr.on_state_update(make_state(kOrderId, 0, "N1", 2));
   ASSERT_EQ(ready2.size(), 1u);
@@ -448,7 +448,7 @@ TEST(PendingQueue, SequentialDrainAcrossStatesAdvancesActiveUpdateId)
   mgr.record_published(ready1.front());
   EXPECT_EQ(mgr.active_order_update_id().value_or(0), 1u);
 
-  // After u1 drains+records: active is u1 itself (per #19 spec-strict
+  // After u1 drains+records: active is u1 itself (spec-strict
   // semantics — active = last-published-on-wire). u1.nodes are
   // [N1@2 rel, N3@6 rel], so the new "last released" is N3@6 — u2
   // must stitch there.
@@ -526,10 +526,9 @@ TEST(NewBaseRequest, SetsFlagAndClearsOnExtension)
 }
 
 // =============================================================================
-// #19: drain returns candidate, not combined; adoption deferred to
-// record_published. Per VDA5050 v2.0.0 §6.6.2:927 master must not retransmit
-// base nodes — only re-send the stitch node + extension. AGV merges
-// internally.
+// Drain returns candidate, not combined; adoption deferred to
+// record_published. The master must not retransmit base nodes — only
+// re-send the stitch node + extension. AGV merges internally.
 // =============================================================================
 TEST(PendingQueue, DrainReturnsCandidateNotCombined)
 {
@@ -650,8 +649,8 @@ TEST(PendingQueue, DrainDoesNotAdvanceActiveUntilRecordPublished)
 // record_published — internal merged-view adoption
 // =============================================================================
 //
-// Wire is spec-strict per VDA5050 v2.0.0 §6.6.2:927 (only stitch + extension
-// transmitted). Internal active_order_ must remain the full merged view
+// Wire is spec-strict (only stitch + extension transmitted). Internal
+// active_order_ must remain the full merged view
 // (stitch anchor + horizon + extension) so that next-update validation,
 // completion detection, and snapshot consumers see the true active route.
 
@@ -663,7 +662,7 @@ TEST(RecordPublished, UpdateAdoptsMergedBaseHorizonView)
   // AGV reaches the stitch point.
   mgr.on_state_update(make_state(kOrderId, 0, "N1", 2));
 
-  // Wire candidate carries only stitch + extension (per §6.6.2:927).
+  // Wire candidate carries only stitch + extension.
   vda5050_core::types::Order candidate;
   candidate.order_id = kOrderId;
   candidate.order_update_id = 1;

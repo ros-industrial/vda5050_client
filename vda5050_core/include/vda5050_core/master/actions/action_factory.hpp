@@ -26,10 +26,11 @@
 #include "vda5050_core/types/action_parameter.hpp"
 #include "vda5050_core/types/blocking_type.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core {
+namespace master {
 
 // =============================================================================
-// ActionFactory (Tasks #20, #38).
+// ActionFactory.
 // =============================================================================
 //
 // Helper to construct vda5050_core::types::Action structs ergonomically.
@@ -111,8 +112,8 @@ public:
   /// build_custom() instead.
   ///
   /// Format: 8-4-4-4-12 lowercase hex, total 36 chars including dashes,
-  /// matching RFC 4122 §3 textual UUID layout. Variant + version bits set
-  /// per RFC 4122 §4.4 (random UUID).
+  /// matching RFC 4122 textual UUID layout. Variant + version bits set
+  /// per RFC 4122 (random UUID).
   static std::string generate_action_id();
 
   /// \brief Build a stateRequest instantAction.
@@ -140,6 +141,7 @@ public:
     const std::string& action_id, const std::string& description = "");
 };
 
-}  // namespace vda5050_core::master
+}  // namespace master
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__MASTER__ACTIONS__ACTION_FACTORY_HPP_

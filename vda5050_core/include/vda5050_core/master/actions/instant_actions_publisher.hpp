@@ -31,7 +31,8 @@ struct PreSendContext;
 }  // namespace validation
 }  // namespace vda5050_core
 
-namespace vda5050_core::master {
+namespace vda5050_core {
+namespace master {
 
 /// \brief Runs the outgoing instant-action validator chain, then publishes.
 ///
@@ -58,6 +59,7 @@ public:
     const vda5050_core::types::InstantActions& actions);
 };
 
-}  // namespace vda5050_core::master
+}  // namespace master
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__MASTER__ACTIONS__INSTANT_ACTIONS_PUBLISHER_HPP_

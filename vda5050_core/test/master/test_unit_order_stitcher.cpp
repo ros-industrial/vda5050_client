@@ -113,7 +113,7 @@ TEST(OrderStitcher, DifferentOrderIdWithActive_Rejects)
 // should pass through the stitcher untouched — the lifecycle's stale
 // has_active flag must not block a legitimate fresh assignment.
 // Without this, master-side state confusion (AGV legitimately keeps
-// state.order_id reporting the finished order per §6.6.1) makes every
+// state.order_id reporting the finished order) makes every
 // subsequent order_id appear as a stitch conflict.
 TEST(OrderStitcher, DifferentOrderIdAfterComplete_SendsNow)
 {

@@ -22,7 +22,8 @@
 #include <string>
 #include <vector>
 
-namespace vda5050_core::master {
+namespace vda5050_core {
+namespace master {
 
 /// \brief MQTT QoS level — typed replacement for raw int values.
 ///
@@ -77,6 +78,7 @@ constexpr int StateHeartbeatInterval = 30;       // seconds
 /// 2.1.0 entry when that migration lands.
 inline const std::vector<std::string> SupportedSchemaVersions = {"2.0.0"};
 
-}  // namespace vda5050_core::master
+}  // namespace master
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__MASTER__STANDARD_NAMES_HPP_

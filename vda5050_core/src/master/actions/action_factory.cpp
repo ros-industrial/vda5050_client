@@ -29,7 +29,7 @@ namespace vda5050_core::master {
 
 namespace {
 
-// Per RFC 4122 §3: textual UUID layout is 8-4-4-4-12 hex digits with dashes.
+// Per RFC 4122: textual UUID layout is 8-4-4-4-12 hex digits with dashes.
 constexpr std::array<int, 5> kUuidGroupHexLengths = {8, 4, 4, 4, 12};
 
 // Thread-local 64-bit Mersenne Twister seeded once per thread from

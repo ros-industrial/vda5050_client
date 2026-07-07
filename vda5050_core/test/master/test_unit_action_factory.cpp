@@ -57,7 +57,7 @@ TEST(ActionFactory, BuildCustomDefaultBlockingTypeIsNone)
 
 TEST(ActionFactory, BuildCustomEmptyDescriptionLeavesOptionalUnset)
 {
-  // Per VDA5050 §6.4: omitting optional fields keeps wire payload compact.
+  // Omitting optional fields keeps the wire payload compact.
   auto a = ActionFactory::build_custom("stateRequest", "act-003");
   EXPECT_FALSE(a.action_description.has_value());
 }
@@ -78,7 +78,7 @@ TEST(ActionFactory, BuildCustomEmptyActionIdStillBuilds)
 
 TEST(ActionFactory, GenerateActionIdHasUuidV4Shape)
 {
-  // RFC 4122 §3 textual layout: 8-4-4-4-12 lowercase hex with dashes,
+  // RFC 4122 textual layout: 8-4-4-4-12 lowercase hex with dashes,
   // 36 chars total. Version 4 sets nibble 12 to '4' (high nibble of
   // byte 6). Variant 1 sets nibble 16 to '8', '9', 'a', or 'b'.
   const auto id = ActionFactory::generate_action_id();
@@ -115,7 +115,7 @@ TEST(ActionFactory, GenerateActionIdBatchOf100AllUnique)
 }
 
 // =============================================================================
-// V0 BACKLOG predefined-action factories (Task #38)
+// V0 BACKLOG predefined-action factories
 // =============================================================================
 
 TEST(ActionFactory, BuildStateRequest_HasCanonicalActionType)
@@ -127,7 +127,7 @@ TEST(ActionFactory, BuildStateRequest_HasCanonicalActionType)
 
 TEST(ActionFactory, BuildStateRequest_DefaultsToNoneBlocking)
 {
-  // §6.8.1: stateRequest is a query; NONE blocking is the safe default
+  // stateRequest is a query; NONE blocking is the safe default
   // (parallel + driving OK).
   auto a = ActionFactory::build_state_request("req-1");
   EXPECT_EQ(a.blocking_type, vda5050_core::types::BlockingType::NONE);
@@ -135,7 +135,7 @@ TEST(ActionFactory, BuildStateRequest_DefaultsToNoneBlocking)
 
 TEST(ActionFactory, BuildStateRequest_NoParametersAttached)
 {
-  // §6.8.1 stateRequest takes no parameters; optional must remain unset.
+  // stateRequest takes no parameters; optional must remain unset.
   auto a = ActionFactory::build_state_request("req-1");
   EXPECT_FALSE(a.action_parameters.has_value());
 }
@@ -168,7 +168,7 @@ TEST(ActionFactory, BuildFactsheetRequest_DefaultsToNoneBlocking)
 
 TEST(ActionFactory, BuildFactsheetRequest_NoParametersAttached)
 {
-  // §6.8.1 factsheetRequest takes no parameters; optional must remain unset.
+  // factsheetRequest takes no parameters; optional must remain unset.
   auto a = ActionFactory::build_factsheet_request("fs-1");
   EXPECT_FALSE(a.action_parameters.has_value());
 }

@@ -32,13 +32,6 @@ namespace vda5050_core::master {
 
 namespace {
 
-using vda5050_core::errors::create_error;
-using vda5050_core::errors::OrderUpdateError;
-using vda5050_core::errors::RefEdgeId;
-using vda5050_core::errors::RefNodeId;
-using vda5050_core::errors::RefOrderId;
-using vda5050_core::errors::RefOrderUpdateId;
-
 // Build an Error with order-id ref attached. Used inside combine_order().
 vda5050_core::types::Error make_combine_error(
   const std::string& description, const std::string& order_id,
@@ -46,9 +39,9 @@ vda5050_core::types::Error make_combine_error(
 {
   std::vector<vda5050_core::types::ErrorReference> refs;
   refs.reserve(1 + extra_refs.size());
-  refs.push_back({RefOrderId, order_id});
+  refs.push_back({errors::RefOrderId, order_id});
   for (auto& r : extra_refs) refs.push_back(std::move(r));
-  return create_error(OrderUpdateError, description, refs);
+  return errors::create_error(errors::OrderUpdateError, description, refs);
 }
 
 }  // namespace
@@ -73,7 +66,7 @@ CombineResult combine_order(
   {
     fail(
       "Update order_id does not match base order_id",
-      {{RefOrderId, update.order_id}});
+      {{errors::RefOrderId, update.order_id}});
     return res;
   }
 
@@ -82,7 +75,7 @@ CombineResult combine_order(
   {
     fail(
       "Update order_update_id is not greater than base order_update_id",
-      {{RefOrderUpdateId, std::to_string(update.order_update_id)}});
+      {{errors::RefOrderUpdateId, std::to_string(update.order_update_id)}});
     return res;
   }
 
@@ -147,7 +140,7 @@ CombineResult combine_order(
       fail(
         "Update attempts to alter a released base node; the base cannot be "
         "changed",
-        {{RefNodeId, nu.node_id}});
+        {{errors::RefNodeId, nu.node_id}});
       continue;
     }
 
@@ -160,7 +153,7 @@ CombineResult combine_order(
         fail(
           "Stitch node content differs from base; the stitch node must be "
           "identical",
-          {{RefNodeId, nu.node_id}});
+          {{errors::RefNodeId, nu.node_id}});
       }
       // Either way, do NOT replace — base copy already in `preserved`.
       continue;
@@ -197,7 +190,7 @@ CombineResult combine_order(
       {
         fail(
           "Update attempts to un-release a released node",
-          {{RefNodeId, nu.node_id}});
+          {{errors::RefNodeId, nu.node_id}});
         continue;
       }
       *it = nu;
@@ -246,7 +239,7 @@ CombineResult combine_order(
       fail(
         "Update attempts to alter a released base edge; the base cannot be "
         "changed",
-        {{RefEdgeId, eu.edge_id}});
+        {{errors::RefEdgeId, eu.edge_id}});
       continue;
     }
     if (has_base_edge && eu.sequence_id == old_base_last_edge_seq)
@@ -262,7 +255,7 @@ CombineResult combine_order(
         fail(
           "Stitch edge content differs from base; the stitch edge must be "
           "identical",
-          {{RefEdgeId, eu.edge_id}});
+          {{errors::RefEdgeId, eu.edge_id}});
       }
       continue;
     }
@@ -292,7 +285,7 @@ CombineResult combine_order(
       {
         fail(
           "Update attempts to un-release a released edge",
-          {{RefEdgeId, eu.edge_id}});
+          {{errors::RefEdgeId, eu.edge_id}});
         continue;
       }
       *it = eu;

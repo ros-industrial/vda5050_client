@@ -23,26 +23,12 @@
 
 #include "vda5050_core/types/error.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core {
+namespace master {
 
-// =============================================================================
-// InstantActionAssignmentResult / InstantActionDecision.
-// =============================================================================
-//
-// Returned by VDA5050Master::assign_instant_actions. Synchronous,
-// caller-visible outcome of an FMS attempt to dispatch instantActions to a
-// specific AGV. Mirrors the AssignmentResult / AssignmentDecision shape from
-// #15 but is intentionally a separate type:
-//   - The order side carries stitch-specific decisions (STITCH_REJECTED /
-//     STITCH_QUEUED) that have no instant-actions analog.
-//   - The instant side will gain conflict-specific decisions in #22
-//     (CONFLICTS_WITH_ACTIVE_ORDER, etc.) that don't apply to orders.
-// Keeping the enums separate avoids polluting either API as both grow.
-//
-// On ASSIGNED, the actions have been handed off to the AGV's outbound queue;
-// the validator chain (schema, PreSend, traversability
-// capability) still runs asynchronously on the queue-processor thread as
-// defense-in-depth.
+// Synchronous, caller-visible outcome of an FMS attempt to dispatch
+// instantActions to a specific AGV. Kept separate from the order-side
+// AssignmentResult because each API grows distinct decisions.
 
 /// \brief Outcome category returned by
 ///        `VDA5050Master::assign_instant_actions`.
@@ -98,6 +84,7 @@ struct InstantActionAssignmentResult
   }
 };
 
-}  // namespace vda5050_core::master
+}  // namespace master
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__MASTER__ACTIONS__INSTANT_ACTION_ASSIGNMENT_RESULT_HPP_

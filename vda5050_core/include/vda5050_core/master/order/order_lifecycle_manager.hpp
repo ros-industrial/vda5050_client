@@ -33,31 +33,17 @@
 #include "vda5050_core/types/order.hpp"
 #include "vda5050_core/types/state.hpp"
 
-namespace vda5050_core::master {
+namespace vda5050_core {
+namespace master {
 
-// =============================================================================
-// OrderLifecycleManager — per-AGV order tracking.
-// =============================================================================
+// Tracks the master's view of one AGV's in-flight order (active ids,
+// base/horizon split, pending-updates queue, mismatch recovery, completion
+// detection). Owned by AGV; one instance per managed AGV. Stitch logic is
+// the OrderStitcher's job; this class only tracks state and exposes
+// snapshots for the stitch guard to query.
 //
-// First step of the order-management epic. Tracks
-// the master's view of one AGV's in-flight order:
-//
-//   - active order_id / order_update_id
-//   - base / horizon split (released vs unreleased nodes/edges)
-//   - pending-updates queue (FIWARE queue-and-retry pattern)
-//   - 3-strike order_id mismatch counter with internal recovery
-//   - newBaseRequest flag
-//   - order completion detection (last-node arrival)
-//
-// Owned by AGV; one instance per managed AGV.
-//
-// **Stitch logic is NOT here** -- that's #14's OrderStitcher. This class
-// only tracks state and exposes snapshots for the stitch guard to query.
-//
-// **Thread-safety**: this class has its own lifecycle_mutex_ separate from
-// AGV's data_mutex_/state_mutex_/queue_mutex_. lifecycle_mutex_ is acquired
-// without holding any AGV mutex — no nested locking. Snapshot getters
-// return values; on_state_update returns the ready-to-publish update list
+// Thread-safety: own lifecycle_mutex_, separate from AGV's mutexes and
+// acquired without holding any of them (no nested locking). Getters return
 // by value so callers iterate lock-free.
 
 /// \brief Outcome of combine_order(): either a merged Order or accumulated
@@ -260,6 +246,7 @@ private:
   int mismatch_count_ = 0;
 };
 
-}  // namespace vda5050_core::master
+}  // namespace master
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__MASTER__ORDER__ORDER_LIFECYCLE_MANAGER_HPP_

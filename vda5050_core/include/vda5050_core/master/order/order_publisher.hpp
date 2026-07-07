@@ -33,7 +33,8 @@ struct PreSendContext;
 }  // namespace validation
 }  // namespace vda5050_core
 
-namespace vda5050_core::master {
+namespace vda5050_core {
+namespace master {
 
 /// \brief Runs the outgoing-order validator chain, then publishes.
 ///
@@ -68,6 +69,7 @@ public:
     std::optional<vda5050_core::types::Order>* merged_out = nullptr);
 };
 
-}  // namespace vda5050_core::master
+}  // namespace master
+}  // namespace vda5050_core
 
 #endif  // VDA5050_CORE__MASTER__ORDER__ORDER_PUBLISHER_HPP_

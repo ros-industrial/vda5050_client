@@ -81,7 +81,7 @@ public:
   using ConnectionStateHandler = std::function<void(const std::string&)>;
 
   /// \brief Register a handler to be invoked when the underlying transport
-  /// reports the broker connection has been lost (Task #70).
+  /// reports the broker connection has been lost.
   ///
   /// The handler runs on the transport's I/O thread and must be
   /// thread-safe with respect to any state it touches. Setting a new
@@ -93,7 +93,7 @@ public:
   }
 
   /// \brief Register a handler to be invoked when the underlying transport
-  /// reports the broker connection has been (re)established (Task #70).
+  /// reports the broker connection has been (re)established.
   ///
   /// Fires on initial connect and on every Paho-driven auto-reconnect.
   /// Same threading + replace-on-set semantics as

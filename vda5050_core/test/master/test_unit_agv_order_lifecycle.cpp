@@ -16,14 +16,8 @@
  * limitations under the License.
  */
 
-/**
- * @file agv_order_lifecycle_test.cpp
- * @brief Wire-up tests verifying AGV routes incoming State messages into
- *        the OrderLifecycleManager and that restart() clears the lifecycle.
- *
- * Pure logic tests — no broker, nullptr ProtocolAdapter (publish path is
- * unreachable, but lifecycle observation through handle_state IS exercised).
- */
+// Wire-up tests: AGV routes State into the OrderLifecycleManager and restart()
+// clears it. Pure logic — no broker, nullptr ProtocolAdapter.
 
 #include <gtest/gtest.h>
 

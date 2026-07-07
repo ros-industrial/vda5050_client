@@ -16,15 +16,9 @@
  * limitations under the License.
  */
 
-/**
- * @file master_mode_handling_test.cpp
- * @brief Integration tests for AGV mode handling.
- *
- * Verifies the capture-and-resume contract for the AGV's outbound
- * queue when operating_mode transitions out of / back to AUTOMATIC.
- *
- * Uses gmock MockMqttClient. AGV state is injected via handle_state.
- */
+// Integration tests for the capture-and-resume contract on the AGV's outbound
+// queue across AUTOMATIC mode transitions (gmock, state injected via
+// handle_state).
 
 #include <gmock/gmock.h>
 

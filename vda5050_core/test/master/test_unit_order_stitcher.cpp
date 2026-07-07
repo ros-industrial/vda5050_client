@@ -175,7 +175,7 @@ TEST(OrderStitcher, ActiveOrderHasNoReleasedBaseNode_Rejects)
 }
 
 // =============================================================================
-// 4 FIWARE guards (QUEUE_PENDING path)
+// 4 stitch guards (QUEUE_PENDING path)
 // =============================================================================
 TEST(OrderStitcher, Cond1_StateOrderIdMismatch_Queues)
 {

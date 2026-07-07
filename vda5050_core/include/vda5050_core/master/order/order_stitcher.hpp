@@ -32,27 +32,10 @@ namespace master {
 // OrderStitcher — 4-condition stitch guard.
 // =============================================================================
 //
-// Routes outbound Orders at AGV::publish_order BEFORE the publisher
-// validator chain. Decides one of:
-//
-//   - SEND_NOW       — forward to OrderPublisher chain immediately
-//   - QUEUE_PENDING  — hand to OrderLifecycleManager::enqueue_pending_update;
-//                      will be retried on each State message
-//   - REJECT         — log + drop (orderUpdateError)
-//
-// **What this enforces**: 4 FIWARE operational guards (queue-and-retry
-// pattern) — these are NOT spec-mandated, but match the canonical FIWARE
-// Mirrors the FIWARE reference master. The spec mandates only what
-// `vda5050_core::is_valid_update()` already enforces (base
-// immutability, monotonic update_id, stitch byte-equality).
-//
-// **What this does NOT enforce**: structural validation. The publisher
-// chain handles schema, graph, and traversability.
-// `is_valid_update()` runs separately inside the lifecycle manager's
-// drain (when a queued update is finally combined).
-//
-// Stateless — does not own a mutex. Thread-safe by construction (inputs
-// are stack-local: const-ref candidate, by-value snapshot).
+// Routes an outbound Order before the publisher chain: SEND_NOW, QUEUE_PENDING
+// (retried on each State via OrderLifecycleManager), or REJECT. Enforces the
+// queue-and-retry guards only, not structural/spec validation (the
+// publisher chain and is_valid_update() handle those). Stateless, thread-safe.
 
 /// \brief Routing decision for an outbound Order.
 enum class StitchDecision
@@ -62,7 +45,7 @@ enum class StitchDecision
   REJECT
 };
 
-/// \brief Identifies which of the 4 FIWARE guards rejected the candidate.
+/// \brief Identifies which of the 4 stitch guards rejected the candidate.
 /// NONE for SEND_NOW or for REJECT (which is a structural / spec failure,
 /// not a guard failure — see below).
 enum class GuardFailure
@@ -74,12 +57,9 @@ enum class GuardFailure
   PREV_UPDATE_NOT_CONFIRMED  // cond 4: AGV still on prior order_update_id
 };
 
-/// \brief Result of OrderStitcher::decide.
-///
-/// On QUEUE_PENDING / REJECT, `errors` carries one or more
-/// `OrderUpdateError`-typed Errors (mirrors ValidationResult).
-/// `first_failed_guard` identifies the first FIWARE guard that triggered
-/// the QUEUE_PENDING decision; NONE for SEND_NOW or REJECT.
+/// \brief Result of OrderStitcher::decide. On QUEUE_PENDING/REJECT, `errors`
+///        carries OrderUpdateError entries; `first_failed_guard` names the
+///        triggering stitch guard (NONE for SEND_NOW/REJECT).
 struct StitchResult
 {
   StitchDecision decision = StitchDecision::SEND_NOW;
@@ -101,12 +81,7 @@ public:
   OrderStitcher& operator=(const OrderStitcher&) = default;
 
   /// \brief Decide what to do with `candidate` given the AGV's tracked
-  ///        active-order context.
-  ///
-  /// Inputs are snapshot-only: the lifecycle manager's snapshot already
-  /// carries `state_order_id`, `last_node_sequence_id`, and
-  /// `state_order_update_id` — no separate `State` parameter needed.
-  ///
+  ///        active-order context (snapshot carries the needed State fields).
   /// \param candidate  Outbound Order from the FMS / fleet logic.
   /// \param snapshot   Stable, by-value view from
   ///                   OrderLifecycleManager::snapshot().

@@ -16,15 +16,9 @@
  * limitations under the License.
  */
 
-/**
- * @file master_broker_status_test.cpp
- * @brief Tests for VDA5050Master::on_broker_disconnected /
- *        on_broker_reconnected virtuals + get_broker_status() snapshot.
- *
- * Uses a fake MqttClientInterface that captures the connection-state
- * handlers registered by VDA5050Master in connect() and exposes a way
- * to fire them on demand. No broker required.
- */
+// Tests for on_broker_disconnected / on_broker_reconnected and
+// get_broker_status(), using a fake MqttClientInterface that fires the
+// registered connection-state handlers on demand. No broker.
 
 #include <gtest/gtest.h>
 

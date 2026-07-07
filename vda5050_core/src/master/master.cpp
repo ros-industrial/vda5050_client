@@ -497,15 +497,10 @@ AssignmentResult VDA5050Master::assign_order(
     return res;
   }
 
-  // Step 6: stitch pre-flight (only when this is an update for the
-  // active order). Stateless; no shared state touched.
-  //
-  // We snapshot the stitcher decision for caller-visible feedback,
-  // but always hand off to send_order on non-REJECT outcomes. The
-  // queue-processor thread re-runs the stitcher (in AGV::publish_order)
-  // and is the single owner of pending-queue enqueue. This avoids
-  // duplicate enqueue + handles state drift between assign_order's
-  // snapshot and the queue thread's later execution.
+  // Step 6: stitch pre-flight (only for an update to the active order).
+  // Snapshot the stitcher decision for caller feedback, but always hand off to
+  // send_order on non-REJECT: the queue thread re-runs the stitcher and is the
+  // sole owner of pending enqueue (avoids duplicate enqueue + state drift).
   const auto snap = agv->active_order_snapshot();
   bool stitch_will_queue = false;
   if (snap.has_active && snap.order_id == order.order_id)

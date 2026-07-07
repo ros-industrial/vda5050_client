@@ -26,9 +26,8 @@
 namespace vda5050_core {
 namespace master {
 
-// Synchronous, caller-visible outcome of an FMS attempt to dispatch
-// instantActions to a specific AGV. Kept separate from the order-side
-// AssignmentResult because each API grows distinct decisions.
+// Synchronous, caller-visible outcome of dispatching instantActions to an AGV.
+// Separate from AssignmentResult because each API grows distinct decisions.
 
 /// \brief Outcome category returned by
 ///        `VDA5050Master::assign_instant_actions`.
@@ -41,30 +40,19 @@ enum class InstantActionDecision
   /// AGV connection_state != ONLINE. Sending at QoS 0 to an offline AGV
   /// is a silent drop, so we reject pre-send.
   AGV_OFFLINE,
-  /// One or more candidate action_ids collide:
-  ///   - within the candidate batch, or
-  ///   - with an in-flight action reported in state.action_states[], or
-  ///   - with an action_id used in the active order's nodes/edges.
-  /// Empty action_id is also reported here.
-  /// action_id must be globally unique (UUID suggested).
+  /// A candidate action_id is empty, duplicated in the batch, or collides with
+  /// an in-flight (state.action_states) or active-order action_id. Must be
+  /// globally unique (UUID suggested).
   DUPLICATE_ACTION_ID,
-  /// AGV's outbound queue is full and could not accept the actions.
-  /// Distinct from AGV_OFFLINE — connection is up, but the master is
-  /// dispatching faster than the AGV is processing.
+  /// The AGV's outbound queue is full (connection is up, unlike AGV_OFFLINE).
   AGV_QUEUE_FULL,
-  /// HARD-blocking candidate while AGV has at least one action with
-  /// status WAITING / INITIALIZING / RUNNING / PAUSED in
-  /// `state.action_states[]`. The spec: "must not be executed in parallel".
+  /// HARD-blocking candidate while the AGV has an active action
+  /// (WAITING/INITIALIZING/RUNNING/PAUSED) — must not run in parallel.
   HARD_ACTION_BLOCKED,
-  /// SOFT- or HARD-blocking candidate while AGV is driving
-  /// (state.driving == true). The spec: "Vehicle must not drive."
+  /// SOFT/HARD-blocking candidate while the AGV is driving — must not drive.
   ACTION_BLOCKED_BY_DRIVING,
-  /// AGV is not in AUTOMATIC / SEMIAUTOMATIC mode AND the candidate
-  /// action_type is not on the instant-scope allowlist
-  /// (stateRequest, factsheetRequest, logReport, cancelOrder,
-  /// initPosition, startPause, stopPause, startCharging, stopCharging).
-  /// The spec: master must not send driving orders or non-recovery
-  /// actions in MANUAL / SERVICE / TEACHIN.
+  /// AGV not in AUTOMATIC/SEMIAUTOMATIC and the action_type isn't on the
+  /// instant-scope allowlist (stateRequest, cancelOrder, initPosition, etc.).
   AGV_MODE_NOT_AUTO_FOR_ACTION
 };
 

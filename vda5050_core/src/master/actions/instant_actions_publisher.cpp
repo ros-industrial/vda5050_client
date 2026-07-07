@@ -34,19 +34,12 @@ vda5050_core::errors::ValidationResult InstantActionsPublisher::publish(
   const vda5050_core::validation::PreSendContext& ctx,
   const vda5050_core::types::InstantActions& actions)
 {
-  // Validator chain: schema → online → operating-mode gate →
-  // capability → action conflict. Each link
-  // short-circuits on failure.
-  //
-  // Full pre-send is intentionally NOT applied: its strict order-centric
-  // checks (AUTOMATIC mode, position initialized, AVAILABLE state) would
-  // drop instant actions that are meant to work in degraded states —
-  // cancelOrder during an error, initPosition before localization,
-  // factsheetRequest with no prior state. Instead two targeted defenses
-  // run inline:
-  //   1. online check — QoS-0 sends to an offline AGV drop silently.
-  //   2. mode gate — in non-automatic modes only the predefined
-  //      instant-scope actions (the allowlist) may be sent.
+  // Validator chain: schema -> online -> mode gate -> capability -> action
+  // conflict, short-circuiting on failure. Full pre-send is intentionally
+  // skipped: its order-centric checks (AUTOMATIC, position, AVAILABLE) would
+  // block instant actions meant for degraded states (cancelOrder in error,
+  // initPosition before localization). The online + mode-gate checks below are
+  // the two targeted defenses.
   auto schema_result =
     vda5050_core::validation::validate_instant_actions_content(actions);
   if (!schema_result)

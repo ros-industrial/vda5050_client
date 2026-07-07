@@ -16,18 +16,9 @@
  * limitations under the License.
  */
 
-/**
- * @file master_assign_instant_actions_test.cpp
- * @brief Integration tests for VDA5050Master::assign_instant_actions.
- *
- * Verifies that the synchronous pre-flight (onboarded, connection
- * ONLINE, action_id uniqueness) returns the right
- * InstantActionDecision and rich error feedback. Mirrors the pattern
- * from master_assign_order_test.cpp but with a deliberately
- * lighter pre-flight: instantActions are designed to function in
- * degraded states (cancelOrder during ERROR, factsheetRequest before
- * any state report, initPosition before position is initialized).
- */
+// Integration tests for VDA5050Master::assign_instant_actions pre-flight
+// (onboarded, ONLINE, action_id unique) and its InstantActionDecision feedback;
+// lighter than assign_order so instant actions work in degraded states.
 
 #include <gmock/gmock.h>
 

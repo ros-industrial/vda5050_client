@@ -16,18 +16,9 @@
  * limitations under the License.
  */
 
-/**
- * @file master_state_timeout_test.cpp
- * @brief Integration tests for VDA5050Master::on_state_timeout and
- *        on_state_resumed virtuals.
- *
- * Verifies that the named state-heartbeat edges fire on the AGV's
- * background timer thread (timeout) and on the next state-message
- * arrival (recovery), with the expected once-per-edge contract.
- *
- * Uses gmock MockMqttClient so tests run without a broker. AGV state
- * is injected by calling AGV::handle_state directly.
- */
+// Integration tests for on_state_timeout / on_state_resumed — the named
+// state-heartbeat edges (timeout on the timer thread, recovery on the next
+// State), once per edge. gmock, no broker.
 
 #include <gmock/gmock.h>
 

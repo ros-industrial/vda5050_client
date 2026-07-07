@@ -52,22 +52,11 @@ vda5050_core::errors::ValidationResult OrderPublisher::publish(
     return pre_send_result;
   }
 
-  // Structural validation branches on update vs new order.
-  //
-  // For a fresh order (no active, or different order_id): `is_valid_graph`
-  // validates the full graph standalone — consecutive sequence_ids,
-  // alternating node/edge pattern, base/horizon split.
-  //
-  // For an UPDATE (active present + same order_id): the candidate has
-  // sparse sequence_ids by spec (it only contains the stitch node + new
-  // nodes/edges; base seqs are absent because the spec forbids
-  // retransmitting them). So `is_valid_graph` cannot be applied to the
-  // candidate alone — we use `combine_order` instead, which validates
-  // stitch identity, base immutability, monotonic order_update_id,
-  // released-node preservation, etc., against the active order. We publish
-  // the candidate as-sent, but hand the merged result back via `merged_out`
-  // so the caller can adopt it as the internal active order without
-  // re-combining against a state that may have advanced since.
+  // Structural validation branches: a fresh order is checked whole by
+  // is_valid_graph; an update has sparse sequence_ids (the spec forbids
+  // retransmitting the base), so combine_order validates it against the active
+  // order instead. The candidate is published as-sent; merged_out returns the
+  // merged order so the caller adopts it without re-combining.
   if (active_order.has_value() && active_order->order_id == order.order_id)
   {
     const uint32_t last_seq =

@@ -30,7 +30,10 @@
 #include "nlohmann/json.hpp"
 #include "vda5050_core/transport/mqtt_client_interface.hpp"
 
-namespace vda5050_core::master::test::mqtt {
+namespace vda5050_core {
+namespace master {
+namespace test {
+namespace mqtt {
 
 // Test constants
 namespace constants {
@@ -90,6 +93,9 @@ inline bool is_broker_available()
   return available;
 }
 }  // namespace constants
-}  // namespace vda5050_core::master::test::mqtt
+}  // namespace mqtt
+}  // namespace test
+}  // namespace master
+}  // namespace vda5050_core
 
 #endif  // MASTER__TEST_FIXTURE_COMMUNICATION_MQTT_HPP_

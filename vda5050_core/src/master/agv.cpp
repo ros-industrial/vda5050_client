@@ -398,17 +398,10 @@ void AGV::set_operational_state(AGVState state)
 {
   std::lock_guard<std::mutex> lock(state_mutex_);
 
-  // Precedence rule: a connection-loss-driven UNAVAILABLE
-  // (set by set_connection_status on OFFLINE / CONNECTIONBROKEN) and
-  // a fault-driven ERROR are both more authoritative signals than
-  // STATE_UNKNOWN (set by the 30s state-heartbeat timer). Without
-  // this guard, a state-heartbeat timer that fires inside an
-  // already-disconnected AGV would overwrite UNAVAILABLE with
-  // STATE_UNKNOWN — pre-send rejections would then mislead operators
-  // ("STATE_UNKNOWN" instead of the real "connection lost") during
-  // reconnection windows. The recovery path is unaffected: when a
-  // valid State arrives, set_operational_state(AVAILABLE) runs and is
-  // not subject to this guard.
+  // Precedence: connection-loss UNAVAILABLE and fault ERROR outrank the
+  // heartbeat-timer STATE_UNKNOWN, so a state-timeout on a disconnected AGV
+  // can't mask "connection lost" as "STATE_UNKNOWN". Recovery is unaffected:
+  // a valid State sets AVAILABLE, which skips this guard.
   if (
     state == AGVState::STATE_UNKNOWN &&
     (operational_state_ == AGVState::UNAVAILABLE ||

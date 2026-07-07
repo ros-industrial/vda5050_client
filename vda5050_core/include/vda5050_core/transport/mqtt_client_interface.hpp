@@ -80,24 +80,14 @@ public:
 
   using ConnectionStateHandler = std::function<void(const std::string&)>;
 
-  /// \brief Register a handler to be invoked when the underlying transport
-  /// reports the broker connection has been lost.
-  ///
-  /// The handler runs on the transport's I/O thread and must be
-  /// thread-safe with respect to any state it touches. Setting a new
-  /// handler replaces any previously-registered one. Default impl is
-  /// a no-op so existing MqttClientInterface implementations continue
-  /// to compile without changes.
+  /// \brief Register a broker-connection-lost handler, run on the transport I/O
+  ///        thread (must be thread-safe; replaces any prior). Default no-op.
   virtual void set_connection_lost_callback(ConnectionStateHandler /*handler*/)
   {
   }
 
-  /// \brief Register a handler to be invoked when the underlying transport
-  /// reports the broker connection has been (re)established.
-  ///
-  /// Fires on initial connect and on every Paho-driven auto-reconnect.
-  /// Same threading + replace-on-set semantics as
-  /// set_connection_lost_callback. Default impl is a no-op.
+  /// \brief Register a broker-(re)connect handler (initial + every
+  ///        auto-reconnect); same threading/replace semantics. Default no-op.
   virtual void set_connected_callback(ConnectionStateHandler /*handler*/) {}
 };
 

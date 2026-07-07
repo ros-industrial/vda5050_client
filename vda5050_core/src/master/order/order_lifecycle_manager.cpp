@@ -595,17 +595,11 @@ OrderLifecycleManager::drain_pending_locked(
       break;
     }
 
-    // All conditions satisfied — validate structurally via combine_order,
-    // but publish the candidate as-is (spec-strict:
-    // master must not retransmit base nodes, only re-send the stitch
-    // node + extension; AGV merges base+update internally). The merged
-    // result from combine_order is discarded — we only use it for its
-    // structural validation side-effect.
-    //
-    // Lifecycle adoption (`adopt_active_locked_`) is deferred to
-    // `record_published`, which fires on the queue thread AFTER the
-    // publish chain succeeds. This avoids the stitcher's duplicate
-    // check tripping when the drained candidate hits the publish path.
+    // All conditions satisfied — validate structurally via combine_order but
+    // publish the candidate as-is (spec-strict: the master re-sends only the
+    // stitch node + extension, the AGV merges internally). Adoption is deferred
+    // to record_published (queue thread, post-publish) so the stitcher's
+    // duplicate check doesn't trip.
     auto combined =
       combine_order(*active_order_, candidate, state.last_node_sequence_id);
     vda5050_core::types::Order to_publish = candidate;

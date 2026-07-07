@@ -39,19 +39,9 @@ namespace master {
 class ActionFactory
 {
 public:
-  /// \brief Build an instantAction with the given fields.
-  ///
-  /// Caller owns action_id — pass an FMS-correlated identifier (e.g. a
-  /// job-tracker UUID). For the rare case where the caller has no
-  /// preferred ID, see generate_action_id().
-  ///
-  /// blocking_type defaults to NONE per the spec (least
-  /// restrictive). The spec doesn't mandate a default; NONE is safe for
-  /// stateRequest / factsheetRequest / logReport (all inherently NONE).
-  ///
-  /// The returned Action has action_parameters populated only when
-  /// `parameters` is non-empty; otherwise the optional is left
-  /// std::nullopt to keep wire payloads compact.
+  /// \brief Build an instantAction. Caller owns action_id (see
+  ///        generate_action_id() if none). blocking_type defaults to NONE;
+  ///        action_parameters is set only when `parameters` is non-empty.
   static vda5050_core::types::Action build_custom(
     const std::string& action_type, const std::string& action_id,
     vda5050_core::types::BlockingType blocking_type =
@@ -59,36 +49,19 @@ public:
     const std::string& description = "",
     const std::vector<vda5050_core::types::ActionParameter>& parameters = {});
 
-  /// \brief Generate a UUIDv4 hex string suitable for action_id.
-  ///
-  /// Use ONLY when the caller has no FMS-side identifier to correlate.
-  /// Most FMS deployments should pass their own job-tracker IDs to
-  /// build_custom() instead.
-  ///
-  /// Format: 8-4-4-4-12 lowercase hex, total 36 chars including dashes,
-  /// matching RFC 4122 textual UUID layout. Variant + version bits set
-  /// per RFC 4122 (random UUID).
+  /// \brief Generate a UUIDv4 hex action_id (RFC 4122, 8-4-4-4-12 lowercase).
+  ///        Use only when the caller has no FMS-side id to correlate.
   static std::string generate_action_id();
 
-  /// \brief Build a stateRequest instantAction.
-  ///
-  /// Per the spec, stateRequest takes no parameters and is
-  /// inherently NONE-blocking (a query). After the AGV processes it, a
-  /// fresh State message is published; FMS observes via on_state.
-  ///
+  /// \brief Build a stateRequest instantAction (no params, NONE-blocking); the
+  ///        AGV replies with a fresh State, observed via on_state.
   /// \param action_id     Caller-supplied unique id (UUID recommended).
   /// \param description   Optional human-readable annotation.
   static vda5050_core::types::Action build_state_request(
     const std::string& action_id, const std::string& description = "");
 
-  /// \brief Build a factsheetRequest instantAction.
-  ///
-  /// Per the spec, factsheetRequest takes no parameters and is
-  /// inherently NONE-blocking. After the AGV processes it, a Factsheet
-  /// message is published on the retained `factsheet` topic; FMS observes
-  /// via on_factsheet (and FINISHED action_status arriving in the next
-  /// state on action_states[]).
-  ///
+  /// \brief Build a factsheetRequest instantAction (no params, NONE-blocking);
+  ///        the AGV replies on the retained factsheet topic (on_factsheet).
   /// \param action_id     Caller-supplied unique id (UUID recommended).
   /// \param description   Optional human-readable annotation.
   static vda5050_core::types::Action build_factsheet_request(

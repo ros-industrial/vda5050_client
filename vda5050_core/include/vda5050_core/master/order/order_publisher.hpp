@@ -45,13 +45,9 @@ class OrderPublisher
 public:
   OrderPublisher() = default;
 
-  /// \brief Validate and publish an order through the supplied adapter.
-  ///
-  /// Runs schema → pre-send → structural → traversability → capability,
-  /// short-circuiting on the first failure, and publishes only if all pass.
-  /// When `active_order` is
-  /// set and shares the order's id, the candidate is validated as a stitch
-  /// update against it; otherwise it is validated as a fresh graph.
+  /// \brief Validate an order (schema, pre-send, structural, traversability,
+  ///        capability) and publish only if all pass. When active_order shares
+  ///        the id, validates as a stitch update; else as a fresh graph.
   ///
   /// \param adapter       per-AGV typed adapter (caller-owned)
   /// \param ctx           AGV readiness snapshot, built by the caller

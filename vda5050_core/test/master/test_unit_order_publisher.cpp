@@ -16,18 +16,8 @@
  * limitations under the License.
  */
 
-/**
- * @file test_order_publisher.cpp
- * @brief Wire-up test for the OrderPublisher validator chain.
- *
- * Confirms that a graph-invalid Order short-circuits the publisher chain
- * (returning ValidationResult with GraphValidationError) AND does NOT
- * reach MqttClientInterface::publish — i.e., the chain's short-circuit
- * fires before the MQTT publish.
- *
- * Uses a gmock MockMqttClient so the test runs without a real broker.
- * Mock pattern mirrors test/master/teardown_test.cpp.
- */
+// Unit tests for the OrderPublisher validator chain (gmock MockMqttClient,
+// no broker).
 
 #include <gmock/gmock.h>
 

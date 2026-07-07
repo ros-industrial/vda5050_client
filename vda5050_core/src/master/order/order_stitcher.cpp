@@ -99,16 +99,10 @@ StitchResult OrderStitcher::decide(
     return res;
   }
 
-  // Different order_id. Two cases:
-  //   1. The prior order is COMPLETE — this is a fresh assignment, not
-  //      a stitch. Per the spec, the AGV legitimately keeps
-  //      its state.order_id reporting the finished order until a new
-  //      one is accepted, so seeing a new order_id here is normal.
-  //      Fall through (SEND_NOW); the publisher chain treats it as a
-  //      new order regardless of the stale `has_active` tracking flag.
-  //   2. The prior order is still in flight — concurrent orders aren't
-  //      supported in v2.0.0; FMS must cancel via cancelOrder
-  //      instantAction first.
+  // Different order_id: if the prior order is COMPLETE this is a fresh
+  // assignment (the AGV keeps reporting the finished id until a new one is
+  // accepted) -> SEND_NOW. Otherwise a concurrent order is in flight, which
+  // v2.0.0 doesn't support -> the FMS must cancelOrder first.
   if (candidate.order_id != snapshot.order_id)
   {
     if (snapshot.order_complete)
@@ -153,7 +147,7 @@ StitchResult OrderStitcher::decide(
   }
 
   // ===========================================================
-  // 4 FIWARE guards. Any failure is
+  // 4 stitch guards. Any failure is
   // QUEUE_PENDING — the AGV will eventually catch up and a future
   // State message will release the queued update.
   // ===========================================================

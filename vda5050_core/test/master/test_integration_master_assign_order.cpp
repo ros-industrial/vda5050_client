@@ -16,19 +16,9 @@
  * limitations under the License.
  */
 
-/**
- * @file master_assign_order_test.cpp
- * @brief Integration tests for VDA5050Master::assign_order.
- *
- * Verifies that the synchronous pre-flight readiness checks
- * (onboarding, connection, operational state, mode, position
- * initialization, stitch pre-flight) return the right
- * AssignmentDecision and rich error feedback.
- *
- * Uses gmock MockMqttClient so tests run without a broker. AGV state
- * is injected by calling AGV::handle_connection / handle_state
- * directly, mirroring what the MQTT subscriber would do.
- */
+// Integration tests for VDA5050Master::assign_order pre-flight checks and their
+// AssignmentDecision / error feedback (gmock, no broker; AGV state injected via
+// handle_connection / handle_state).
 
 #include <gmock/gmock.h>
 

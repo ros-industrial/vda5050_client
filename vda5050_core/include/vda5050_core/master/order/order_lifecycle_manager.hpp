@@ -36,51 +36,38 @@
 namespace vda5050_core {
 namespace master {
 
-// Tracks the master's view of one AGV's in-flight order (active ids,
-// base/horizon split, pending-updates queue, mismatch recovery, completion
-// detection). Owned by AGV; one instance per managed AGV. Stitch logic is
-// the OrderStitcher's job; this class only tracks state and exposes
-// snapshots for the stitch guard to query.
-//
-// Thread-safety: own lifecycle_mutex_, separate from AGV's mutexes and
-// acquired without holding any of them (no nested locking). Getters return
-// by value so callers iterate lock-free.
+// Tracks the master's view of one AGV's in-flight order; one instance per
+// managed AGV. Owns lifecycle_mutex_, acquired without holding any AGV mutex.
 
-/// \brief Outcome of combine_order(): either a merged Order or accumulated
-///        errors. Use the bool conversion to short-circuit on failure.
+/// \brief Outcome of combine_order(): a merged Order or accumulated errors.
 struct CombineResult
 {
-  /// Merged Order. Only populated when errors is empty.
+  /// Merged Order; populated only when errors is empty.
   vda5050_core::types::Order order;
 
-  /// Spec-rule violations encountered during the combine. Non-empty == fail.
+  /// Combine violations; non-empty means failure.
   std::vector<vda5050_core::types::Error> errors;
 
-  /// Allows use in boolean contexts.
   explicit operator bool() const
   {
     return errors.empty();
   }
 };
 
-/// \brief Read-only view of the manager's tracked state. Returned by
-///        snapshot() under the lifecycle_mutex_, then read lock-free.
+/// \brief Read-only snapshot of the manager's tracked state.
 struct ActiveOrderSnapshot
 {
-  /// True when an active order is being tracked (i.e., at least one
-  /// successful publish has been recorded and recovery hasn't fired).
+  /// True when an active order is being tracked.
   bool has_active = false;
 
   /// Active order_id (empty when has_active == false).
   std::string order_id;
 
-  /// Active order_update_id (most recent recorded update).
   uint32_t order_update_id = 0;
 
-  /// Merged nodes from the active order (base + horizon, in seq order).
+  /// Merged nodes (base + horizon, in seq order).
   std::vector<vda5050_core::types::Node> nodes;
 
-  /// Merged edges from the active order.
   std::vector<vda5050_core::types::Edge> edges;
 
   /// AGV's most recent reported last_node_sequence_id (0 if no state yet).
@@ -89,37 +76,18 @@ struct ActiveOrderSnapshot
   /// AGV's most recent reported order_update_id (0 if no state yet).
   uint32_t state_order_update_id = 0;
 
-  /// AGV's most recent reported order_id (empty if no state yet, or AGV
-  /// reported empty (initial / post-reset).
+  /// AGV's most recent reported order_id (empty if no state yet).
   std::string state_order_id;
 
-  /// True once the AGV reports last_node_id == active_order.nodes.back().
+  /// True once the AGV reports it reached the active order's last node.
   bool order_complete = false;
 };
 
-/// \brief Combine a base order with an update at the stitch point.
+/// \brief Merge base and update at the stitch point, enforcing the VDA5050
+///        stitching rules. Pure; does not touch manager state.
 ///
-/// Pure function: does not touch the manager's state. Encodes VDA5050 v2.0.0
-/// stitching rules:
-///   - base immutability ("base cannot change"): rejects updates that
-///     alter a released node/edge.
-///   - stitching node content immutability: the node at the
-///     stitch sequence_id (last released base node) MUST be byte-equal in
-///     base and update; otherwise rejected.
-///   - orderUpdateError: rejects update.order_update_id
-///     <= base.order_update_id.
-///   - order_id mismatch is rejected up-front.
-///
-/// On success: the merged order has base.order_id, update.order_update_id,
-/// update.zone_set_id, and the update's header. nodes/edges are
-/// preserved-base-tail + extension, in sequence_id order.
-///
-/// \param base    The cached active order (last successful publish).
-/// \param update  The candidate update (already schema-/graph-valid).
-/// \param last_node_sequence_id  AGV's most recent last_node_sequence_id.
-///                               Used only to validate that the AGV hasn't
-///                               passed the stitch point.
-/// \return CombineResult with .order populated on success or .errors set.
+/// \param last_node_sequence_id  Used to check the AGV hasn't passed the
+///                               stitch point.
 CombineResult combine_order(
   const vda5050_core::types::Order& base,
   const vda5050_core::types::Order& update, uint32_t last_node_sequence_id);
@@ -127,18 +95,14 @@ CombineResult combine_order(
 class OrderLifecycleManager
 {
 public:
-  /// FIWARE-tested default. Master clears stale tracking after this many
-  /// consecutive State messages with mismatched order_id.
+  /// Consecutive mismatched-order_id States before stale tracking clears.
   static constexpr int kDefaultMismatchThreshold = 3;
 
-  /// Pending-update queue cap. enqueue_pending_update returns false past
-  /// this; reject-newest policy.
+  /// Pending-update queue cap; enqueue rejects the newest past this.
   static constexpr std::size_t kDefaultPendingQueueCap = 8;
 
   /// \brief Construct.
-  /// \param agv_id              Used in log messages only (e.g. "ACME/AGV01").
-  /// \param mismatch_threshold  Consecutive mismatches before recovery.
-  /// \param pending_queue_cap   Max queued pending updates.
+  /// \param agv_id  Used in log messages only.
   explicit OrderLifecycleManager(
     std::string agv_id, int mismatch_threshold = kDefaultMismatchThreshold,
     std::size_t pending_queue_cap = kDefaultPendingQueueCap);
@@ -153,24 +117,18 @@ public:
   // Mutators
   // =====================================================================
 
-  /// \brief Record a successful Order publish. Sets the active order; if the
-  ///        recorded order has a strictly higher order_update_id for the
-  ///        same order_id, clears the needs_more_base_ flag.
-  ///        Caller must invoke this AFTER MqttClient::publish returns success.
-  ///        When the publish stitched onto an active order, pass the merged
-  ///        order from OrderPublisher so it is adopted without re-combining.
+  /// \brief Record a successful Order publish and set it active. Call after
+  ///        publish succeeds.
+  /// \param merged  When the publish stitched onto an active order, the
+  ///                merged order to adopt without re-combining.
   void record_published(
     const vda5050_core::types::Order& order,
     const std::optional<vda5050_core::types::Order>& merged = {});
 
-  /// \brief Apply an incoming State message: update last_node tracking,
-  ///        run mismatch counter, detect order completion, drain the
-  ///        pending-update queue.
-  ///
-  /// \return The pending updates that became eligible to publish on this
-  ///         state. Caller is responsible for actually publishing them
-  ///         (via AGV::send_order). Returned by value so callers iterate
-  ///         lock-free.
+  /// \brief Apply an incoming State: update last-node tracking, mismatch
+  ///        counter, completion detection, and pending-queue drain.
+  /// \return Pending updates now eligible to publish (caller sends via
+  ///         AGV::send_order); returned by value for lock-free iteration.
   std::vector<vda5050_core::types::Order> on_state_update(
     const vda5050_core::types::State& state);
 
@@ -239,7 +197,7 @@ private:
   bool order_complete_ = false;
   bool needs_more_base_ = false;
 
-  // FIWARE queue-and-retry (deque, not std::queue — we walk front->back
+  // Queue-and-retry (deque, not std::queue — we walk front->back
   // before popping).
   std::deque<vda5050_core::types::Order> pending_updates_;
 

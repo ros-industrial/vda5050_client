@@ -44,46 +44,17 @@
 namespace vda5050_core {
 namespace master {
 
-/// \brief VDA5050 Master for multi-AGV fleet management
+/// \brief Abstract base for VDA5050 multi-AGV fleet control over one shared
+///        MQTT client; subclass and override the on_* virtuals.
 ///
-/// This abstract base class manages VDA5050 communication for multiple AGVs
-/// using a single shared MQTT client that creates adapters per AGV.
-///
-/// Features:
-/// - Single shared MQTT client that creates protocol adapters for each AGV
-/// - AGV onboarding/offboarding with allow list
-/// - Message routing based on topic parsing
-/// - Protocol adapters for subscribing and publishing to AGVs
-///
-/// Thread safety note: Callbacks are invoked on the MQTT client thread.
-/// If thread safety is required, the callback implementation should handle
-/// synchronization (e.g., using a mutex).
-///
-/// Construction requirement: VDA5050Master MUST be constructed via
-/// `std::make_shared<MyMaster>(...)`. Each onboarded AGV stores a
-/// `std::weak_ptr<VDA5050Master>` back-pointer (populated via
-/// `weak_from_this()`) and uses it to dispatch incoming messages to the
-/// master's virtual callbacks. `weak_from_this()` only returns a valid
-/// weak_ptr if the master is currently inside a `shared_ptr` — stack-
-/// allocated or `unique_ptr`-managed masters silently no-op on user
-/// callbacks.
+/// Must be make_shared-constructed: each AGV holds a weak_ptr back to it (via
+/// weak_from_this) to dispatch callbacks on the MQTT thread — a stack or
+/// unique_ptr master silently no-ops them. Overrides must be thread-safe.
 class VDA5050Master : public std::enable_shared_from_this<VDA5050Master>
 {
 public:
-  /// \brief Construct a master with a shared MQTT client and broker address
-  /// \param mqtt_client Shared MQTT client for subscriptions
-  ///
-  /// The mqtt_client creates protocol adapters for each onboarded AGV.
-  ///
-  /// IMPORTANT: must be constructed via `std::make_shared<MyMaster>(...)` —
-  /// see class doc-comment.
-  ///
-  /// Example usage:
-  /// \code
-  /// auto c = transport::create_default_client_shared(broker, "master");
-  /// auto master = std::make_shared<MyMaster>(client);
-  /// master->connect();
-  /// \endcode
+  /// \brief Construct with a shared MQTT client (creates per-AGV adapters).
+  ///        Must be make_shared-constructed — see the class doc.
   VDA5050Master(
     std::shared_ptr<vda5050_core::transport::MqttClientInterface> mqtt_client);
 
@@ -109,15 +80,10 @@ public:
   /// \brief Check if MQTT client is connected
   bool is_connected() const;
 
-  // Master-broker connection observability. Surfaces the master's own
-  // MQTT-broker connection state to the FMS via the on_broker_* virtuals and
-  // the get_broker_status() snapshot. Distinct from per-AGV connection state:
-  // an AGV can be ONLINE while the master has lost its broker, and vice versa.
+  // Master's own broker-connection state (distinct from per-AGV connection):
+  // exposed via the on_broker_* virtuals and get_broker_status().
 
-  /// \brief Read-only snapshot of the master's broker-connection state.
-  ///
-  /// Returned by `get_broker_status()`. All fields are stable across the
-  /// lifetime of the snapshot — repeat the call to observe changes.
+  /// \brief Snapshot of the master's broker-connection state.
   struct BrokerStatusSnapshot
   {
     /// True iff the master is currently connected to its broker.
@@ -138,48 +104,35 @@ public:
   // AGV Onboarding/Offboarding
   // ===========================================================================
 
-  /// \brief Onboard an AGV to allow message routing
-  /// \param manufacturer Manufacturer name
-  /// \param serial_number Serial number
-  /// \param max_queue_size Max outgoing messages to queue (default: 10)
-  /// \param drop_oldest If true, drop oldest message when queue full; if
-  ///   false, reject new message (default: true)
-  ///
-  /// Creates an AGV instance in the allowed list. Messages from this AGV
-  /// will be routed to the appropriate handlers.
-  /// The interface name is set to "uagv" by default.
+  /// \brief Onboard an AGV (interface "uagv") so its messages are routed.
+  /// \param manufacturer   AGV manufacturer.
+  /// \param serial_number  AGV serial number.
+  /// \param max_queue_size Outgoing queue cap (default 10).
+  /// \param drop_oldest Drop oldest vs reject-new when the queue is full.
   void onboard_agv(
     const std::string& manufacturer, const std::string& serial_number,
     size_t max_queue_size = 10, bool drop_oldest = true);
 
-  /// \brief Onboard an AGV with a custom interface_name for routing
-  /// \param interface_name Interface name
-  /// \param manufacturer Manufacturer name
-  /// \param serial_number Serial number
-  /// \param max_queue_size Max outgoing messages to queue (default: 10)
-  /// \param drop_oldest If true, drop oldest message when queue full; if
-  ///   false, reject new message (default: true)
-  ///
-  /// Creates an AGV instance in the allowed list. Messages from this AGV
-  /// will be routed to the appropriate handlers.
+  /// \brief Onboard an AGV with a custom interface_name so its messages route.
+  /// \param interface_name Interface name.
+  /// \param manufacturer   AGV manufacturer.
+  /// \param serial_number  AGV serial number.
+  /// \param max_queue_size Outgoing queue cap (default 10).
+  /// \param drop_oldest Drop oldest vs reject-new when the queue is full.
   void onboard_agv(
     const std::string& interface_name, const std::string& manufacturer,
     const std::string& serial_number, size_t max_queue_size = 10,
     bool drop_oldest = true);
 
-  /// \brief Offboard an AGV to stop message routing
-  /// \param manufacturer Manufacturer name
-  /// \param serial_number Serial number
-  ///
-  /// Removes the AGV from the allowed list. Messages from this AGV
-  /// will be ignored with a warning.
+  /// \brief Offboard an AGV; further messages from it are ignored.
+  /// \param manufacturer   AGV manufacturer.
+  /// \param serial_number  AGV serial number.
   void offboard_agv(
     const std::string& manufacturer, const std::string& serial_number);
 
-  /// \brief Check if an AGV is onboarded
-  /// \param manufacturer Manufacturer name
-  /// \param serial_number Serial number
-  /// \return true if AGV is onboarded
+  /// \brief True if the AGV is onboarded.
+  /// \param manufacturer   AGV manufacturer.
+  /// \param serial_number  AGV serial number.
   bool is_agv_onboarded(
     const std::string& manufacturer, const std::string& serial_number) const;
 
@@ -187,10 +140,9 @@ public:
   // AGV Access
   // ===========================================================================
 
-  /// \brief Get a shared pointer to an onboarded AGV
-  /// \param manufacturer Manufacturer name
-  /// \param serial_number Serial number
-  /// \return Shared pointer to AGV, or nullptr if not onboarded
+  /// \brief The onboarded AGV, or nullptr if not onboarded.
+  /// \param manufacturer   AGV manufacturer.
+  /// \param serial_number  AGV serial number.
   std::shared_ptr<AGV> get_agv(
     const std::string& manufacturer, const std::string& serial_number) const;
 
@@ -198,57 +150,32 @@ public:
   // Outgoing Messages
   // ===========================================================================
 
-  /// \brief Publish an order to a specific AGV
-  /// \param manufacturer Manufacturer name
-  /// \param serial_number Serial number
-  /// \param order The order message
-  /// \return true if queued successfully, false if queue is full
-  /// \throws std::runtime_error if AGV is not onboarded
+  /// \brief Queue an order to an AGV (lower-level; skips assign_order's
+  ///        pre-flight).
+  /// \param manufacturer   AGV manufacturer.
+  /// \param serial_number  AGV serial number.
+  /// \param order          The order to queue.
+  /// \return false if the queue is full.
+  /// \throws std::runtime_error if the AGV is not onboarded.
   bool publish_order(
     const std::string& manufacturer, const std::string& serial_number,
     const vda5050_core::types::Order& order);
 
-  /// \brief Synchronously check AGV readiness and assign the order.
+  /// \brief Pre-flight an order (onboarded, ONLINE, AVAILABLE, AUTOMATIC,
+  ///        position-initialized, stitch-acceptable) then queue it.
   ///
-  /// Performs caller-visible pre-flight validation BEFORE handing the
-  /// order to the async publish queue. Implements the master-side
-  /// "vehicle is in a state to receive an order" check.
-  ///
-  /// Pre-flight (synchronous, on caller thread):
-  ///   1. AGV onboarded with this manufacturer/serial?
-  ///   2. Connection ONLINE?
-  ///   3. Operational state AVAILABLE (not ERROR/UNAVAILABLE/UNKNOWN)?
-  ///   4. Last State has operating_mode == AUTOMATIC?
-  ///   5. Last State has position_initialized == true?
-  ///   6. If `order` is an update for the active order: would the
-  ///      stitcher accept it (SEND_NOW), queue it (QUEUE_PENDING),
-  ///      or reject it (REJECT)?
-  ///
-  /// On ASSIGNED: order is queued via `AGV::send_order`; the async
-  /// validator chain (schema/PreSend/graph/traversability) runs later
-  /// on the queue-processor thread as defense-in-depth.
-  ///
-  /// On STITCH_QUEUED: order is enqueued in the lifecycle's pending
-  /// updates; will be drained when AGV state reaches the stitch point.
-  ///
-  /// On any rejection: returns an AssignmentDecision identifying which
-  /// check failed plus diagnostic errors; nothing is queued.
-  ///
-  /// Recommended FMS-facing entry point. The bool-returning
-  /// `publish_order(mfg, serial, order)` is kept as a lower-level API
-  /// that bypasses the synchronous pre-flight.
+  /// The recommended FMS entry point. Returns an AssignmentResult naming the
+  /// failed check with diagnostics (nothing queued) or ASSIGNED/STITCH_QUEUED;
+  /// the async validator chain re-checks on the queue thread as defense.
   AssignmentResult assign_order(
     const std::string& manufacturer, const std::string& serial_number,
     const vda5050_core::types::Order& order);
 
   // ===========================================================================
-  // Batch onboarding — Device Manager integration. The body is a
-  // sequential loop under a single lock; signature is stable for a
-  // future batched MQTT SUBSCRIBE swap.
+  // Batch onboarding — Device Manager integration
   // ===========================================================================
 
-  /// One AGV's slot in a batch onboarding request. Same parameters as
-  /// `onboard_agv()`.
+  /// \brief One AGV's slot in a batch onboarding request.
   struct OnboardSpec
   {
     std::string manufacturer;
@@ -257,9 +184,7 @@ public:
     bool drop_oldest = true;
   };
 
-  /// Summary of a batch call. Never throws; per-entry outcomes are
-  /// classified into three lists so callers can report which AGV
-  /// landed in which bucket. Counts are `.size()` of each list.
+  /// \brief Per-entry batch outcome, split into onboarded / skipped / failed.
   struct BatchOnboardResult
   {
     /// Entries newly onboarded by this call.
@@ -285,11 +210,10 @@ public:
   std::vector<std::pair<std::string, std::string>> get_onboarded_agvs() const;
 
   // ===========================================================================
-  // Assignment correlation — caller UUID stash for async dispatch.
-  // At most one active assignment per (mfg, serial); a second record
-  // overwrites. Protected by `assignments_mutex_`; never held with
-  // `agv_mutex_`.
+  // Assignment correlation — caller assignment_id per AGV for async dispatch
   // ===========================================================================
+  // One active assignment per AGV (overwrites). `assignments_mutex_`, never
+  // held with `agv_mutex_`.
 
   /// Record an assignment_id for an AGV. Empty assignment_id clears.
   void record_assignment(
@@ -305,48 +229,21 @@ public:
   void clear_assignment(
     const std::string& manufacturer, const std::string& serial_number);
 
-  /// \brief Publish instant actions to a specific AGV
-  /// \param manufacturer Manufacturer name
-  /// \param serial_number Serial number
-  /// \param actions The instant actions message
-  /// \return true if queued successfully, false if queue is full
-  /// \throws std::runtime_error if AGV is not onboarded
+  /// \brief Queue instant actions to an AGV (lower-level; skips the
+  ///        assign_instant_actions pre-flight). \return false if queue full.
+  /// \throws std::runtime_error if the AGV is not onboarded.
   bool publish_instant_actions(
     const std::string& manufacturer, const std::string& serial_number,
     const vda5050_core::types::InstantActions& actions);
 
-  /// \brief Synchronously check AGV reachability and dispatch
-  ///        instantActions.
+  /// \brief Pre-flight instant actions (onboarded, ONLINE, action_id unique)
+  ///        then queue them.
   ///
-  /// Mirrors the assign_order pattern for instant actions, but with
-  /// a deliberately lighter pre-flight: instantActions are designed to
-  /// function in degraded states (cancelOrder during ERROR, factsheetRequest
-  /// before any state report, initPosition before position is initialized).
-  ///
-  /// Pre-flight (synchronous, on caller thread):
-  ///   1. AGV onboarded with this manufacturer/serial?
-  ///   2. Connection ONLINE? (QoS 0 instantActions delivered only to live
-  ///      connections; sending to OFFLINE AGV is a silent drop.)
-  ///   3. action_id uniqueness — within the candidate batch, vs
-  ///      `state.action_states[].action_id`, vs the active order's node /
-  ///      edge action_ids. The spec requires global
-  ///      uniqueness; AGV behaviour on collision is undefined.
-  ///
-  /// Skipped (with rationale): operational_state, last_state existence,
-  /// operating_mode, position_initialized — all four are designed to be
-  /// bypassable for the recovery / commissioning use cases instantActions
-  /// exist for.
-  ///
-  /// On ASSIGNED: actions are queued via `AGV::send_instant_actions`; the
-  /// async validator chain (schema, pre-send, traversability, capability)
-  /// runs on the queue-processor thread as defense-in-depth.
-  ///
-  /// On any rejection: returns an InstantActionDecision identifying which
-  /// check failed plus diagnostic errors; nothing is queued.
-  ///
-  /// Recommended FMS-facing entry point. The bool-returning
-  /// `publish_instant_actions(mfg, serial, actions)` is kept as a
-  /// lower-level API that bypasses the synchronous pre-flight.
+  /// Lighter than assign_order on purpose — instant actions must work in
+  /// degraded states (cancelOrder in ERROR, initPosition before localization),
+  /// so mode/position/availability are not gated. Returns an
+  /// InstantActionAssignmentResult naming any failed check; nothing queued on
+  /// rejection. The async validator chain re-checks on the queue thread.
   InstantActionAssignmentResult assign_instant_actions(
     const std::string& manufacturer, const std::string& serial_number,
     const vda5050_core::types::InstantActions& actions);
@@ -355,30 +252,21 @@ public:
   // Topology layout
   // ==========================================================================
   //
-  // The master loads a topology layout (LIF) from a JSON config file at
-  // startup and cross-checks it against onboarded AGVs' factsheets. The
-  // loaded graph is consulted by the traversability validator.
-  //
-  // Concurrency: `active_graph_` and `alignment_cache_` are protected by
-  // `map_mutex_`. Readers copy the `Graph::ConstPtr` snapshot under the
-  // mutex, then release it before doing work — the graph is immutable so
-  // concurrent reads are safe. Lock order when both `agv_mutex_` and
-  // `map_mutex_` are needed: `agv_mutex_` → `map_mutex_`.
+  // The master loads a LIF topology from JSON at startup and cross-checks it
+  // against onboarded factsheets; the traversability validator consults it.
+  // `active_graph_`/`alignment_cache_` are guarded by `map_mutex_` (lock order
+  // agv_mutex_ then map_mutex_); readers copy the immutable snapshot under the
+  // lock, then work lock-free.
 
-  /// \brief Load a topology layout (LIF) from a JSON config file.
-  ///
-  /// On success, swaps the master's active graph and re-runs factsheet
-  /// alignment against every onboarded AGV. On failure the previously
-  /// loaded graph (if any) is left unchanged.
-  ///
-  /// \param path  path to the LIF JSON config
-  /// \return load result; on success `lif` holds the parsed layout
+  /// \brief Load a LIF topology from a JSON config; on success swaps the active
+  ///        graph and re-runs alignment (the prior graph is kept on failure).
+  /// \param path  Path to the LIF JSON config.
+  /// \return Load result; `lif` holds the parsed layout on success.
   vda5050_core::layout::LayoutLoadResult load_layout_from_config(
     const std::string& path);
 
-  /// \brief Install an already-built graph directly. Used by tests and by
-  /// integrators who load the layout by other means; triggers the same
-  /// alignment refresh as load_layout_from_config.
+  /// \brief Install an already-built graph (tests / external loaders); runs the
+  ///        same alignment refresh as load_layout_from_config.
   void set_graph(vda5050_core::layout::Graph::ConstPtr graph);
 
   /// \brief Snapshot of the currently-loaded graph, or nullptr if none is
@@ -400,15 +288,10 @@ public:
   // User-Extension Callbacks (override in subclass)
   // ===========================================================================
   //
-  // These virtuals fire after the per-AGV ProtocolAdapter receives and
-  // deserializes a message, and after the owning AGV instance has cached
-  // it. They are dispatched via a back-pointer the AGV holds to its
-  // owning master. Default implementations are empty — subclass and
-  // override to plug in fleet-level reaction logic.
-  //
-  // Threading: invoked on the Paho MQTT callback thread (not the user's
-  // main thread). User overrides must be thread-safe with respect to
-  // any state they touch.
+  // These virtuals fire on the Paho MQTT callback thread after the AGV caches
+  // the deserialized message, dispatched via the AGV's back-pointer to its
+  // master. Defaults are empty — override for fleet-level reactions, and keep
+  // overrides thread-safe for any state they touch.
 
   /// \brief Called after a State message arrives and is cached on the AGV.
   /// \param agv_id  manufacturer/serial composite ID
@@ -434,13 +317,8 @@ public:
   // Event triggers
   // ===========================================================================
   //
-  // Fired by AGV's orchestration callbacks after the per-message
-  // detector classifies a transition. Default implementations are
-  // empty — override only the events your master cares about.
-  //
-  // These are layered ON TOP of on_state / on_connection above. The
-  // raw-message virtuals still fire; these are the named, edge-detected
-  // convenience hooks.
+  // Named edge-detected hooks layered on top of on_state / on_connection (the
+  // raw virtuals still fire). Defaults empty — override the ones you need.
 
   /// \brief Fired when the AGV reports a previously-unreached node as released.
   virtual void on_node_reached(
@@ -462,44 +340,15 @@ public:
   /// \brief Fired when new_base_request goes false to true (rising edge).
   virtual void on_new_base_requested(const std::string& agv_id);
 
-  /// \brief Fired when curr.operating_mode != prev.operating_mode.
+  /// \brief Fired when operating_mode changes.
+  /// \param new_mode  the mode now in effect.
+  /// \param prev_mode the mode before the change.
   ///
-  /// **Leave / return AUTOMATIC edges**:
-  ///
-  /// When `prev_mode == AUTOMATIC && new_mode != AUTOMATIC` (leave
-  /// edge), the library has ALREADY captured the AGV's outbound
-  /// order / instant-action queues into a resumable buffer and
-  /// drained the live queues, before this callback fires. FMS may
-  /// inspect the buffer via `agv->get_mode_cancelled_queue()`.
-  ///
-  /// When `new_mode == AUTOMATIC && prev_mode != AUTOMATIC` (return
-  /// edge), FMS **should** call exactly ONE of:
-  ///   - `agv->resume_mode_cancelled_queue()` — prepend buffered
-  ///     items to the front of the live queue (preserves original
-  ///     dispatch order; buffered items execute before any new
-  ///     orders FMS dispatched in the meantime)
-  ///   - `agv->discard_mode_cancelled_queue()` — drop the buffer
-  ///
-  /// If neither is called, the buffer will be **overwritten** on
-  /// the next leave-AUTOMATIC and the items silently lost. Don't
-  /// rely on long-term retention.
-  ///
-  /// Recommended pattern — handle resume/discard inside this
-  /// override on the return edge:
-  ///
-  /// \code
-  /// void on_mode_changed(id, new_mode, prev_mode) override {
-  ///   if (new_mode == AUTOMATIC && prev_mode != AUTOMATIC) {
-  ///     get_agv(id)->resume_mode_cancelled_queue();
-  ///     // OR: get_agv(id)->discard_mode_cancelled_queue();
-  ///   }
-  /// }
-  /// \endcode
-  ///
-  /// Pure-ROS-2 FMS (no C++ subclass) can call the resume / discard
-  /// via the `/<namespace>/resume_mode_cancelled_queue` and
-  /// `/<namespace>/discard_mode_cancelled_queue` services exposed
-  /// by `VDA5050MasterROS2`.
+  /// On the leave-AUTOMATIC edge the outbound queues are already captured into
+  /// a resumable buffer (see agv->get_mode_cancelled_queue()) and drained. On
+  /// the return edge call resume_mode_cancelled_queue() or
+  /// discard_mode_cancelled_queue(), else the buffer is overwritten on the next
+  /// leave-AUTOMATIC.
   virtual void on_mode_changed(
     const std::string& agv_id, vda5050_core::types::OperatingMode new_mode,
     vda5050_core::types::OperatingMode prev_mode);
@@ -524,12 +373,9 @@ public:
   // Connection event triggers
   // ===========================================================================
   //
-  // Fired by AGV's connection_subscriber callback after the
-  // connection_update_detector classifies the transition. Three distinct
-  // event types correspond to the three `connectionState` values. The
-  // existing `on_connection` virtual still fires for raw access to
-  // every Connection message; these named virtuals are additive
-  // convenience hooks.
+  // Fired after connection_update_detector classifies the transition, one named
+  // hook per connectionState value. The raw on_connection still fires for every
+  // Connection message; these are additive.
 
   /// \brief Fired when AGV's connection_state transitions to ONLINE.
   ///        Initial connect or reconnect after recovery.
@@ -540,110 +386,48 @@ public:
   ///        before disconnecting).
   virtual void on_offline(const std::string& agv_id);
 
-  /// \brief Fired when AGV's connection_state transitions to
-  ///        CONNECTIONBROKEN — the broker auto-published the AGV's
-  ///        pre-registered last-will message because the AGV's TCP
-  ///        connection unexpectedly dropped.
-  ///
-  /// **This is the last-will handler.** Use this to react to
-  /// unexpected AGV death (cancel pending orders via
-  /// `AGV::cancel_pending_orders()`, alert FMS, page on-call, etc.).
-  ///
-  /// Note: the Connection message that triggered this event has stale
-  /// `timestamp` / `headerId` fields (registered at AGV connect time,
-  /// not delivery time).
+  /// \brief Last-will handler (CONNECTIONBROKEN): the AGV's TCP connection
+  ///        dropped unexpectedly. The triggering Connection has stale
+  ///        timestamp/headerId. React to AGV death here (cancel pending).
   virtual void on_connection_broken(const std::string& agv_id);
 
   // ===========================================================================
   // State-heartbeat event triggers
   // ===========================================================================
   //
-  // Fired by the AGV's state-topic HeartbeatListener when the spec's
-  // 30s state-publish window is violated, and
-  // again on the recovery edge when state messages resume. Layered
-  // ON TOP of the existing `on_state` raw-message virtual:
-  // `on_state_timeout` / `on_state_resumed` are the named edges,
-  // `on_state` still fires for every State message including the
-  // recovery message.
+  // Fired by the AGV's state-topic HeartbeatListener when the spec's 30s window
+  // is violated, and again on the recovery edge. Additive to on_state, which
+  // still fires for every State message.
 
-  /// \brief Fired when the AGV's state-topic heartbeat exceeds the
-  ///        spec's 30s window with no new State message.
+  /// \brief Fired when the state-topic heartbeat exceeds the spec's 30s window.
   ///
-  /// The library has already flipped `operational_state` to
-  /// `STATE_UNKNOWN` and the pre-send validator chain will now
-  /// hard-reject orders queued for this AGV. This virtual is the
-  /// FMS reaction surface — alert operators, page on-call, kick
-  /// off recovery probes, etc. Default impl is empty.
-  ///
-  /// The library does NOT auto-cancel pending orders on this event
-  /// (state silence is potentially transient — AGV power-cycle,
-  /// broker reconnect, network blip). FMS overrides that want
-  /// aggressive cancellation can call
-  /// `AGV::cancel_pending_orders()` here. Compare with
-  /// `on_connection_broken`, which IS auto-cancelled because TCP
-  /// last-will is a hard signal.
-  ///
-  /// Threading: invoked on the HeartbeatListener's monitor thread.
-  /// Override must be thread-safe with respect to any state it
-  /// touches.
+  /// operational_state is already STATE_UNKNOWN (pre-send now rejects this
+  /// AGV's orders). Pending orders are NOT auto-cancelled (silence may be
+  /// transient); override to call AGV::cancel_pending_orders() if desired. Runs
+  /// on the HeartbeatListener monitor thread.
   virtual void on_state_timeout(const std::string& agv_id);
 
-  /// \brief Fired when the first State message arrives after a
-  ///        previously-fired `on_state_timeout` — the silence-to-active
-  ///        edge.
-  ///
-  /// Pairs with `on_state_timeout`: every timeout fires exactly one
-  /// recovery (or zero, if the AGV stays silent until offboard). Use
-  /// to log recovery duration, re-issue stale orders, page resolved
-  /// alerts. Default impl is empty.
-  ///
-  /// Also fires once on the AGV's first-ever State message (initial
-  /// `STATE_UNKNOWN` → `AVAILABLE`). FMS that needs to distinguish
-  /// fresh-start from post-silence recovery uses the connection
-  /// events (`on_connect`).
-  ///
-  /// Threading: invoked on the AGV's state-subscriber thread,
-  /// BEFORE the user's `on_state(...)` virtual.
+  /// \brief Fired on the first State after an on_state_timeout, and once on the
+  ///        AGV's first-ever State (STATE_UNKNOWN to AVAILABLE). Runs on the
+  ///        state-subscriber thread, before on_state.
   virtual void on_state_resumed(const std::string& agv_id);
 
   // ===========================================================================
   // Master-broker connection event triggers
   // ===========================================================================
   //
-  // Fired when the underlying MQTT client reports the master's own
-  // connection to the broker has been lost or (re)established. Distinct
-  // from `on_connect` / `on_offline` / `on_connection_broken`, which
-  // report per-AGV last-will / heartbeat events. These virtuals are
-  // additive to the existing per-AGV surface — the AGV-side virtuals
-  // still fire when AGVs publish on the connection topic.
-  //
-  // Threading: invoked on the MQTT transport's I/O thread. Override
-  // implementations must be thread-safe with respect to any state
-  // they touch and should return promptly to avoid stalling the
-  // transport's reconnect loop.
+  // Fired when the master's OWN broker connection drops or (re)establishes —
+  // distinct from the per-AGV on_connect/on_offline/on_connection_broken hooks.
+  // Invoked on the MQTT transport I/O thread: overrides must be thread-safe and
+  // return promptly so they don't stall Paho's reconnect loop.
 
-  /// \brief Fired when the master's MQTT-broker connection drops.
-  ///
-  /// The library has already updated `get_broker_status()` to
-  /// `connected = false` and stamped `last_disconnect_at = now()` before
-  /// this virtual is dispatched. FMS use this to alert operators that
-  /// orders cannot currently flow through to AGVs (queued orders will
-  /// remain queued and will retry once Paho's auto-reconnect succeeds).
-  ///
-  /// Default impl is empty.
+  /// \brief Fired when the master's broker connection drops
+  ///        (get_broker_status() already reflects it). Orders can't flow to
+  ///        AGVs until Paho auto-reconnects; queued orders stay queued.
   virtual void on_broker_disconnected();
 
-  /// \brief Fired when the master's MQTT-broker connection is
-  ///        (re)established.
-  ///
-  /// Fires once on initial successful connect AND once on every Paho-
-  /// driven auto-reconnect. The library has already updated
-  /// `get_broker_status()` to `connected = true` and incremented
-  /// `reconnect_count` before this virtual is dispatched. FMS may
-  /// inspect `get_broker_status().reconnect_count` to distinguish
-  /// the first connect from a recovery.
-  ///
-  /// Default impl is empty.
+  /// \brief Fired on initial connect and on every Paho auto-reconnect
+  ///        (get_broker_status().reconnect_count distinguishes them).
   virtual void on_broker_reconnected();
 
 private:
@@ -653,12 +437,9 @@ private:
 
   std::shared_ptr<AGV> get_agv_by_id(const std::string& agv_id) const;
 
-  // Build an AGV instance. Caller must hold `agv_mutex_` and is
-  // responsible for inserting the returned shared_ptr into `agvs_` and
-  // calling `setup_subscriptions()` AFTER releasing `agv_mutex_` —
-  // SUBSCRIBE can race with inbound PUBLISH on Paho's network thread,
-  // and the resulting on_state -> get_agv() callback would deadlock if
-  // we held the mutex while subscribing.
+  // Build an AGV. Caller holds `agv_mutex_`; insert into `agvs_` and call
+  // setup_subscriptions() AFTER releasing it: subscribing under the mutex can
+  // deadlock against an inbound on_state -> get_agv() on Paho's network thread.
   std::shared_ptr<AGV> create_agv_locked(
     const std::string& interface_name, const std::string& manufacturer,
     const std::string& serial_number, std::size_t max_queue_size,

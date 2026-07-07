@@ -28,13 +28,12 @@
 
 #include "vda5050_core/master/agv.hpp"
 
-namespace vda5050_core::master::test {
+namespace vda5050_core {
+namespace master {
+namespace test {
 
-/**
- * @brief Common test fixture for AGV unit tests
- *
- * Provides helper methods for creating AGV instances and test messages.
- */
+/// \brief Common test fixture for AGV unit tests: helpers to build AGVs and
+///        test messages.
 class AGVTestFixture : public ::testing::Test
 {
 protected:
@@ -166,6 +165,8 @@ protected:
   std::string agv_id_;
 };
 
-}  // namespace vda5050_core::master::test
+}  // namespace test
+}  // namespace master
+}  // namespace vda5050_core
 
 #endif  // MASTER__TEST_FIXTURE_AGV_HPP_

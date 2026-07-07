@@ -43,11 +43,8 @@ class InstantActionsPublisher
 public:
   InstantActionsPublisher() = default;
 
-  /// \brief Validate and publish an InstantActions message.
-  ///
-  /// Runs schema → online → operating-mode gate → capability → action
-  /// conflict, short-circuiting on the first failure, and publishes only if
-  /// all pass.
+  /// \brief Validate instant actions (schema, online, mode gate, capability,
+  ///        action conflict) and publish only if all pass.
   ///
   /// \param adapter  per-AGV typed adapter (caller-owned)
   /// \param ctx      AGV readiness snapshot, built by the caller

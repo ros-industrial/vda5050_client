@@ -25,6 +25,10 @@
 #include <utility>
 #include <vector>
 
+#include "vda5050_core/master/connection/connection_update_detector.hpp"
+#include "vda5050_core/master/state/state_update_detector.hpp"
+#include "vda5050_core/master/updates/agv_updates.hpp"
+
 namespace vda5050_core {
 namespace master {
 

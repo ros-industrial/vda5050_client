@@ -24,125 +24,21 @@
 #include <string>
 #include <typeindex>
 #include <unordered_map>
-#include <utility>
-#include <vector>
 
 #include "vda5050_core/execution/base.hpp"
 #include "vda5050_core/execution/context_interface.hpp"
 #include "vda5050_core/execution/provider.hpp"
-#include "vda5050_core/master/connection/connection_update_detector.hpp"
-#include "vda5050_core/master/state/state_update_detector.hpp"
+#include "vda5050_core/master/updates/agv_updates.hpp"
 #include "vda5050_core/types/connection.hpp"
-#include "vda5050_core/types/error.hpp"
-#include "vda5050_core/types/load.hpp"
-#include "vda5050_core/types/operating_mode.hpp"
 #include "vda5050_core/types/state.hpp"
 
 namespace vda5050_core {
 
 namespace master {
 
-/// \brief A node the AGV newly reported as reached.
-struct NodeReachedUpdate
-: execution::Initialize<NodeReachedUpdate, execution::UpdateBase>
-{
-  std::string agv_id;
-  update::ReachedNode node;
-  NodeReachedUpdate(std::string id, update::ReachedNode n)
-  : agv_id(std::move(id)), node(std::move(n))
-  {
-  }
-};
-
-/// \brief Errors that appeared and/or cleared since the previous State.
-struct ErrorsChangedUpdate
-: execution::Initialize<ErrorsChangedUpdate, execution::UpdateBase>
-{
-  std::string agv_id;
-  std::vector<types::Error> appeared;
-  std::vector<types::Error> resolved;
-  ErrorsChangedUpdate(
-    std::string id, std::vector<types::Error> a, std::vector<types::Error> r)
-  : agv_id(std::move(id)), appeared(std::move(a)), resolved(std::move(r))
-  {
-  }
-};
-
-/// \brief The AGV's connection state changed (or first report).
-struct ConnectionChangedUpdate
-: execution::Initialize<ConnectionChangedUpdate, execution::UpdateBase>
-{
-  std::string agv_id;
-  ConnectionTransition kind;
-  ConnectionChangedUpdate(std::string id, ConnectionTransition k)
-  : agv_id(std::move(id)), kind(k)
-  {
-  }
-};
-
-/// \brief The AGV's operating mode changed. Carries the prev and new mode.
-struct OperatingModeChangedUpdate
-: execution::Initialize<OperatingModeChangedUpdate, execution::UpdateBase>
-{
-  std::string agv_id;
-  types::OperatingMode mode;       ///< mode after the change
-  types::OperatingMode prev_mode;  ///< mode before the change
-  OperatingModeChangedUpdate(
-    std::string id, types::OperatingMode m, types::OperatingMode p)
-  : agv_id(std::move(id)), mode(m), prev_mode(p)
-  {
-  }
-};
-
-/// \brief The AGV's paused flag changed.
-struct PausedChangedUpdate
-: execution::Initialize<PausedChangedUpdate, execution::UpdateBase>
-{
-  std::string agv_id;
-  bool paused;
-  PausedChangedUpdate(std::string id, bool p) : agv_id(std::move(id)), paused(p)
-  {
-  }
-};
-
-/// \brief The AGV's driving flag changed.
-struct DrivingChangedUpdate
-: execution::Initialize<DrivingChangedUpdate, execution::UpdateBase>
-{
-  std::string agv_id;
-  bool driving;
-  DrivingChangedUpdate(std::string id, bool d)
-  : agv_id(std::move(id)), driving(d)
-  {
-  }
-};
-
-/// \brief The AGV raised a new-base request (rising edge).
-struct NewBaseRequestUpdate
-: execution::Initialize<NewBaseRequestUpdate, execution::UpdateBase>
-{
-  std::string agv_id;
-  explicit NewBaseRequestUpdate(std::string id) : agv_id(std::move(id)) {}
-};
-
-/// \brief The AGV's load set changed.
-struct LoadsChangedUpdate
-: execution::Initialize<LoadsChangedUpdate, execution::UpdateBase>
-{
-  std::string agv_id;
-  std::vector<types::Load> loads;
-  LoadsChangedUpdate(std::string id, std::vector<types::Load> l)
-  : agv_id(std::move(id)), loads(std::move(l))
-  {
-  }
-};
-
-/// \brief Fleet-wide context: turns each AGV's inbound State / Connection into
-/// typed updates on one shared Provider, each stamped with its agv_id.
-///
-/// One instance serves every AGV; per-AGV baselines are tracked internally.
-/// Producer-only — subscribers filter by agv_id. on_state / on_connection are
-/// safe to call from multiple AGV callback threads.
+/// \brief Diffs every AGV's State / Connection into typed updates (tagged with
+///        agv_id) on one shared Provider. One instance for the fleet; per-AGV
+///        baselines are mutex-guarded. Producer-only.
 class MasterContext : public execution::ContextInterface
 {
 public:
@@ -170,8 +66,7 @@ protected:
     std::type_index type) const override;
 
 private:
-  // Previous State / Connection per AGV. Shared across all AGVs, so mutex_
-  // guards both maps; updates are published outside the lock.
+  // Per-AGV baselines, guarded by mutex_.
   mutable std::mutex mutex_;
   std::unordered_map<std::string, types::State> prev_states_;
   std::unordered_map<std::string, types::Connection> prev_connections_;

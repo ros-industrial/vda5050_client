@@ -308,6 +308,61 @@ TEST(MasterContextTest, ErrorDescriptionChangeIsNotAnErrorChange)
   EXPECT_EQ(count, 0);
 }
 
+// Error identity includes references: same type but different references is a
+// different error -> the old one resolves and the new one appears.
+TEST(MasterContextTest, ErrorReferenceChangeIsANewError)
+{
+  MasterContext context;
+
+  std::optional<ErrorsChangedUpdate> got;
+  context.provider()->on<ErrorsChangedUpdate>(
+    [&](std::shared_ptr<ErrorsChangedUpdate> u) { got = *u; });
+
+  auto error_at = [](const std::string& ref_value) {
+    types::Error e;
+    e.error_type = "someError";
+    types::ErrorReference r;
+    r.reference_key = "node";
+    r.reference_value = ref_value;
+    e.error_references = std::vector<types::ErrorReference>{r};
+    return e;
+  };
+
+  types::State first;
+  first.errors.push_back(error_at("nodeA"));
+  context.on_state("agv1", first);  // seed
+
+  types::State second;
+  second.errors.push_back(error_at("nodeB"));  // same type, different reference
+  context.on_state("agv1", second);
+
+  ASSERT_TRUE(got.has_value());
+  ASSERT_EQ(got->appeared.size(), 1u);
+  EXPECT_EQ(got->appeared[0].error_references->at(0).reference_value, "nodeB");
+  ASSERT_EQ(got->resolved.size(), 1u);
+  EXPECT_EQ(got->resolved[0].error_references->at(0).reference_value, "nodeA");
+}
+
+// The staleness guard uses strict `<`: a State whose header_id EQUALS the
+// baseline is not dropped (only strictly-older is), so it diffs normally --
+// an equal-id change fires, an equal-id duplicate is idempotent.
+TEST(MasterContextTest, EqualHeaderIdPassesGuard)
+{
+  MasterContext context;
+
+  std::vector<NodeReachedUpdate> reached;
+  context.provider()->on<NodeReachedUpdate>(
+    [&](std::shared_ptr<NodeReachedUpdate> u) { reached.push_back(*u); });
+
+  context.on_state("agv1", state_with_last_node("n0", 0, 7));  // seed, header 7
+  context.on_state(
+    "agv1", state_with_last_node("n1", 2, 7));  // equal id: fires
+  ASSERT_EQ(reached.size(), 1u);
+  context.on_state(
+    "agv1", state_with_last_node("n1", 2, 7));  // equal id, no chg
+  EXPECT_EQ(reached.size(), 1u);
+}
+
 // An out-of-order State (older header_id than the baseline) is dropped: it
 // neither fires an update nor overwrites the baseline.
 TEST(MasterContextTest, OutOfOrderStateIsDropped)

@@ -443,35 +443,82 @@ void Adapter::Implementation::handle_init_position(
   std::optional<double> x;
   std::optional<double> y;
   std::optional<double> theta;
+  std::optional<std::string> map_id;
+  std::optional<std::string> last_node_id;
 
-  try
+  for (const auto& parameter : parameters)
   {
-    for (const auto& parameter : parameters)
-    {
-      if (parameter.key == "x")
-        x = std::stod(parameter.value);
-      else if (parameter.key == "y")
-        y = std::stod(parameter.value);
-      else if (parameter.key == "theta")
-        theta = std::stod(parameter.value);
-    }
-  }
-  catch (const std::exception& /*e*/)
-  {
-    execution->failed("Invalid initPosition parameters");
-    return;
+    if (parameter.key == "x")
+      x = std::stod(parameter.value);
+    else if (parameter.key == "y")
+      y = std::stod(parameter.value);
+    else if (parameter.key == "theta")
+      theta = std::stod(parameter.value);
+    else if (parameter.key == "mapId")
+      map_id = parameter.value;
+    else if (parameter.key == "lastNodeId")
+      last_node_id = parameter.value;
   }
 
-  if (!x || !y || !theta)
+  if (!x || !y || !theta || !map_id || !last_node_id)
   {
     execution->failed("Missing initPosition parameters");
+    request_state_publish();
+    return;
   }
 
-  auto position = state_manager->state().agv_position;
-  if (!position.has_value())
+  Pose2D world_pose{x.value(), y.value(), theta.value()};
+
+  if (localization_callback)
   {
-    execution->failed("AGV does not have a position estimate");
-    return;
+    auto execution_wrapper = ActionExecution::make(
+      [this, current_execution = execution, map_id = map_id.value(),
+       last_node_id = last_node_id.value()](
+        types::ActionStatus status, std::optional<std::string> desc) {
+        if (status == types::ActionStatus::FINISHED)
+        {
+          state_manager->set_position_initialized(true);
+          state_manager->set_last_node(last_node_id);
+
+          VDA5050_INFO("Localization successful");
+        }
+
+        if (current_execution->is_finished()) return;
+
+        if (status == types::ActionStatus::FINISHED)
+          current_execution->finished(
+            desc.value_or("Successfully localized the AGV"));
+        if (status == types::ActionStatus::FAILED)
+          current_execution->failed(
+            desc.value_or("Failed to localize the AGV"));
+      });
+
+    auto request = LocalizationRequest(
+      world_pose.x, world_pose.y, world_pose.theta, map_id.value());
+
+    localization_callback(std::move(request), execution_wrapper);
+  }
+  else
+  {
+    auto current_position = state_manager->state().agv_position;
+    if (!current_position.has_value())
+    {
+      execution->failed("No position reported by AGV");
+      request_state_publish();
+      return;
+    }
+
+    VDA5050_INFO(
+      "No localization handler discovered. Applying default transformation "
+      "...");
+
+    Pose2D agv_pose{
+      current_position->x, current_position->y, current_position->theta};
+    Transformation tx = Transformation::calibrate(world_pose, agv_pose);
+    state_manager->set_transformation(tx, map_id.value());
+    state_manager->set_last_node(last_node_id.value());
+
+    execution->finished();
   }
 }
 
@@ -580,7 +627,8 @@ void Adapter::on_action(
 
 //=============================================================================
 void Adapter::on_localize(
-  std::function<Pose2D(double, double, double, std::string)> callback)
+  std::function<void(LocalizationRequest, std::shared_ptr<ActionExecution>)>
+    callback)
 {
   pimpl_->localization_callback = std::move(callback);
 }

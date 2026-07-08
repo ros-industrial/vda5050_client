@@ -119,7 +119,7 @@ public:
   std::function<void(ActionRequest, std::shared_ptr<ActionExecution>)>
     action_callback;
 
-  std::function<Pose2D(double, double, double, std::string)>
+  std::function<void(LocalizationRequest, std::shared_ptr<ActionExecution>)>
     localization_callback;
 
   std::thread dispatch_thread;

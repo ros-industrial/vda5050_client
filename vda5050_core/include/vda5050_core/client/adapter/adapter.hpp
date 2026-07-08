@@ -25,12 +25,11 @@
 #include "vda5050_core/client/adapter/action_execution.hpp"
 #include "vda5050_core/client/adapter/action_request.hpp"
 #include "vda5050_core/client/adapter/edge_request.hpp"
+#include "vda5050_core/client/adapter/localization_request.hpp"
 #include "vda5050_core/client/adapter/node_request.hpp"
 #include "vda5050_core/client/adapter/order_execution.hpp"
 #include "vda5050_core/client/adapter/state_manager.hpp"
 #include "vda5050_core/execution/protocol_adapter.hpp"
-
-#include "vda5050_core/client/adapter/transformation.hpp"
 
 namespace vda5050_core {
 
@@ -62,7 +61,8 @@ public:
       callback);
 
   void on_localize(
-    std::function<Pose2D(double, double, double, std::string)> callback);
+    std::function<void(LocalizationRequest, std::shared_ptr<ActionExecution>)>
+      callback);
 
   std::shared_ptr<StateManager> state_manager();
 

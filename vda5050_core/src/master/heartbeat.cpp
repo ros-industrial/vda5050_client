@@ -55,9 +55,7 @@ void HeartbeatListener::start_connection_heartbeat()
     return;
   }
 
-  // Reset last-report so a long gap before start doesn't fire an immediate
-  // timeout. Use now() directly, not the virtual get_current_time() (tests
-  // mock that to inject skew; resetting through it would defeat their setup).
+  // Reset the baseline so a gap before start doesn't immediately time out.
   {
     std::lock_guard<std::mutex> ts_lock(last_connection_report_mutex_);
     last_connection_report_ = std::chrono::steady_clock::now();
@@ -171,16 +169,14 @@ bool HeartbeatListener::is_timeout()
 //=============================================================================
 void HeartbeatListener::listen()
 {
-  // One callback per timeout episode, reset on recovery; the thread spins
-  // until an explicit stop.
+  // One callback per timeout episode, reset on recovery.
   bool timeout_fired = false;
 
   while (true)
   {
     {
-      // Wait on state_mutex_ (which guards state_) so stop_connection_
-      // heartbeat()'s state change + notify can't be lost; the timeout also
-      // bounds the poll interval. Any non-RUNNING state means stop.
+      // Wait under state_mutex_ so a concurrent stop's state change + notify
+      // isn't lost.
       std::unique_lock<std::mutex> lock(state_mutex_);
       message_received_.wait_for(
         lock, std::chrono::seconds(get_check_interval()),

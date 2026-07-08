@@ -343,9 +343,8 @@ TEST(MasterContextTest, ErrorReferenceChangeIsANewError)
   EXPECT_EQ(got->resolved[0].error_references->at(0).reference_value, "nodeA");
 }
 
-// The staleness guard uses strict `<`: a State whose header_id EQUALS the
-// baseline is not dropped (only strictly-older is), so it diffs normally --
-// an equal-id change fires, an equal-id duplicate is idempotent.
+// The staleness guard uses strict `<`: a State whose header_id equals the
+// baseline still diffs (only strictly-older is dropped).
 TEST(MasterContextTest, EqualHeaderIdPassesGuard)
 {
   MasterContext context;
@@ -419,9 +418,8 @@ TEST(MasterContextTest, GetUpdateIsProducerOnly)
   EXPECT_EQ(context.get_update<NodeReachedUpdate>(), nullptr);
 }
 
-// Two AGVs fed concurrently from separate threads exercise the shared per-AGV
-// maps; run under TSan to prove mutex_ serialises them. Each AGV's stream is
-// independent, so the total update count is deterministic.
+// Two AGVs fed concurrently from separate threads exercise the shared maps
+// under mutex_ (run under TSan); independent streams keep the count exact.
 TEST(MasterContextTest, ConcurrentPerAgvFeedIsThreadSafe)
 {
   MasterContext context;

@@ -49,9 +49,8 @@ public:
   /// \brief Construct a heartbeat listener (call start_connection_heartbeat()
   /// to begin monitoring).
   ///
-  /// Subclassing contract: a derived class overriding the virtuals MUST call
-  /// stop_connection_heartbeat() in its destructor before the base runs — else
-  /// the worker thread can call through a torn-down vtable (vptr race).
+  /// A subclass overriding the virtuals must call stop_connection_heartbeat()
+  /// in its destructor before the base runs (else a worker-thread vptr race).
   HeartbeatListener(
     const std::string& id, const int heartbeat_interval,
     std::function<void()> disconnection_callback);

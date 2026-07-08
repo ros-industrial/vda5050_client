@@ -25,24 +25,34 @@ namespace client {
 
 namespace adapter {
 
+struct Pose2D
+{
+  double x;
+  double y;
+  double theta;
+};
+
 class Transformation
 {
 public:
-  struct Pose2D
-  {
-    double x;
-    double y;
-    double theta;
-  };
+  static Transformation calibrate(
+    const Pose2D& world_pose, const Pose2D& agv_pose);
 
-  explicit Transformation(Pose2D calibration);
+  Pose2D to_world_pose(const Pose2D& agv_pose) const;
 
-  Pose2D transform_to_world(Pose2D local);
-
-  Pose2D transform_to_local(Pose2D world);
+  Pose2D to_agv_pose(const Pose2D& world_pose) const;
 
 private:
-  Pose2D calibration_point_;
+  explicit Transformation(const Pose2D& world_to_agv);
+
+  static Pose2D transform(const Pose2D& tf, const Pose2D& pose);
+
+  static Pose2D inverse(const Pose2D& pose);
+
+  static double normalize_angle(double angle);
+
+  Pose2D world_to_agv_;
+  Pose2D agv_to_world_;
 };
 
 }  // namespace adapter

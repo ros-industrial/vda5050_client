@@ -67,8 +67,8 @@ TEST(MasterContextTest, NodeReachedOnLastNodeAdvance)
   context.on_state("agv1", state_with_last_node("n1", 2));
   ASSERT_EQ(reached.size(), 1u);
   EXPECT_EQ(reached[0].agv_id, "agv1");
-  EXPECT_EQ(reached[0].node.node_id, "n1");
-  EXPECT_EQ(reached[0].node.sequence_id, 2u);
+  EXPECT_EQ(reached[0].node_id, "n1");
+  EXPECT_EQ(reached[0].sequence_id, 2u);
 
   // Re-sending the same State pushes nothing further.
   context.on_state("agv1", state_with_last_node("n1", 2));
@@ -94,7 +94,7 @@ TEST(MasterContextTest, TracksBaselinePerAgv)
   context.on_state("agv2", state_with_last_node("n0", 0));
   ASSERT_EQ(reached.size(), 1u);
   EXPECT_EQ(reached[0].agv_id, "agv1");
-  EXPECT_EQ(reached[0].node.node_id, "n1");
+  EXPECT_EQ(reached[0].node_id, "n1");
 }
 
 // The first Connection message is itself a transition (CONNECTED for ONLINE);
@@ -384,7 +384,7 @@ TEST(MasterContextTest, OutOfOrderStateIsDropped)
   // Baseline still n2, so a genuinely newer State diffs against n2, not n1.
   context.on_state("agv1", state_with_last_node("n3", 6, 4));
   ASSERT_EQ(reached.size(), 2u);
-  EXPECT_EQ(reached[1].node.node_id, "n3");
+  EXPECT_EQ(reached[1].node_id, "n3");
 }
 
 // After a reconnect (CONNECTED edge) the stale baseline is dropped, so the
@@ -407,7 +407,7 @@ TEST(MasterContextTest, ReconnectReseedsStateBaseline)
   EXPECT_TRUE(reached.empty());
   context.on_state("agv1", state_with_last_node("n1", 2, 2));
   ASSERT_EQ(reached.size(), 1u);
-  EXPECT_EQ(reached[0].node.node_id, "n1");
+  EXPECT_EQ(reached[0].node_id, "n1");
 }
 
 // Producer-only: no per-type cache (per-AGV latest lives on the AGV).

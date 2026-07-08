@@ -21,7 +21,6 @@
 #include <algorithm>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <typeindex>
 #include <utility>
 #include <vector>
@@ -56,17 +55,11 @@ std::vector<types::Error> errors_diff(
   return diff;
 }
 
-std::optional<ReachedNode> newly_reached_node(
-  const types::State& prev, const types::State& curr)
+bool newly_reached_node(const types::State& prev, const types::State& curr)
 {
-  if (curr.last_node_id.empty()) return std::nullopt;
-  if (
-    curr.last_node_id == prev.last_node_id &&
-    curr.last_node_sequence_id == prev.last_node_sequence_id)
-  {
-    return std::nullopt;
-  }
-  return ReachedNode{curr.last_node_id, curr.last_node_sequence_id};
+  if (curr.last_node_id.empty()) return false;
+  return curr.last_node_id != prev.last_node_id ||
+         curr.last_node_sequence_id != prev.last_node_sequence_id;
 }
 
 std::vector<types::Error> errors_appeared(
@@ -149,10 +142,10 @@ void MasterContext::on_state(
     {
       const auto& prev = it->second;
 
-      if (auto reached = newly_reached_node(prev, state))
+      if (newly_reached_node(prev, state))
       {
-        updates.push_back(
-          std::make_shared<NodeReachedUpdate>(agv_id, *reached));
+        updates.push_back(std::make_shared<NodeReachedUpdate>(
+          agv_id, state.last_node_id, state.last_node_sequence_id));
       }
 
       auto appeared = errors_appeared(prev, state);

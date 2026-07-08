@@ -33,13 +33,6 @@ namespace vda5050_core {
 
 namespace master {
 
-/// \brief A node the AGV reports as reached (lastNodeId + lastNodeSequenceId).
-struct ReachedNode
-{
-  std::string node_id;
-  uint32_t sequence_id;
-};
-
 /// \brief Kind of connection-state transition. CONNECTIONBROKEN = broker
 /// last-will (unexpected drop); OFFLINE = graceful.
 enum class ConnectionTransition
@@ -50,14 +43,16 @@ enum class ConnectionTransition
   CONNECTIONBROKEN,
 };
 
-/// \brief A node the AGV newly reported as reached.
+/// \brief A node the AGV newly reported as reached (lastNodeId +
+/// lastNodeSequenceId).
 struct NodeReachedUpdate
 : execution::Initialize<NodeReachedUpdate, execution::UpdateBase>
 {
   std::string agv_id;
-  ReachedNode node;
-  NodeReachedUpdate(std::string id, ReachedNode n)
-  : agv_id(std::move(id)), node(std::move(n))
+  std::string node_id;
+  uint32_t sequence_id;
+  NodeReachedUpdate(std::string id, std::string node, uint32_t sequence)
+  : agv_id(std::move(id)), node_id(std::move(node)), sequence_id(sequence)
   {
   }
 };

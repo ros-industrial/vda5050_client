@@ -23,10 +23,10 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "vda5050_core/types/action_state.hpp"
-#include "vda5050_core/types/agv_position.hpp"
 #include "vda5050_core/types/battery_state.hpp"
 #include "vda5050_core/types/error.hpp"
 #include "vda5050_core/types/info.hpp"
@@ -94,6 +94,11 @@ public:
 
   void remove_information();
 
+  void set_transformation(
+    const Transformation& transformation, const std::string& map_id);
+
+  std::optional<Transformation> transformation(const std::string& map_id) const;
+
   types::State state() const;
 
   void mark_publish_requested();
@@ -113,16 +118,16 @@ private:
 
   void clear_order();
 
-  void set_agv_position(const types::AGVPosition& position);
+  void set_position_initialized(bool position_initialized_);
 
-  void set_transformation(const Transformation& transformation);
+  void set_last_node(const std::string& node_id, uint32_t sequence_id = 0);
 
   mutable std::mutex mutex_;
   types::State state_;
 
-  std::optional<Transformation> transformation_;
   bool position_initialized_;
-  std::string map_id_;
+
+  std::unordered_map<std::string, Transformation> transformation_;
 
   std::atomic_bool publish_requested_;
 };

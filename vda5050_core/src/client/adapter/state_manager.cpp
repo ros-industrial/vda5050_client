@@ -37,14 +37,28 @@ std::shared_ptr<StateManager> StateManager::make()
 void StateManager::set_position(
   double x, double y, double theta, const std::string& map_id)
 {
+  std::lock_guard<std::mutex> lock(mutex_);
+
   types::AGVPosition agv_position;
-  agv_position.x = x;
-  agv_position.y = y;
-  agv_position.theta = theta;
   agv_position.map_id = map_id;
   agv_position.position_initialized = position_initialized_;
 
-  set_agv_position(agv_position);
+  auto it = transformation_.find(map_id);
+  if (it != transformation_.end())
+  {
+    auto world_pose = it->second.to_world_pose({x, y, theta});
+    agv_position.x = world_pose.x;
+    agv_position.y = world_pose.y;
+    agv_position.theta = world_pose.theta;
+  }
+  else
+  {
+    agv_position.x = x;
+    agv_position.y = y;
+    agv_position.theta = theta;
+  }
+
+  state_.agv_position = std::move(agv_position);
 }
 
 //=============================================================================
@@ -225,6 +239,24 @@ void StateManager::remove_information()
 }
 
 //=============================================================================
+void StateManager::set_transformation(
+  const Transformation& transformation, const std::string& map_id)
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  transformation_.insert_or_assign(map_id, transformation);
+}
+
+//=============================================================================
+std::optional<Transformation> StateManager::transformation(
+  const std::string& map_id) const
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  auto it = transformation_.find(map_id);
+  if (it != transformation_.end()) return it->second;
+  return std::nullopt;
+}
+
+//=============================================================================
 types::State StateManager::state() const
 {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -340,22 +372,20 @@ void StateManager::clear_order()
 }
 
 //=============================================================================
-void StateManager::set_agv_position(const types::AGVPosition& position)
+void StateManager::set_position_initialized(bool position_initialized)
 {
   std::lock_guard<std::mutex> lock(mutex_);
-  state_.agv_position = position;
-
-  if (position.position_initialized)
-  {
-    position_initialized_ = true;
-    map_id_ = position.map_id;
-  }
+  position_initialized_ = position_initialized;
 }
 
 //=============================================================================
-void StateManager::set_transformation(const Transformation& transformation)
+void StateManager::set_last_node(
+  const std::string& node_id, uint32_t sequence_id)
 {
-  *transformation_ = transformation;
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  state_.last_node_id = node_id;
+  state_.last_node_sequence_id = sequence_id;
 }
 
 }  // namespace adapter

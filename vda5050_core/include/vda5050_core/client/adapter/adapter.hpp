@@ -30,6 +30,8 @@
 #include "vda5050_core/client/adapter/state_manager.hpp"
 #include "vda5050_core/execution/protocol_adapter.hpp"
 
+#include "vda5050_core/client/adapter/transformation.hpp"
+
 namespace vda5050_core {
 
 namespace client {
@@ -58,6 +60,9 @@ public:
   void on_action(
     std::function<void(ActionRequest, std::shared_ptr<ActionExecution>)>
       callback);
+
+  void on_localize(
+    std::function<Pose2D(double, double, double, std::string)> callback);
 
   std::shared_ptr<StateManager> state_manager();
 

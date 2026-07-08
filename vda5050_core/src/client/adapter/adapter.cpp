@@ -29,6 +29,7 @@
 
 #include "adapter_impl.hpp"
 #include "vda5050_core/client/adapter/adapter.hpp"
+#include "vda5050_core/client/adapter/transformation.hpp"
 
 namespace vda5050_core {
 
@@ -438,6 +439,40 @@ void Adapter::Implementation::handle_init_position(
   std::shared_ptr<ActionExecution> execution)
 {
   VDA5050_INFO("Received initPosition");
+
+  std::optional<double> x;
+  std::optional<double> y;
+  std::optional<double> theta;
+
+  try
+  {
+    for (const auto& parameter : parameters)
+    {
+      if (parameter.key == "x")
+        x = std::stod(parameter.value);
+      else if (parameter.key == "y")
+        y = std::stod(parameter.value);
+      else if (parameter.key == "theta")
+        theta = std::stod(parameter.value);
+    }
+  }
+  catch (const std::exception& /*e*/)
+  {
+    execution->failed("Invalid initPosition parameters");
+    return;
+  }
+
+  if (!x || !y || !theta)
+  {
+    execution->failed("Missing initPosition parameters");
+  }
+
+  auto position = state_manager->state().agv_position;
+  if (!position.has_value())
+  {
+    execution->failed("AGV does not have a position estimate");
+    return;
+  }
 }
 
 //=============================================================================
@@ -541,6 +576,13 @@ void Adapter::on_action(
   std::function<void(ActionRequest, std::shared_ptr<ActionExecution>)> callback)
 {
   pimpl_->action_callback = std::move(callback);
+}
+
+//=============================================================================
+void Adapter::on_localize(
+  std::function<Pose2D(double, double, double, std::string)> callback)
+{
+  pimpl_->localization_callback = std::move(callback);
 }
 
 //=============================================================================

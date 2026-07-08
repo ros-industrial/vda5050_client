@@ -119,6 +119,9 @@ public:
   std::function<void(ActionRequest, std::shared_ptr<ActionExecution>)>
     action_callback;
 
+  std::function<Pose2D(double, double, double, std::string)>
+    localization_callback;
+
   std::thread dispatch_thread;
   std::thread state_thread;
 

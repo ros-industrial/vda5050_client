@@ -30,23 +30,23 @@ namespace adapter {
 Transformation Transformation::calibrate(
   const Pose2D& world_pose, const Pose2D& agv_pose)
 {
-  return Transformation(transform(world_pose, inverse(agv_pose)));
+  return Transformation(transform_pose(world_pose, inverse(agv_pose)));
 }
 
 //=============================================================================
 Pose2D Transformation::to_world_pose(const Pose2D& agv_pose) const
 {
-  return transform(world_to_agv_, agv_pose);
+  return transform_pose(world_to_agv_, agv_pose);
 }
 
 //=============================================================================
 Pose2D Transformation::to_agv_pose(const Pose2D& world_pose) const
 {
-  return transform(agv_to_world_, world_pose);
+  return transform_pose(agv_to_world_, world_pose);
 }
 
 //=============================================================================
-Pose2D Transformation::transform(const Pose2D& tf, const Pose2D& pose)
+Pose2D Transformation::transform_pose(const Pose2D& tf, const Pose2D& pose)
 {
   const auto c = std::cos(tf.theta);
   const auto s = std::sin(tf.theta);

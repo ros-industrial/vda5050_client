@@ -45,7 +45,7 @@ public:
 private:
   explicit Transformation(const Pose2D& world_to_agv);
 
-  static Pose2D transform(const Pose2D& tf, const Pose2D& pose);
+  static Pose2D transform_pose(const Pose2D& tf, const Pose2D& pose);
 
   static Pose2D inverse(const Pose2D& pose);
 

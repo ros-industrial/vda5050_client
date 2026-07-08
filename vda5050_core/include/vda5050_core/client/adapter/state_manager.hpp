@@ -36,6 +36,8 @@
 #include "vda5050_core/types/safety_state.hpp"
 #include "vda5050_core/types/state.hpp"
 
+#include "vda5050_core/client/adapter/transformation.hpp"
+
 namespace vda5050_core {
 
 namespace client {
@@ -113,9 +115,12 @@ private:
 
   void set_agv_position(const types::AGVPosition& position);
 
+  void set_transformation(const Transformation& transformation);
+
   mutable std::mutex mutex_;
   types::State state_;
 
+  std::optional<Transformation> transformation_;
   bool position_initialized_;
   std::string map_id_;
 

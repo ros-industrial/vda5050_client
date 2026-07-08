@@ -352,6 +352,12 @@ void StateManager::set_agv_position(const types::AGVPosition& position)
   }
 }
 
+//=============================================================================
+void StateManager::set_transformation(const Transformation& transformation)
+{
+  *transformation_ = transformation;
+}
+
 }  // namespace adapter
 }  // namespace client
 }  // namespace vda5050_core

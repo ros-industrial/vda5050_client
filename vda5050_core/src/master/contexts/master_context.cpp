@@ -18,6 +18,7 @@
 
 #include "vda5050_core/master/contexts/master_context.hpp"
 
+#include <algorithm>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -25,12 +26,109 @@
 #include <utility>
 #include <vector>
 
-#include "vda5050_core/master/connection/connection_update_detector.hpp"
-#include "vda5050_core/master/state/state_update_detector.hpp"
 #include "vda5050_core/master/updates/agv_updates.hpp"
 
 namespace vda5050_core {
 namespace master {
+
+namespace {
+
+bool same_error(const types::Error& a, const types::Error& b)
+{
+  return a.error_type == b.error_type &&
+         a.error_references == b.error_references &&
+         a.error_description == b.error_description;
+}
+
+// Errors in `from` absent from `against`.
+std::vector<types::Error> errors_diff(
+  const std::vector<types::Error>& from,
+  const std::vector<types::Error>& against)
+{
+  std::vector<types::Error> diff;
+  for (const auto& e : from)
+  {
+    auto it = std::find_if(
+      against.begin(), against.end(),
+      [&e](const types::Error& a) { return same_error(e, a); });
+    if (it == against.end()) diff.push_back(e);
+  }
+  return diff;
+}
+
+std::optional<ReachedNode> newly_reached_node(
+  const types::State& prev, const types::State& curr)
+{
+  if (curr.last_node_id.empty()) return std::nullopt;
+  if (
+    curr.last_node_id == prev.last_node_id &&
+    curr.last_node_sequence_id == prev.last_node_sequence_id)
+  {
+    return std::nullopt;
+  }
+  return ReachedNode{curr.last_node_id, curr.last_node_sequence_id};
+}
+
+std::vector<types::Error> errors_appeared(
+  const types::State& prev, const types::State& curr)
+{
+  return errors_diff(curr.errors, prev.errors);
+}
+
+std::vector<types::Error> errors_resolved(
+  const types::State& prev, const types::State& curr)
+{
+  return errors_diff(prev.errors, curr.errors);
+}
+
+bool new_base_requested(const types::State& prev, const types::State& curr)
+{
+  return curr.new_base_request.value_or(false) &&
+         !prev.new_base_request.value_or(false);
+}
+
+bool mode_changed(const types::State& prev, const types::State& curr)
+{
+  return prev.operating_mode != curr.operating_mode;
+}
+
+bool paused_changed(const types::State& prev, const types::State& curr)
+{
+  return prev.paused.value_or(false) != curr.paused.value_or(false);
+}
+
+bool driving_changed(const types::State& prev, const types::State& curr)
+{
+  return prev.driving != curr.driving;
+}
+
+bool loads_changed(const types::State& prev, const types::State& curr)
+{
+  return prev.loads != curr.loads;
+}
+
+ConnectionTransition detect_connection_transition(
+  const types::Connection* prev, const types::Connection& curr)
+{
+  if (prev && prev->connection_state == curr.connection_state)
+  {
+    return ConnectionTransition::NONE;
+  }
+
+  switch (curr.connection_state)
+  {
+    case types::ConnectionState::ONLINE:
+      return ConnectionTransition::CONNECTED;
+    case types::ConnectionState::OFFLINE:
+      return ConnectionTransition::OFFLINE;
+    case types::ConnectionState::CONNECTIONBROKEN:
+      return ConnectionTransition::CONNECTIONBROKEN;
+  }
+
+  return ConnectionTransition::NONE;
+}
+
+}  // namespace
 
 void MasterContext::init() {}
 
@@ -45,44 +143,44 @@ void MasterContext::on_state(
     {
       const auto& prev = it->second;
 
-      if (auto reached = update::newly_reached_node(prev, state))
+      if (auto reached = newly_reached_node(prev, state))
       {
         updates.push_back(
           std::make_shared<NodeReachedUpdate>(agv_id, *reached));
       }
 
-      auto appeared = update::errors_appeared(prev, state);
-      auto resolved = update::errors_resolved(prev, state);
+      auto appeared = errors_appeared(prev, state);
+      auto resolved = errors_resolved(prev, state);
       if (!appeared.empty() || !resolved.empty())
       {
         updates.push_back(std::make_shared<ErrorsChangedUpdate>(
           agv_id, std::move(appeared), std::move(resolved)));
       }
 
-      if (update::new_base_requested(prev, state))
+      if (new_base_requested(prev, state))
       {
         updates.push_back(std::make_shared<NewBaseRequestUpdate>(agv_id));
       }
 
-      if (update::mode_changed(prev, state))
+      if (mode_changed(prev, state))
       {
         updates.push_back(std::make_shared<OperatingModeChangedUpdate>(
           agv_id, state.operating_mode, prev.operating_mode));
       }
 
-      if (update::paused_changed(prev, state))
+      if (paused_changed(prev, state))
       {
         updates.push_back(std::make_shared<PausedChangedUpdate>(
           agv_id, state.paused.value_or(false)));
       }
 
-      if (update::driving_changed(prev, state))
+      if (driving_changed(prev, state))
       {
         updates.push_back(
           std::make_shared<DrivingChangedUpdate>(agv_id, state.driving));
       }
 
-      if (update::loads_changed(prev, state))
+      if (loads_changed(prev, state))
       {
         updates.push_back(std::make_shared<LoadsChangedUpdate>(
           agv_id, state.loads.value_or(std::vector<types::Load>{})));
@@ -101,10 +199,7 @@ void MasterContext::on_connection(
   {
     std::lock_guard<std::mutex> lock(mutex_);
     const auto it = prev_connections_.find(agv_id);
-    const std::optional<types::Connection> prev =
-      it != prev_connections_.end()
-        ? std::optional<types::Connection>(it->second)
-        : std::nullopt;
+    const auto* prev = it != prev_connections_.end() ? &it->second : nullptr;
     auto kind = detect_connection_transition(prev, connection);
     if (kind != ConnectionTransition::NONE)
     {

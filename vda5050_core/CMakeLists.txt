@@ -344,12 +344,6 @@ if(BUILD_TESTING)
   )
   target_link_libraries(test_master vda5050_core::master)
 
-  ament_add_gmock(test_master_update_detectors
-    test/master/test_unit_state_update_detector.cpp
-    test/master/test_unit_connection_update_detector.cpp
-  )
-  target_link_libraries(test_master_update_detectors vda5050_core::master)
-
   ament_add_gmock(test_master_context
     test/master/test_unit_master_context.cpp
   )

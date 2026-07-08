@@ -227,6 +227,58 @@ TEST(MasterContextTest, OfflineAndBrokenTransitions)
   for (const auto& u : updates) EXPECT_EQ(u.agv_id, "agv1");
 }
 
+// new_base_request is edge-triggered: fires only on false -> true, not on a
+// sustained true or a falling edge.
+TEST(MasterContextTest, NewBaseRequestRisingEdgeOnly)
+{
+  MasterContext context;
+
+  int count = 0;
+  context.provider()->on<NewBaseRequestUpdate>(
+    [&](std::shared_ptr<NewBaseRequestUpdate>) { ++count; });
+
+  types::State off;  // new_base_request unset (false)
+  types::State on;
+  on.new_base_request = true;
+
+  context.on_state("agv1", off);  // seed
+  context.on_state("agv1", on);   // false -> true: fires
+  EXPECT_EQ(count, 1);
+  context.on_state("agv1", on);  // sustained true: no fire
+  EXPECT_EQ(count, 1);
+  context.on_state("agv1", off);  // true -> false: no fire
+  EXPECT_EQ(count, 1);
+}
+
+// A single State that clears an old error and raises a new one yields one
+// ErrorsChangedUpdate carrying both lists.
+TEST(MasterContextTest, ErrorsAppearedAndResolvedInOneUpdate)
+{
+  MasterContext context;
+
+  std::optional<ErrorsChangedUpdate> got;
+  context.provider()->on<ErrorsChangedUpdate>(
+    [&](std::shared_ptr<ErrorsChangedUpdate> u) { got = *u; });
+
+  types::State first;
+  types::Error old_err;
+  old_err.error_type = "old";
+  first.errors.push_back(old_err);
+  context.on_state("agv1", first);  // seed with "old"
+
+  types::State second;
+  types::Error new_err;
+  new_err.error_type = "new";
+  second.errors.push_back(new_err);
+  context.on_state("agv1", second);  // "old" resolved, "new" appeared
+
+  ASSERT_TRUE(got.has_value());
+  ASSERT_EQ(got->appeared.size(), 1u);
+  EXPECT_EQ(got->appeared[0].error_type, "new");
+  ASSERT_EQ(got->resolved.size(), 1u);
+  EXPECT_EQ(got->resolved[0].error_type, "old");
+}
+
 // Producer-only: no per-type cache (per-AGV latest lives on the AGV).
 TEST(MasterContextTest, GetUpdateIsProducerOnly)
 {

@@ -19,13 +19,12 @@
 #ifndef VDA5050_CORE__MASTER__UPDATES__AGV_UPDATES_HPP_
 #define VDA5050_CORE__MASTER__UPDATES__AGV_UPDATES_HPP_
 
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "vda5050_core/execution/base.hpp"
-#include "vda5050_core/master/connection/connection_update_detector.hpp"
-#include "vda5050_core/master/state/state_update_detector.hpp"
 #include "vda5050_core/types/error.hpp"
 #include "vda5050_core/types/load.hpp"
 #include "vda5050_core/types/operating_mode.hpp"
@@ -34,13 +33,30 @@ namespace vda5050_core {
 
 namespace master {
 
+/// \brief A node the AGV reports as reached (lastNodeId + lastNodeSequenceId).
+struct ReachedNode
+{
+  std::string node_id;
+  uint32_t sequence_id;
+};
+
+/// \brief Kind of connection-state transition. CONNECTIONBROKEN = broker
+/// last-will (unexpected drop); OFFLINE = graceful.
+enum class ConnectionTransition
+{
+  NONE,
+  CONNECTED,
+  OFFLINE,
+  CONNECTIONBROKEN,
+};
+
 /// \brief A node the AGV newly reported as reached.
 struct NodeReachedUpdate
 : execution::Initialize<NodeReachedUpdate, execution::UpdateBase>
 {
   std::string agv_id;
-  update::ReachedNode node;
-  NodeReachedUpdate(std::string id, update::ReachedNode n)
+  ReachedNode node;
+  NodeReachedUpdate(std::string id, ReachedNode n)
   : agv_id(std::move(id)), node(std::move(n))
   {
   }

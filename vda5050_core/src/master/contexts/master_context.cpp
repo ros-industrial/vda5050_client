@@ -35,9 +35,9 @@ namespace {
 
 bool same_error(const types::Error& a, const types::Error& b)
 {
+  // Identity is type + references; description is prose, not part of identity.
   return a.error_type == b.error_type &&
-         a.error_references == b.error_references &&
-         a.error_description == b.error_description;
+         a.error_references == b.error_references;
 }
 
 // Errors in `from` absent from `against`.

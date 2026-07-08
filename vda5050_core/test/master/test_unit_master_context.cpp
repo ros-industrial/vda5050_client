@@ -281,6 +281,33 @@ TEST(MasterContextTest, ErrorsAppearedAndResolvedInOneUpdate)
   EXPECT_EQ(got->resolved[0].error_type, "old");
 }
 
+// Error identity is type + references, not description: a reworded description
+// on the same error is not reported as resolved-then-reappeared.
+TEST(MasterContextTest, ErrorDescriptionChangeIsNotAnErrorChange)
+{
+  MasterContext context;
+
+  int count = 0;
+  context.provider()->on<ErrorsChangedUpdate>(
+    [&](std::shared_ptr<ErrorsChangedUpdate>) { ++count; });
+
+  types::State first;
+  types::Error e1;
+  e1.error_type = "someError";
+  e1.error_description = "initial wording";
+  first.errors.push_back(e1);
+  context.on_state("agv1", first);  // seed
+
+  types::State second;
+  types::Error e2;
+  e2.error_type = "someError";
+  e2.error_description = "reworded, same error";
+  second.errors.push_back(e2);
+  context.on_state("agv1", second);  // only the description changed
+
+  EXPECT_EQ(count, 0);
+}
+
 // An out-of-order State (older header_id than the baseline) is dropped: it
 // neither fires an update nor overwrites the baseline.
 TEST(MasterContextTest, OutOfOrderStateIsDropped)

@@ -32,11 +32,13 @@ namespace vda5050_core::master::test {
 
 namespace {
 
-types::State state_with_last_node(const std::string& id, uint32_t seq)
+types::State state_with_last_node(
+  const std::string& id, uint32_t seq, uint32_t header_id = 0)
 {
   types::State s;
   s.last_node_id = id;
   s.last_node_sequence_id = seq;
+  s.header.header_id = header_id;
   return s;
 }
 
@@ -277,6 +279,53 @@ TEST(MasterContextTest, ErrorsAppearedAndResolvedInOneUpdate)
   EXPECT_EQ(got->appeared[0].error_type, "new");
   ASSERT_EQ(got->resolved.size(), 1u);
   EXPECT_EQ(got->resolved[0].error_type, "old");
+}
+
+// An out-of-order State (older header_id than the baseline) is dropped: it
+// neither fires an update nor overwrites the baseline.
+TEST(MasterContextTest, OutOfOrderStateIsDropped)
+{
+  MasterContext context;
+
+  std::vector<NodeReachedUpdate> reached;
+  context.provider()->on<NodeReachedUpdate>(
+    [&](std::shared_ptr<NodeReachedUpdate> u) { reached.push_back(*u); });
+
+  context.on_state("agv1", state_with_last_node("n0", 0, 1));  // seed
+  context.on_state("agv1", state_with_last_node("n2", 4, 3));  // advance
+  ASSERT_EQ(reached.size(), 1u);
+
+  // Older header_id carrying an earlier node: dropped, no fire.
+  context.on_state("agv1", state_with_last_node("n1", 2, 2));
+  EXPECT_EQ(reached.size(), 1u);
+
+  // Baseline still n2, so a genuinely newer State diffs against n2, not n1.
+  context.on_state("agv1", state_with_last_node("n3", 6, 4));
+  ASSERT_EQ(reached.size(), 2u);
+  EXPECT_EQ(reached[1].node.node_id, "n3");
+}
+
+// After a reconnect (CONNECTED edge) the stale baseline is dropped, so the
+// AGV's restarted low header_ids are accepted and re-seed instead of blocked.
+TEST(MasterContextTest, ReconnectReseedsStateBaseline)
+{
+  MasterContext context;
+
+  std::vector<NodeReachedUpdate> reached;
+  context.provider()->on<NodeReachedUpdate>(
+    [&](std::shared_ptr<NodeReachedUpdate> u) { reached.push_back(*u); });
+
+  context.on_connection("agv1", connection(types::ConnectionState::ONLINE));
+  context.on_state("agv1", state_with_last_node("n0", 0, 5000));  // session 1
+  context.on_connection("agv1", connection(types::ConnectionState::OFFLINE));
+  context.on_connection("agv1", connection(types::ConnectionState::ONLINE));
+
+  // Session 2: fresh low header_id re-seeds (no fire), then advances normally.
+  context.on_state("agv1", state_with_last_node("n0", 0, 1));
+  EXPECT_TRUE(reached.empty());
+  context.on_state("agv1", state_with_last_node("n1", 2, 2));
+  ASSERT_EQ(reached.size(), 1u);
+  EXPECT_EQ(reached[0].node.node_id, "n1");
 }
 
 // Producer-only: no per-type cache (per-AGV latest lives on the AGV).

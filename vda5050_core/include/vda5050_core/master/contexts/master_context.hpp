@@ -48,7 +48,7 @@ public:
   void init() override;
 
   /// \brief Diff a newly received State for `agv_id` and publish an update
-  ///        per transition.
+  ///        per transition. Out-of-order States (older header_id) are dropped.
   void on_state(const std::string& agv_id, const types::State& state);
 
   /// \brief Diff a newly received Connection for `agv_id` and publish on a

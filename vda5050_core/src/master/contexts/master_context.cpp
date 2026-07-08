@@ -139,6 +139,12 @@ void MasterContext::on_state(
   {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = prev_states_.find(agv_id);
+    if (
+      it != prev_states_.end() &&
+      state.header.header_id < it->second.header.header_id)
+    {
+      return;  // out-of-order / stale State: drop
+    }
     if (it != prev_states_.end())
     {
       const auto& prev = it->second;
@@ -204,6 +210,10 @@ void MasterContext::on_connection(
     if (kind != ConnectionTransition::NONE)
     {
       update = std::make_shared<ConnectionChangedUpdate>(agv_id, kind);
+    }
+    if (kind == ConnectionTransition::CONNECTED)
+    {
+      prev_states_.erase(agv_id);  // reconnect: drop stale baseline to reseed
     }
     prev_connections_[agv_id] = connection;
   }

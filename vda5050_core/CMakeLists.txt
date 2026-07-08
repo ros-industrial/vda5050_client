@@ -350,10 +350,10 @@ if(BUILD_TESTING)
   )
   target_link_libraries(test_master_update_detectors vda5050_core::master)
 
-  ament_add_gmock(test_master_agv_update_context
-    test/master/test_unit_agv_update_context.cpp
+  ament_add_gmock(test_master_context
+    test/master/test_unit_master_context.cpp
   )
-  target_link_libraries(test_master_agv_update_context vda5050_core::master)
+  target_link_libraries(test_master_context vda5050_core::master)
 
   ament_add_gmock(test_validation
     test/validation/test_unit_content_validator.cpp

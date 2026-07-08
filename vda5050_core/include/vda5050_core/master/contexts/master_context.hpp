@@ -16,12 +16,11 @@
  * limitations under the License.
  */
 
-#ifndef VDA5050_CORE__MASTER__CONTEXTS__AGV_UPDATE_CONTEXT_HPP_
-#define VDA5050_CORE__MASTER__CONTEXTS__AGV_UPDATE_CONTEXT_HPP_
+#ifndef VDA5050_CORE__MASTER__CONTEXTS__MASTER_CONTEXT_HPP_
+#define VDA5050_CORE__MASTER__CONTEXTS__MASTER_CONTEXT_HPP_
 
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <string>
 #include <typeindex>
 #include <unordered_map>
@@ -138,63 +137,47 @@ struct LoadsChangedUpdate
   }
 };
 
-/// \brief Per-AGV context: turns inbound State/Connection into typed updates
-/// on its Provider, caching the latest of each type for get_update<T>().
+/// \brief Fleet-wide context: turns each AGV's inbound State / Connection into
+/// typed updates on one shared Provider, each stamped with its agv_id.
 ///
-/// on_state / on_connection must be called from one thread; get_update<T>()
-/// is safe from any thread.
-class AGVUpdateContext : public execution::ContextInterface
+/// One instance serves every AGV; per-AGV baselines are tracked internally.
+/// Producer-only — subscribers filter by agv_id. on_state / on_connection are
+/// safe to call from multiple AGV callback threads.
+class MasterContext : public execution::ContextInterface
 {
 public:
-  /// \brief Construct a context that stamps this AGV's id on every update.
-  ///
-  /// \param agv_id Id stamped on every update this context publishes.
-  explicit AGVUpdateContext(std::string agv_id);
+  MasterContext() = default;
 
-  /// \brief No-op: updates are cached at production, so nothing to register.
+  /// \brief No-op: updates are produced on demand, nothing to register.
   void init() override;
 
-  /// \brief Diff a newly received State and publish an update per transition.
-  ///
-  /// \param state Latest State message for this AGV.
-  void on_state(const types::State& state);
+  /// \brief Diff a newly received State for `agv_id` and publish an update
+  ///        per transition.
+  void on_state(const std::string& agv_id, const types::State& state);
 
-  /// \brief Diff a newly received Connection and publish on a state change.
-  ///
-  /// \param connection Latest Connection message for this AGV.
-  void on_connection(const types::Connection& connection);
+  /// \brief Diff a newly received Connection for `agv_id` and publish on a
+  ///        state change.
+  void on_connection(
+    const std::string& agv_id, const types::Connection& connection);
 
 protected:
-  /// \brief Latest cached update of the given type, or nullptr if none.
+  /// \brief Producer-only: the per-AGV latest lives on the AGV, so no cache.
   std::shared_ptr<execution::UpdateBase> get_update_raw(
     std::type_index type) const override;
 
-  /// \brief No resources are cached; always nullptr.
+  /// \brief No resources; always nullptr.
   std::shared_ptr<execution::ResourceBase> get_resource_raw(
     std::type_index type) const override;
 
 private:
-  // Cache the latest of each type, then publish to subscribers.
-  template <typename UpdateT, typename... Args>
-  void publish(Args&&... args)
-  {
-    auto update = std::make_shared<UpdateT>(std::forward<Args>(args)...);
-    cache_update(update);
-    provider()->push_shared(update);
-  }
-
-  void cache_update(const std::shared_ptr<execution::UpdateBase>& update);
-
-  const std::string agv_id_;
-  std::optional<types::State> prev_state_;
-  std::optional<types::Connection> prev_connection_;
-
-  mutable std::mutex storage_mutex_;
-  std::unordered_map<std::type_index, std::shared_ptr<execution::UpdateBase>>
-    updates_;
+  // Previous State / Connection per AGV. Shared across all AGVs, so mutex_
+  // guards both maps; updates are published outside the lock.
+  mutable std::mutex mutex_;
+  std::unordered_map<std::string, types::State> prev_states_;
+  std::unordered_map<std::string, types::Connection> prev_connections_;
 };
 
 }  // namespace master
 }  // namespace vda5050_core
 
-#endif  // VDA5050_CORE__MASTER__CONTEXTS__AGV_UPDATE_CONTEXT_HPP_
+#endif  // VDA5050_CORE__MASTER__CONTEXTS__MASTER_CONTEXT_HPP_

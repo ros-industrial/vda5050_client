@@ -26,7 +26,7 @@
 #include <thread>
 #include <vector>
 
-#include "vda5050_core/master/contexts/agv_update_context.hpp"
+#include "vda5050_core/master/contexts/master_context.hpp"
 
 namespace vda5050_core::master::test {
 
@@ -51,52 +51,74 @@ types::Connection connection(types::ConnectionState s)
 
 // A node advance on a later State pushes exactly one NodeReachedUpdate, tagged
 // with the AGV id. The first State only seeds the baseline.
-TEST(AGVUpdateContextTest, NodeReachedOnLastNodeAdvance)
+TEST(MasterContextTest, NodeReachedOnLastNodeAdvance)
 {
-  AGVUpdateContext context("agv1");
+  MasterContext context;
 
   std::vector<NodeReachedUpdate> reached;
   context.provider()->on<NodeReachedUpdate>(
     [&](std::shared_ptr<NodeReachedUpdate> u) { reached.push_back(*u); });
 
-  context.on_state(state_with_last_node("n0", 0));
+  context.on_state("agv1", state_with_last_node("n0", 0));
   EXPECT_TRUE(reached.empty());
 
-  context.on_state(state_with_last_node("n1", 2));
+  context.on_state("agv1", state_with_last_node("n1", 2));
   ASSERT_EQ(reached.size(), 1u);
   EXPECT_EQ(reached[0].agv_id, "agv1");
   EXPECT_EQ(reached[0].node.node_id, "n1");
   EXPECT_EQ(reached[0].node.sequence_id, 2u);
 
   // Re-sending the same State pushes nothing further.
-  context.on_state(state_with_last_node("n1", 2));
+  context.on_state("agv1", state_with_last_node("n1", 2));
   EXPECT_EQ(reached.size(), 1u);
+}
+
+// One context serves every AGV with an independent baseline: agv1 advancing
+// does not affect agv2's diff.
+TEST(MasterContextTest, TracksBaselinePerAgv)
+{
+  MasterContext context;
+
+  std::vector<NodeReachedUpdate> reached;
+  context.provider()->on<NodeReachedUpdate>(
+    [&](std::shared_ptr<NodeReachedUpdate> u) { reached.push_back(*u); });
+
+  context.on_state("agv1", state_with_last_node("n0", 0));
+  context.on_state("agv2", state_with_last_node("n0", 0));
+  EXPECT_TRUE(reached.empty());
+
+  // Only agv1 advances.
+  context.on_state("agv1", state_with_last_node("n1", 2));
+  context.on_state("agv2", state_with_last_node("n0", 0));
+  ASSERT_EQ(reached.size(), 1u);
+  EXPECT_EQ(reached[0].agv_id, "agv1");
+  EXPECT_EQ(reached[0].node.node_id, "n1");
 }
 
 // The first Connection message is itself a transition (CONNECTED for ONLINE);
 // a sustained state is not.
-TEST(AGVUpdateContextTest, ConnectionTransitionReport)
+TEST(MasterContextTest, ConnectionTransitionReport)
 {
-  AGVUpdateContext context("agv1");
+  MasterContext context;
 
   std::vector<ConnectionChangedUpdate> updates;
   context.provider()->on<ConnectionChangedUpdate>(
     [&](std::shared_ptr<ConnectionChangedUpdate> u) { updates.push_back(*u); });
 
-  context.on_connection(connection(types::ConnectionState::ONLINE));
+  context.on_connection("agv1", connection(types::ConnectionState::ONLINE));
   ASSERT_EQ(updates.size(), 1u);
   EXPECT_EQ(updates[0].agv_id, "agv1");
   EXPECT_EQ(updates[0].kind, ConnectionTransition::CONNECTED);
 
-  context.on_connection(connection(types::ConnectionState::ONLINE));
+  context.on_connection("agv1", connection(types::ConnectionState::ONLINE));
   EXPECT_EQ(updates.size(), 1u);
 }
 
 // Flipping every state flag in one update pushes one value-carrying update per
 // concern, and a new error pushes an ErrorsChangedUpdate.
-TEST(AGVUpdateContextTest, FlagChangesCarryValuesAndErrors)
+TEST(MasterContextTest, FlagChangesCarryValuesAndErrors)
 {
-  AGVUpdateContext context("agv1");
+  MasterContext context;
 
   std::optional<OperatingModeChangedUpdate> mode;
   std::optional<PausedChangedUpdate> paused;
@@ -120,7 +142,7 @@ TEST(AGVUpdateContextTest, FlagChangesCarryValuesAndErrors)
 
   types::State baseline;  // all defaults
   baseline.operating_mode = types::OperatingMode::AUTOMATIC;
-  context.on_state(baseline);
+  context.on_state("agv1", baseline);
 
   types::State s;
   s.new_base_request = true;
@@ -134,7 +156,7 @@ TEST(AGVUpdateContextTest, FlagChangesCarryValuesAndErrors)
   err.error_type = "someError";
   s.errors.push_back(err);
 
-  context.on_state(s);
+  context.on_state("agv1", s);
 
   ASSERT_TRUE(mode.has_value());
   EXPECT_EQ(mode->agv_id, "agv1");
@@ -160,9 +182,9 @@ TEST(AGVUpdateContextTest, FlagChangesCarryValuesAndErrors)
 
 // An error present in the prev State but gone from the current one is reported
 // as resolved.
-TEST(AGVUpdateContextTest, ErrorResolvedIsReported)
+TEST(MasterContextTest, ErrorResolvedIsReported)
 {
-  AGVUpdateContext context("agv1");
+  MasterContext context;
 
   std::vector<ErrorsChangedUpdate> updates;
   context.provider()->on<ErrorsChangedUpdate>(
@@ -173,10 +195,10 @@ TEST(AGVUpdateContextTest, ErrorResolvedIsReported)
   err.error_type = "someError";
   with_error.errors.push_back(err);
 
-  context.on_state(with_error);  // baseline carries the error
+  context.on_state("agv1", with_error);  // baseline carries the error
   EXPECT_TRUE(updates.empty());
 
-  context.on_state(types::State{});  // error cleared
+  context.on_state("agv1", types::State{});  // error cleared
   ASSERT_EQ(updates.size(), 1u);
   EXPECT_EQ(updates[0].agv_id, "agv1");
   EXPECT_TRUE(updates[0].appeared.empty());
@@ -185,17 +207,18 @@ TEST(AGVUpdateContextTest, ErrorResolvedIsReported)
 }
 
 // Each connection-state change is reported with its mapped kind.
-TEST(AGVUpdateContextTest, OfflineAndBrokenTransitions)
+TEST(MasterContextTest, OfflineAndBrokenTransitions)
 {
-  AGVUpdateContext context("agv1");
+  MasterContext context;
 
   std::vector<ConnectionChangedUpdate> updates;
   context.provider()->on<ConnectionChangedUpdate>(
     [&](std::shared_ptr<ConnectionChangedUpdate> u) { updates.push_back(*u); });
 
-  context.on_connection(connection(types::ConnectionState::ONLINE));
-  context.on_connection(connection(types::ConnectionState::OFFLINE));
-  context.on_connection(connection(types::ConnectionState::CONNECTIONBROKEN));
+  context.on_connection("agv1", connection(types::ConnectionState::ONLINE));
+  context.on_connection("agv1", connection(types::ConnectionState::OFFLINE));
+  context.on_connection(
+    "agv1", connection(types::ConnectionState::CONNECTIONBROKEN));
 
   ASSERT_EQ(updates.size(), 3u);
   EXPECT_EQ(updates[0].kind, ConnectionTransition::CONNECTED);
@@ -204,61 +227,40 @@ TEST(AGVUpdateContextTest, OfflineAndBrokenTransitions)
   for (const auto& u : updates) EXPECT_EQ(u.agv_id, "agv1");
 }
 
-// The context caches the latest update of each type for get_update<T>().
-TEST(AGVUpdateContextTest, CachesLatestUpdateForGetUpdate)
+// Producer-only: no per-type cache (per-AGV latest lives on the AGV).
+TEST(MasterContextTest, GetUpdateIsProducerOnly)
 {
-  AGVUpdateContext context("agv1");
-
-  // Nothing produced yet.
-  EXPECT_EQ(context.get_update<OperatingModeChangedUpdate>(), nullptr);
-
-  types::State baseline;
-  baseline.operating_mode = types::OperatingMode::AUTOMATIC;
-  context.on_state(baseline);
-
-  types::State s;
-  s.operating_mode = types::OperatingMode::SEMIAUTOMATIC;
-  context.on_state(s);
-
-  auto cached = context.get_update<OperatingModeChangedUpdate>();
-  ASSERT_NE(cached, nullptr);
-  EXPECT_EQ(cached->mode, types::OperatingMode::SEMIAUTOMATIC);
-  EXPECT_EQ(cached->prev_mode, types::OperatingMode::AUTOMATIC);
+  MasterContext context;
+  context.on_state("agv1", state_with_last_node("n0", 0));
+  context.on_state("agv1", state_with_last_node("n1", 2));
+  EXPECT_EQ(context.get_update<NodeReachedUpdate>(), nullptr);
 }
 
-// One thread drives on_state (the single writer) while others read the cache
-// via get_update. Counts are timing-dependent, so we only assert progress; the
-// value is running this under TSan to prove storage_mutex_ serialises the
-// cache against concurrent readers.
-TEST(AGVUpdateContextTest, ConcurrentCacheAccessIsThreadSafe)
+// Two AGVs fed concurrently from separate threads exercise the shared per-AGV
+// maps; run under TSan to prove mutex_ serialises them. Each AGV's stream is
+// independent, so the total update count is deterministic.
+TEST(MasterContextTest, ConcurrentPerAgvFeedIsThreadSafe)
 {
-  AGVUpdateContext context("agv1");
+  MasterContext context;
 
-  std::atomic<bool> stop{false};
+  std::atomic<int> count{0};
+  context.provider()->on<NodeReachedUpdate>(
+    [&](std::shared_ptr<NodeReachedUpdate>) { count.fetch_add(1); });
+
   constexpr int kIterations = 1000;
-  std::thread writer([&] {
+  auto feed = [&](const std::string& id) {
     for (int i = 0; i < kIterations; ++i)
     {
-      context.on_state(state_with_last_node("n" + std::to_string(i), i));
-    }
-    stop.store(true);
-  });
-
-  std::atomic<int> reads{0};
-  auto reader = [&] {
-    while (!stop.load())
-    {
-      if (context.get_update<NodeReachedUpdate>()) reads.fetch_add(1);
+      context.on_state(id, state_with_last_node("n" + std::to_string(i), i));
     }
   };
-  std::thread r1(reader);
-  std::thread r2(reader);
+  std::thread t1([&] { feed("agv1"); });
+  std::thread t2([&] { feed("agv2"); });
+  t1.join();
+  t2.join();
 
-  writer.join();
-  r1.join();
-  r2.join();
-
-  EXPECT_GT(reads.load(), 0);
+  // Each AGV: the first message seeds; every later one advances the node once.
+  EXPECT_EQ(count.load(), 2 * (kIterations - 1));
 }
 
 }  // namespace vda5050_core::master::test

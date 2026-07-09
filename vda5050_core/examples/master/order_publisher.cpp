@@ -180,6 +180,7 @@ struct MasterContext
   std::mutex mutex;
   MasterState state{MasterState::WAIT_CONNECTION};
   uint32_t order_update_id{0};
+  uint32_t last_node_sequence_id{0};
   bool order_active{false};
 };
 
@@ -232,10 +233,12 @@ int main()
       bool uninitialized = !message.agv_position.has_value() ||
                            !message.agv_position->position_initialized;
 
-      if (context.state == MasterState::WAIT_INITIALIZED_STATE && uninitialized)
+      if (context.state == MasterState::WAIT_UNINITIALIZED_STATE)
       {
-        context.state = MasterState::SEND_INIT_POSITION;
-        return;
+        if (uninitialized)
+          context.state = MasterState::SEND_INIT_POSITION;
+        else
+          context.state = MasterState::SEND_ORDER;
       }
 
       bool initialized = message.agv_position.has_value() &&
@@ -248,7 +251,7 @@ int main()
 
       if (context.state == MasterState::EXECUTING)
       {
-        if (message.node_states.empty() && message.edge_states.empty())
+        if (message.last_node_sequence_id == context.last_node_sequence_id)
         {
           context.state = MasterState::SEND_ORDER;
         }
@@ -269,12 +272,14 @@ int main()
         {
           protocol_adapter->publish<InstantActions>(
             make_factsheet_request(), 0);
+          context.state = MasterState::WAIT_FACTSHEET;
           break;
         }
 
         case MasterState::SEND_STATE_REQUEST:
         {
           protocol_adapter->publish<InstantActions>(make_state_request(), 0);
+          context.state = MasterState::WAIT_UNINITIALIZED_STATE;
           break;
         }
 
@@ -288,8 +293,10 @@ int main()
         case MasterState::SEND_ORDER:
         {
           protocol_adapter->publish<Order>(
-            create_order(context.order_update_id++), 0);
+            create_order(context.order_update_id), 0);
           context.state = MasterState::EXECUTING;
+          context.last_node_sequence_id = context.order_update_id * 6;
+          ++context.order_update_id;
           break;
         }
 

@@ -30,6 +30,7 @@
 #include "vda5050_core/client/adapter/action_request.hpp"
 #include "vda5050_core/client/adapter/adapter.hpp"
 #include "vda5050_core/client/adapter/edge_request.hpp"
+#include "vda5050_core/client/adapter/localization_request.hpp"
 #include "vda5050_core/client/adapter/node_request.hpp"
 #include "vda5050_core/client/adapter/order_execution.hpp"
 
@@ -37,6 +38,7 @@ using vda5050_core::client::adapter::ActionExecution;
 using vda5050_core::client::adapter::ActionRequest;
 using vda5050_core::client::adapter::Adapter;
 using vda5050_core::client::adapter::EdgeRequest;
+using vda5050_core::client::adapter::LocalizationRequest;
 using vda5050_core::client::adapter::NodeRequest;
 using vda5050_core::client::adapter::OrderExecution;
 using vda5050_core::execution::ProtocolAdapter;
@@ -82,6 +84,14 @@ int main()
       execution->finished();
 
       VDA5050_INFO_STREAM("Reached node [" << node_request.node_id() << "]");
+
+      auto position = node_request.node_position();
+      if (position.has_value())
+      {
+        state_manager->set_position(
+          position.value().x, position.value().y,
+          position.value().theta.value_or(0.0), position.value().map_id);
+      }
     }).detach();
   });
 
@@ -96,6 +106,19 @@ int main()
       std::this_thread::sleep_for(std::chrono::seconds(1));
 
       execution->finished();
+    });
+
+  adapter->on_localize(
+    [state_manager](
+      LocalizationRequest request, std::shared_ptr<ActionExecution> execution) {
+      VDA5050_INFO(
+        "Received localization request with point [{}, {}, {}] on map: {}",
+        request.x(), request.y(), request.theta(), request.map_id());
+
+      execution->finished();
+
+      state_manager->set_position(
+        request.x(), request.y(), request.theta(), request.map_id());
     });
 
   adapter->start();

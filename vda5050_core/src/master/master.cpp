@@ -143,6 +143,10 @@ void VDA5050Master::disconnect()
 
   VDA5050_INFO("[VDA5050Master] Disconnecting MQTT client");
   mqtt_client_->disconnect();
+  {
+    std::lock_guard<std::mutex> lock(broker_status_mutex_);
+    broker_connected_ = false;
+  }
   VDA5050_INFO("[VDA5050Master] Disconnected");
 }
 
@@ -277,6 +281,15 @@ std::size_t VDA5050Master::offboard_agv_batch(
     }
   }
 
+  {
+    std::lock_guard<std::mutex> lock(map_mutex_);
+    for (const auto& key : keys)
+    {
+      if (key.first.empty() || key.second.empty()) continue;
+      alignment_cache_.erase(key.first + "/" + key.second);
+    }
+  }
+
   // Drop event-detector baselines so a re-onboard starts clean (idempotent for
   // keys that were not onboarded).
   for (const auto& key : keys)
@@ -358,6 +371,11 @@ void VDA5050Master::offboard_agv(
   {
     std::lock_guard<std::mutex> lock(assignments_mutex_);
     active_assignments_.erase(agv_id);
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(map_mutex_);
+    alignment_cache_.erase(agv_id);
   }
 
   VDA5050_INFO("[VDA5050Master] Offboarded AGV: {}", agv_id);
@@ -456,6 +474,12 @@ void VDA5050Master::fire_hook(
   {
     VDA5050_ERROR(
       "[VDA5050Master] {} hook threw for {}: {}", hook_name, agv_id, e.what());
+  }
+  catch (...)
+  {
+    VDA5050_ERROR(
+      "[VDA5050Master] {} hook threw a non-std exception for {}", hook_name,
+      agv_id);
   }
 }
 
@@ -973,7 +997,12 @@ void VDA5050Master::refresh_alignment_for_agv(
   }
 
   std::lock_guard<std::mutex> lock(map_mutex_);
-  alignment_cache_[agv_id] = std::move(alignment);
+  // Drop the write if the graph was swapped while we computed off-lock — that
+  // swap already recomputed this AGV against the new graph.
+  if (active_graph_ == snap)
+  {
+    alignment_cache_[agv_id] = std::move(alignment);
+  }
 }
 
 void VDA5050Master::on_visualization(
@@ -1062,7 +1091,20 @@ void VDA5050Master::handle_broker_connection_lost(const std::string& cause)
   VDA5050_WARN(
     "[VDA5050Master] Broker connection lost: {}",
     cause.empty() ? "(no cause reported)" : cause.c_str());
-  on_broker_disconnected();
+  // Guard the user override so a throw can't unwind onto the transport thread.
+  try
+  {
+    on_broker_disconnected();
+  }
+  catch (const std::exception& e)
+  {
+    VDA5050_ERROR("[VDA5050Master] on_broker_disconnected threw: {}", e.what());
+  }
+  catch (...)
+  {
+    VDA5050_ERROR(
+      "[VDA5050Master] on_broker_disconnected threw a non-std exception");
+  }
 }
 
 void VDA5050Master::handle_broker_connected(const std::string& cause)
@@ -1077,7 +1119,20 @@ void VDA5050Master::handle_broker_connected(const std::string& cause)
   VDA5050_INFO(
     "[VDA5050Master] Broker connection established (count={}, cause={})", count,
     cause.empty() ? "initial" : cause.c_str());
-  on_broker_reconnected();
+  // Guard the user override so a throw can't unwind onto the transport thread.
+  try
+  {
+    on_broker_reconnected();
+  }
+  catch (const std::exception& e)
+  {
+    VDA5050_ERROR("[VDA5050Master] on_broker_reconnected threw: {}", e.what());
+  }
+  catch (...)
+  {
+    VDA5050_ERROR(
+      "[VDA5050Master] on_broker_reconnected threw a non-std exception");
+  }
 }
 
 }  // namespace vda5050_core::master

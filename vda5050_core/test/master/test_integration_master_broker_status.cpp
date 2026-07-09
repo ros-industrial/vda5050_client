@@ -46,7 +46,11 @@ public:
   void disconnect() override {}
   bool connected() override
   {
-    return false;
+    return connected_;
+  }
+  void set_connected(bool c)
+  {
+    connected_ = c;
   }
   void publish(
     const std::string& /*topic*/, const std::string& /*message*/, int /*qos*/,
@@ -96,6 +100,7 @@ public:
 private:
   ConnectionStateHandler connection_lost_handler_;
   ConnectionStateHandler connected_handler_;
+  bool connected_ = false;
 };
 
 class CallbackTrackingMaster : public VDA5050Master
@@ -154,6 +159,18 @@ TEST_F(BrokerStatusTest, InitialSnapshotShowsDisconnected)
   EXPECT_FALSE(snap.connected);
   EXPECT_EQ(snap.reconnect_count, 0u);
   EXPECT_FALSE(snap.last_disconnect_at.has_value());
+}
+
+TEST_F(BrokerStatusTest, IntentionalDisconnectClearsConnectedFlag)
+{
+  // A clean disconnect() fires no connection_lost callback, so the status must
+  // be cleared explicitly rather than left reporting connected.
+  fake_->fire_connected();
+  fake_->set_connected(true);
+  EXPECT_TRUE(master_->get_broker_status().connected);
+
+  master_->disconnect();
+  EXPECT_FALSE(master_->get_broker_status().connected);
 }
 
 TEST_F(BrokerStatusTest, ConnectedEventDispatchesVirtualAndIncrementsCount)

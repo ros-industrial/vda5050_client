@@ -448,6 +448,13 @@ public:
 
   /// \brief Fired on initial connect and on every Paho auto-reconnect
   ///        (get_broker_status().reconnect_count distinguishes them).
+  ///
+  /// The master does NOT re-issue SUBSCRIBEs on reconnect: with a persistent
+  /// session (clean_session=false) the broker resumes routing to the existing
+  /// subscriptions. If the broker instead lost its session (a restart without
+  /// persistence), no messages will arrive though the connection reports up;
+  /// an override that must survive that case should re-subscribe here (off the
+  /// transport thread — a synchronous subscribe on this thread deadlocks).
   virtual void on_broker_reconnected();
 
 private:

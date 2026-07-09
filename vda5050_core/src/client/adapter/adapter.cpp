@@ -117,6 +117,19 @@ void Adapter::Implementation::subscribe_orders()
         return;
       }
 
+      active->order->node_lookup.clear();
+      active->order->edge_lookup.clear();
+
+      for (std::size_t i = 0; i < order.nodes.size(); ++i)
+      {
+        active->order->node_lookup.emplace(order.nodes[i].sequence_id, i);
+      }
+
+      for (std::size_t i = 0; i < order.edges.size(); ++i)
+      {
+        active->order->edge_lookup.emplace(order.edges[i].sequence_id, i);
+      }
+
       active->order->order = std::move(order);
 
       state_manager->set_order(active->order->order);
@@ -243,6 +256,7 @@ void Adapter::Implementation::process_navigation()
   if (node_it == order_state.node_lookup.end()) return;
 
   const auto& next_node = order.nodes[node_it->second];
+  if (!next_node.released) return;
 
   auto node_request = NodeRequest::from_node(next_node);
 

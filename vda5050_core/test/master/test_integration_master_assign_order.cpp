@@ -316,6 +316,20 @@ TEST_F(MasterAssignOrderTest, ManualMode_Returns_AgvModeNotAuto)
   EXPECT_EQ(res.decision, AssignmentDecision::AGV_MODE_NOT_AUTO);
 }
 
+TEST_F(MasterAssignOrderTest, SemiAutomaticMode_Returns_Assigned)
+{
+  auto agv = master_->get_agv(kManufacturer, kSerial);
+  ASSERT_NE(agv, nullptr);
+  agv->handle_connection(make_online_connection());
+  agv->handle_state(
+    make_ready_state(vda5050_core::types::OperatingMode::SEMIAUTOMATIC));
+
+  // SEMIAUTOMATIC is master-controlled — orders must be accepted, not rejected.
+  auto res =
+    master_->assign_order(kManufacturer, kSerial, make_minimal_order());
+  EXPECT_EQ(res.decision, AssignmentDecision::ASSIGNED);
+}
+
 TEST_F(MasterAssignOrderTest, PositionNotInitialized_Returns_PosNotInit)
 {
   auto agv = master_->get_agv(kManufacturer, kSerial);

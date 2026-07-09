@@ -359,11 +359,16 @@ public:
   /// \param new_mode  the mode now in effect.
   /// \param prev_mode the mode before the change.
   ///
-  /// On the leave-AUTOMATIC edge the outbound queues are already captured into
-  /// a resumable buffer (see agv->get_mode_cancelled_queue()) and drained. On
-  /// the return edge call resume_mode_cancelled_queue() or
-  /// discard_mode_cancelled_queue(), else the buffer is overwritten on the next
-  /// leave-AUTOMATIC.
+  /// When the AGV leaves master control the outbound queues are already
+  /// captured into a resumable buffer (see agv->get_mode_cancelled_queue())
+  /// and drained. On the return edge call resume_mode_cancelled_queue() or
+  /// discard_mode_cancelled_queue(), else the buffer is overwritten on the
+  /// next such transition.
+  ///
+  /// The buffer holds only un-sent orders; an already-dispatched active order
+  /// is not captured. In MANUAL the AGV clears its own orders, so reconciling
+  /// or re-issuing the previously-active order on return is the FMS's
+  /// responsibility.
   virtual void on_mode_changed(
     const std::string& agv_id, vda5050_core::types::OperatingMode new_mode,
     vda5050_core::types::OperatingMode prev_mode);

@@ -23,6 +23,7 @@
 
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
+#include "vda5050_core/validation/operating_mode_control.hpp"
 #include "vda5050_core/validation/predefined_action_types.hpp"
 
 namespace vda5050_core::validation {
@@ -38,12 +39,10 @@ errors::ValidationResult validate_instant_action_mode(
 {
   errors::ValidationResult res;
 
-  // Master control is confirmed only in AUTOMATIC / SEMIAUTOMATIC; any other or
-  // unknown mode is treated conservatively — only exempt actions pass below.
+  // An unknown mode is treated conservatively — only exempt actions pass below.
   const bool master_in_control =
     ctx.last_state.has_value() &&
-    (ctx.last_state->operating_mode == types::OperatingMode::AUTOMATIC ||
-     ctx.last_state->operating_mode == types::OperatingMode::SEMIAUTOMATIC);
+    is_master_in_control(ctx.last_state->operating_mode);
   if (master_in_control) return res;
 
   for (const auto& action : actions.actions)

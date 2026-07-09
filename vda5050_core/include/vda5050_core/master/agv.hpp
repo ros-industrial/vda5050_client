@@ -293,14 +293,14 @@ public:
   // Mode-cancelled queue (capture-and-resume on mode change)
   // ===========================================================================
   //
-  // On the AUTOMATIC→non-AUTOMATIC edge the live outbound queues are captured
-  // into ModeCancelledQueue and drained (the AGV won't execute while out of
-  // AUTOMATIC). Capture runs BEFORE on_mode_changed so an FMS override sees the
-  // buffer populated; on return the FMS calls resume/discard (or ignores it —
-  // the next leave-AUTOMATIC overwrites it).
+  // When the AGV leaves master control (AUTOMATIC/SEMIAUTOMATIC → MANUAL/
+  // SERVICE/TEACHIN) the live outbound queues are captured into
+  // ModeCancelledQueue and drained. Capture runs BEFORE on_mode_changed so an
+  // FMS override sees the buffer populated; on return the FMS calls
+  // resume/discard (or ignores it — the next such transition overwrites it).
 
-  /// Snapshot of queue items captured at the most recent
-  /// AUTOMATIC→non-AUTOMATIC mode transition.
+  /// Snapshot of queue items captured at the most recent transition out of
+  /// master control.
   struct ModeCancelledQueue
   {
     std::vector<vda5050_core::types::Order> orders;
@@ -310,9 +310,9 @@ public:
     std::optional<vda5050_core::types::OperatingMode> to_mode;
   };
 
-  /// \brief Snapshot the mode-cancelled buffer. Empty when no
-  ///        leave-AUTOMATIC has occurred since onboard / since the
-  ///        last resume / discard call.
+  /// \brief Snapshot the mode-cancelled buffer. Empty when the AGV has not
+  ///        left master control since onboard / since the last resume /
+  ///        discard call.
   ///
   /// Thread-safe: takes queue_mutex_; returns a copy.
   ModeCancelledQueue get_mode_cancelled_queue() const;
@@ -401,7 +401,10 @@ private:
   // ===========================================================================
 
   void set_connection_status(vda5050_core::types::ConnectionState status);
-  void set_operational_state(AGVState state);
+  // Returns the effective state after precedence (a STATE_UNKNOWN request is
+  // ignored while UNAVAILABLE/ERROR outrank it), so callers can tell whether
+  // the requested transition actually took effect.
+  AGVState set_operational_state(AGVState state);
   void on_state_heartbeat_timeout();
 
   // Setup/cleanup heartbeat when connection state changes
@@ -488,6 +491,11 @@ private:
 
   std::optional<vda5050_core::types::State> last_state_;
   std::optional<TimePoint> last_state_time_;
+  // Stale-State gate (QoS 0): drop a State whose header_id is not strictly
+  // newer than the last cached one, before the cache and mode-drain diff.
+  // Reset on the reconnect edge so a restarted AGV isn't locked out.
+  uint32_t last_state_header_id_ = 0;
+  bool have_state_baseline_ = false;
 
   std::optional<vda5050_core::types::Factsheet> last_factsheet_;
   std::optional<TimePoint> last_factsheet_time_;
@@ -512,14 +520,14 @@ private:
   std::queue<vda5050_core::types::InstantActions> instant_actions_queue_;
 
   // Mode-cancelled buffer. Protected by queue_mutex_ —
-  // populated by capture_and_drain_on_leave_automatic, drained by
+  // populated by capture_and_drain_on_leave_master_control, drained by
   // resume_mode_cancelled_queue / discard_mode_cancelled_queue.
   ModeCancelledQueue mode_cancelled_queue_;
 
   // Capture the live outbound queues into mode_cancelled_queue_ and drain them.
-  // Called from handle_state on the AUTOMATIC→non-AUTOMATIC edge, before the
+  // Called from handle_state when the AGV leaves master control, before the
   // fleet detector fires on_mode_changed.
-  void capture_and_drain_on_leave_automatic(
+  void capture_and_drain_on_leave_master_control(
     vda5050_core::types::OperatingMode from,
     vda5050_core::types::OperatingMode to);
 

@@ -21,6 +21,7 @@
 #include <atomic>
 #include <chrono>
 #include <memory>
+#include <stdexcept>
 #include <thread>
 #include <vector>
 
@@ -373,4 +374,22 @@ TEST(HeartbeatListenerTest, ConcurrentStopCallsSafe)
   }
 
   ASSERT_EQ(hb_listener.get_state(), HeartbeatState::STOPPED);
+}
+
+TEST(HeartbeatListenerTest, PollIntervalIsFinerThanTimeoutInterval)
+{
+  // Poll period must be shorter than the interval so silence is detected near
+  // the interval, not at ~2x it (a poll period equal to the interval would
+  // always miss the exact-boundary poll and fire one full interval late).
+  HeartbeatListener hb_listener("test_listener", 30, []() {});
+  EXPECT_LT(hb_listener.get_check_interval(), 30);
+  EXPECT_GE(hb_listener.get_check_interval(), 1);
+}
+
+TEST(HeartbeatListenerTest, NonPositiveIntervalThrows)
+{
+  EXPECT_THROW(
+    HeartbeatListener("test_listener", 0, []() {}), std::invalid_argument);
+  EXPECT_THROW(
+    HeartbeatListener("test_listener", -5, []() {}), std::invalid_argument);
 }

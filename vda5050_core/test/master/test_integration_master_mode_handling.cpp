@@ -334,5 +334,94 @@ TEST_F(ModeHandlingTest, EnteringAutomaticDoesNotCaptureOrTouchBuffer)
     << "return-to-AUTOMATIC should not refresh the buffer's timestamp";
 }
 
+TEST_F(ModeHandlingTest, AutomaticToSemiAutomaticDoesNotCapture)
+{
+  // SEMIAUTOMATIC is still master-controlled — the AGV keeps executing orders,
+  // so the outbound queue must NOT be drained on this transition.
+  agv_->handle_state(make_state(vda5050_core::types::OperatingMode::AUTOMATIC));
+  agv_->send_order(make_order("O1"));
+  agv_->handle_state(
+    make_state(vda5050_core::types::OperatingMode::SEMIAUTOMATIC));
+
+  auto buf = agv_->get_mode_cancelled_queue();
+  EXPECT_FALSE(buf.cancelled_at.has_value());
+}
+
+TEST_F(ModeHandlingTest, LeavingSemiAutomaticCapturesIntoBuffer)
+{
+  // Leaving master control from SEMIAUTOMATIC (operator takes over) must
+  // capture-and-drain, same as leaving from AUTOMATIC.
+  agv_->handle_state(
+    make_state(vda5050_core::types::OperatingMode::SEMIAUTOMATIC));
+  agv_->send_order(make_order("O1"));
+  agv_->handle_state(make_state(vda5050_core::types::OperatingMode::MANUAL));
+
+  auto buf = agv_->get_mode_cancelled_queue();
+  EXPECT_TRUE(buf.cancelled_at.has_value());
+  ASSERT_TRUE(buf.from_mode.has_value());
+  EXPECT_EQ(*buf.from_mode, vda5050_core::types::OperatingMode::SEMIAUTOMATIC);
+  ASSERT_TRUE(buf.to_mode.has_value());
+  EXPECT_EQ(*buf.to_mode, vda5050_core::types::OperatingMode::MANUAL);
+}
+
+// ============================================================================
+// Stale-State gate — reordered QoS0 State must not roll back the cache/drain
+// ============================================================================
+
+namespace {
+vda5050_core::types::State make_state_hid(
+  vda5050_core::types::OperatingMode mode, uint32_t header_id)
+{
+  auto s = make_state(mode);
+  s.header.header_id = header_id;
+  return s;
+}
+}  // namespace
+
+TEST_F(ModeHandlingTest, StaleStateIsDroppedAndDoesNotRollBackCache)
+{
+  agv_->handle_state(
+    make_state_hid(vda5050_core::types::OperatingMode::AUTOMATIC, 10));
+  agv_->handle_state(
+    make_state_hid(vda5050_core::types::OperatingMode::MANUAL, 12));
+
+  auto after = agv_->get_last_state();
+  ASSERT_TRUE(after.has_value());
+  EXPECT_EQ(after->operating_mode, vda5050_core::types::OperatingMode::MANUAL);
+
+  // A reordered older State (header 11 < 12) must be dropped: the cache stays
+  // at MANUAL/12 rather than rolling back to AUTOMATIC/11.
+  agv_->handle_state(
+    make_state_hid(vda5050_core::types::OperatingMode::AUTOMATIC, 11));
+
+  auto after_stale = agv_->get_last_state();
+  ASSERT_TRUE(after_stale.has_value());
+  EXPECT_EQ(
+    after_stale->operating_mode, vda5050_core::types::OperatingMode::MANUAL);
+  EXPECT_EQ(after_stale->header.header_id, 12u);
+}
+
+TEST_F(ModeHandlingTest, ReconnectResetsStaleStateGate)
+{
+  agv_->handle_state(
+    make_state_hid(vda5050_core::types::OperatingMode::AUTOMATIC, 5000));
+
+  // Ungraceful drop then reconnect resets the gate.
+  auto broken = make_online_connection();
+  broken.connection_state =
+    vda5050_core::types::ConnectionState::CONNECTIONBROKEN;
+  agv_->handle_connection(broken);
+  agv_->handle_connection(make_online_connection());
+
+  // Restarted AGV with a low header_id must be accepted, not locked out.
+  agv_->handle_state(
+    make_state_hid(vda5050_core::types::OperatingMode::MANUAL, 1));
+
+  auto after = agv_->get_last_state();
+  ASSERT_TRUE(after.has_value());
+  EXPECT_EQ(after->operating_mode, vda5050_core::types::OperatingMode::MANUAL);
+  EXPECT_EQ(after->header.header_id, 1u);
+}
+
 }  // namespace test
 }  // namespace vda5050_core::master

@@ -28,6 +28,7 @@
 #include "vda5050_core/master/master.hpp"
 #include "vda5050_core/master/standard_names.hpp"
 #include "vda5050_core/validation/content_validator.hpp"
+#include "vda5050_core/validation/operating_mode_control.hpp"
 #include "vda5050_core/validation/pre_send_validator.hpp"
 
 namespace vda5050_core::master {
@@ -282,7 +283,7 @@ void AGV::set_connection_status(vda5050_core::types::ConnectionState status)
   }
 }
 
-void AGV::set_operational_state(AGVState state)
+AGVState AGV::set_operational_state(AGVState state)
 {
   std::lock_guard<std::mutex> lock(state_mutex_);
 
@@ -295,7 +296,7 @@ void AGV::set_operational_state(AGVState state)
     (operational_state_ == AGVState::UNAVAILABLE ||
      operational_state_ == AGVState::ERROR))
   {
-    return;
+    return operational_state_;
   }
 
   operational_state_ = state;
@@ -318,6 +319,7 @@ void AGV::set_operational_state(AGVState state)
   }
   VDA5050_INFO(
     "[AGV] Operational state changed to {} for {}", state_str, agv_id_);
+  return operational_state_;
 }
 
 void AGV::on_state_heartbeat_timeout()
@@ -329,7 +331,14 @@ void AGV::on_state_heartbeat_timeout()
       return;
     }
   }
-  set_operational_state(AGVState::STATE_UNKNOWN);
+
+  // Only signal the timeout when STATE_UNKNOWN actually latched. If the AGV is
+  // already UNAVAILABLE/ERROR the request is ignored, and firing here would be
+  // an on_state_timeout with no paired STATE_UNKNOWN->AVAILABLE recovery edge.
+  if (set_operational_state(AGVState::STATE_UNKNOWN) != AGVState::STATE_UNKNOWN)
+  {
+    return;
+  }
   VDA5050_WARN("[AGV] State heartbeat timeout for {}", agv_id_);
 
   // Dispatch the named timeout edge to the user. Library
@@ -421,6 +430,8 @@ void AGV::handle_connection(const vda5050_core::types::Connection& msg)
     if (prev_status != vda5050_core::types::ConnectionState::ONLINE)
     {
       order_lifecycle_.reset_state_baseline();
+      std::lock_guard<std::mutex> lock(data_mutex_);
+      have_state_baseline_ = false;
     }
   }
   else
@@ -461,7 +472,7 @@ void AGV::cancel_pending_orders()
 // Mode-cancelled queue
 // ============================================================================
 
-void AGV::capture_and_drain_on_leave_automatic(
+void AGV::capture_and_drain_on_leave_master_control(
   vda5050_core::types::OperatingMode from,
   vda5050_core::types::OperatingMode to)
 {
@@ -489,7 +500,7 @@ void AGV::capture_and_drain_on_leave_automatic(
     !mode_cancelled_queue_.instant_actions.empty())
   {
     VDA5050_WARN(
-      "[AGV] {} left AUTOMATIC — captured {} order(s) + {} instant "
+      "[AGV] {} left master control — captured {} order(s) + {} instant "
       "action(s) into resumable buffer",
       agv_id_, mode_cancelled_queue_.orders.size(),
       mode_cancelled_queue_.instant_actions.size());
@@ -497,7 +508,7 @@ void AGV::capture_and_drain_on_leave_automatic(
   else
   {
     VDA5050_INFO(
-      "[AGV] {} left AUTOMATIC — outbound queues already empty", agv_id_);
+      "[AGV] {} left master control — outbound queues already empty", agv_id_);
   }
 }
 
@@ -591,23 +602,34 @@ void AGV::handle_state(const vda5050_core::types::State& msg)
     return;
   }
 
-  // Prior operating mode, read before the cache is overwritten — used for the
-  // AGV's own leave-AUTOMATIC queue capture below.
-  std::optional<vda5050_core::types::OperatingMode> prev_mode;
-  {
-    std::lock_guard<std::mutex> lock(data_mutex_);
-    if (last_state_) prev_mode = last_state_->operating_mode;
-    last_state_ = msg;
-    last_state_time_ = Clock::now();
-  }
-
-  // Notify heartbeat listener
+  // Liveness: any schema-valid State proves the AGV is transmitting, even a
+  // stale/reordered one, so poke the heartbeat before the staleness gate.
   {
     std::lock_guard<std::mutex> lock(heartbeat_mutex_);
     if (state_heartbeat_)
     {
       state_heartbeat_->received_connection();
     }
+  }
+
+  // Drop stale / out-of-order State (QoS 0 is lossy and reorderable) before it
+  // overwrites the cache or feeds the mode-drain diff. Prior operating mode is
+  // read here, under the same lock, for the leave-master-control capture below.
+  std::optional<vda5050_core::types::OperatingMode> prev_mode;
+  {
+    std::lock_guard<std::mutex> lock(data_mutex_);
+    if (have_state_baseline_ && msg.header.header_id < last_state_header_id_)
+    {
+      VDA5050_DEBUG(
+        "[AGV] Dropping stale state from {} (header_id {} < {})", agv_id_,
+        msg.header.header_id, last_state_header_id_);
+      return;
+    }
+    if (last_state_) prev_mode = last_state_->operating_mode;
+    last_state_ = msg;
+    last_state_time_ = Clock::now();
+    last_state_header_id_ = msg.header.header_id;
+    have_state_baseline_ = true;
   }
 
   // Capture prior operational state BEFORE flipping to AVAILABLE — used
@@ -648,12 +670,14 @@ void AGV::handle_state(const vda5050_core::types::State& msg)
   }
 
   // Capture+drain the outbound queues before on_mode_changed fires, so an
-  // override sees the buffer populated.
+  // override sees the buffer populated. Triggers when the AGV leaves master
+  // control (AUTOMATIC/SEMIAUTOMATIC) for MANUAL/SERVICE/TEACHIN.
   if (
-    prev_mode == vda5050_core::types::OperatingMode::AUTOMATIC &&
-    msg.operating_mode != vda5050_core::types::OperatingMode::AUTOMATIC)
+    prev_mode.has_value() &&
+    vda5050_core::validation::is_master_in_control(*prev_mode) &&
+    !vda5050_core::validation::is_master_in_control(msg.operating_mode))
   {
-    capture_and_drain_on_leave_automatic(*prev_mode, msg.operating_mode);
+    capture_and_drain_on_leave_master_control(*prev_mode, msg.operating_mode);
   }
 
   // Dispatch to the user override, then feed the fleet event detector, which

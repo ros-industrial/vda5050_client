@@ -42,6 +42,7 @@
 #include "vda5050_core/validation/content_validator.hpp"
 #include "vda5050_core/validation/factsheet_alignment.hpp"
 #include "vda5050_core/validation/instant_action_mode_validator.hpp"
+#include "vda5050_core/validation/operating_mode_control.hpp"
 #include "vda5050_core/validation/pre_send_validator.hpp"
 
 namespace vda5050_core::master {
@@ -601,11 +602,11 @@ AssignmentResult VDA5050Master::assign_order(
     add_error("AGV has not yet reported any State");
     return res;
   }
-  if (
-    last_state->operating_mode != vda5050_core::types::OperatingMode::AUTOMATIC)
+  if (!vda5050_core::validation::is_master_in_control(
+        last_state->operating_mode))
   {
     res.decision = AssignmentDecision::AGV_MODE_NOT_AUTO;
-    add_error("AGV operating_mode is not AUTOMATIC");
+    add_error("AGV operating_mode is not AUTOMATIC or SEMIAUTOMATIC");
     return res;
   }
   if (

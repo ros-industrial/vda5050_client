@@ -102,6 +102,13 @@ public:
     last_state_agv_ = agv_id;
   }
 
+  void on_mode_changed(
+    const std::string& /*agv_id*/, vda5050_core::types::OperatingMode,
+    vda5050_core::types::OperatingMode) override
+  {
+    mode_change_calls.fetch_add(1);
+  }
+
   std::string last_timeout_agv() const
   {
     std::lock_guard<std::mutex> lock(str_mu_);
@@ -121,6 +128,7 @@ public:
   std::atomic<int> timeout_calls{0};
   std::atomic<int> resumed_calls{0};
   std::atomic<int> state_calls{0};
+  std::atomic<int> mode_change_calls{0};
   std::atomic<bool> resumed_before_first_state{false};
 
 private:
@@ -347,6 +355,35 @@ TEST_F(StateTimeoutCallbackTest, OnStateResumedFiresBeforeOnState)
   agv_->handle_state(make_state_msg());  // first state — counters bump
 
   EXPECT_TRUE(master_->resumed_before_first_state.load());
+}
+
+TEST_F(StateTimeoutCallbackTest, ReonboardClearsStaleEventBaseline)
+{
+  using OM = vda5050_core::types::OperatingMode;
+  auto mode_state = [](OM mode, uint32_t hid) {
+    auto s = make_state_msg();
+    s.header.header_id = hid;
+    s.operating_mode = mode;
+    return s;
+  };
+
+  master_->onboard_agv(kManufacturer, kSerial);
+  auto old = master_->get_agv(kManufacturer, kSerial);
+  ASSERT_NE(old, nullptr);
+  old->handle_state(mode_state(OM::AUTOMATIC, 1));
+  old->handle_state(mode_state(OM::MANUAL, 2));
+  ASSERT_EQ(master_->mode_change_calls.load(), 1);
+
+  master_->offboard_agv(kManufacturer, kSerial);
+  // A State in flight when the AGV offboarded re-seeds the event baseline.
+  old->handle_state(mode_state(OM::SERVICE, 3));
+
+  master_->onboard_agv(kManufacturer, kSerial);
+  auto re = master_->get_agv(kManufacturer, kSerial);
+  ASSERT_NE(re, nullptr);
+  // First State after re-onboard must seed fresh, not diff the stale mode.
+  re->handle_state(mode_state(OM::AUTOMATIC, 4));
+  EXPECT_EQ(master_->mode_change_calls.load(), 1);
 }
 
 }  // namespace vda5050_core::master::test

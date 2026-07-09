@@ -213,6 +213,21 @@ TEST_F(ModeHandlingTest, LeavingAutomaticCapturesOrdersIntoBuffer)
   EXPECT_EQ(*buf.to_mode, vda5050_core::types::OperatingMode::MANUAL);
 }
 
+TEST_F(ModeHandlingTest, RestartClearsCapturedBuffer)
+{
+  agv_->handle_state(make_state(vda5050_core::types::OperatingMode::AUTOMATIC));
+  agv_->send_order(make_order("O1"));
+  agv_->handle_state(make_state(vda5050_core::types::OperatingMode::MANUAL));
+  ASSERT_TRUE(agv_->get_mode_cancelled_queue().cancelled_at.has_value());
+
+  agv_->restart();
+
+  auto buf = agv_->get_mode_cancelled_queue();
+  EXPECT_FALSE(buf.cancelled_at.has_value());
+  EXPECT_TRUE(buf.orders.empty());
+  EXPECT_TRUE(buf.instant_actions.empty());
+}
+
 TEST_F(ModeHandlingTest, LeavingAutomaticCapturesInstantActionsToo)
 {
   agv_->handle_state(make_state(vda5050_core::types::OperatingMode::AUTOMATIC));

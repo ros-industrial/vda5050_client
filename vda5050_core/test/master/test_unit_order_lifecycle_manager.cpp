@@ -314,6 +314,29 @@ TEST(MismatchCounter, SkippedWhenStateOrderIdEmpty)
   EXPECT_TRUE(mgr.has_active_order());
 }
 
+TEST(MismatchCounter, HandoverLagIsBounded)
+{
+  OrderLifecycleManager mgr(kAGV);
+  mgr.record_published(make_base_order());  // active ORD_A
+  auto order_b = make_base_order();
+  order_b.order_id = "ORD_B";
+  mgr.record_published(order_b);  // active ORD_B, prior ORD_A graced
+
+  // States still reporting the prior order are graced, not counted.
+  for (int i = 0; i < OrderLifecycleManager::kMaxHandoverLagStates; ++i)
+  {
+    mgr.on_state_update(make_state(kOrderId, 0, "", 0));
+  }
+  EXPECT_TRUE(mgr.has_active_order());
+
+  // Past the grace, the mismatch recovery still fires.
+  for (int i = 0; i < 3; ++i)
+  {
+    mgr.on_state_update(make_state(kOrderId, 0, "", 0));
+  }
+  EXPECT_FALSE(mgr.has_active_order());
+}
+
 // =============================================================================
 // Pending queue / drain
 // =============================================================================
@@ -342,6 +365,54 @@ TEST(PendingQueue, ReleasedAheadOfStitch)
   // Caller then publishes the candidate and records it.
   mgr.record_published(ready.front());
   EXPECT_EQ(mgr.active_order_update_id().value_or(0), 1u);
+}
+
+TEST(PendingQueue, BatchedDrainReleasesOneUntilConfirmed)
+{
+  OrderLifecycleManager mgr(kAGV);
+  mgr.record_published(make_base_order());  // active update 0, stitch N1@2
+
+  vda5050_core::types::Order u1;
+  u1.order_id = kOrderId;
+  u1.order_update_id = 1;
+  u1.nodes = {make_node("N1", 2, true), make_node("N3", 6, true)};
+  vda5050_core::types::Order u2;
+  u2.order_id = kOrderId;
+  u2.order_update_id = 2;
+  u2.nodes = {make_node("N1", 2, true), make_node("N4", 8, true)};
+  ASSERT_TRUE(mgr.enqueue_pending_update(u1));
+  ASSERT_TRUE(mgr.enqueue_pending_update(u2));
+
+  // Only u1 releases; u2 must wait until the AGV confirms u1's update_id.
+  auto ready = mgr.on_state_update(make_state(kOrderId, 0, "N0", 0));
+  ASSERT_EQ(ready.size(), 1u);
+  EXPECT_EQ(ready.front().order_update_id, 1u);
+  EXPECT_EQ(mgr.pending_update_count(), 1u);
+}
+
+TEST(PendingQueue, RequeueFrontDrainsBeforeExistingHigherId)
+{
+  OrderLifecycleManager mgr(kAGV);
+  mgr.record_published(make_base_order());  // active update 0, stitch N1@2
+
+  auto mk_update = [](uint32_t id, const std::string& node, uint32_t seq) {
+    vda5050_core::types::Order u;
+    u.order_id = kOrderId;
+    u.order_update_id = id;
+    u.nodes = {make_node("N1", 2, true), make_node(node, seq, true)};
+    return u;
+  };
+
+  // A higher-id update already sits in pending (left after a partial drain).
+  ASSERT_TRUE(mgr.enqueue_pending_update(mk_update(3, "N5", 10)));
+  // Two lower-id unsent updates returned to the front, in order.
+  mgr.requeue_pending_front({mk_update(1, "N3", 6), mk_update(2, "N4", 8)});
+  ASSERT_EQ(mgr.pending_update_count(), 3u);
+
+  // Drain releases the lowest id (now at the front), not the pre-existing 3.
+  auto ready = mgr.on_state_update(make_state(kOrderId, 0, "N0", 0));
+  ASSERT_EQ(ready.size(), 1u);
+  EXPECT_EQ(ready.front().order_update_id, 1u);
 }
 
 // record_published adopts the publisher-supplied merged order rather than

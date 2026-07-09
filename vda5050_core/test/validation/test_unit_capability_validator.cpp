@@ -294,6 +294,33 @@ TEST(CapabilityValidatorTest, InstantActionsRejectActionTypeNotInFactsheet)
   EXPECT_TRUE(AnyErrorMentions(res, "teleport"));
 }
 
+TEST(CapabilityValidatorTest, InstantActionErrorReferencesActionId)
+{
+  auto ctx = make_ctx(make_state_on_node("N0"), make_factsheet());
+  vda5050_core::types::InstantActions ia;
+  vda5050_core::types::Action unsupported;
+  unsupported.action_id = "A1";
+  unsupported.action_type = "teleport";
+  unsupported.blocking_type = vda5050_core::types::BlockingType::NONE;
+  ia.actions = {unsupported};
+
+  auto res = validate_capability(ctx, ia);
+  ASSERT_FALSE(static_cast<bool>(res));
+  bool has_action_ref = false;
+  for (const auto& e : res.fatal_errors())
+  {
+    if (!e.error_references) continue;
+    for (const auto& r : *e.error_references)
+    {
+      if (r.reference_key == errors::RefActionId && r.reference_value == "A1")
+      {
+        has_action_ref = true;
+      }
+    }
+  }
+  EXPECT_TRUE(has_action_ref);
+}
+
 TEST(CapabilityValidatorTest, InstantActionsSkipsCapabilityForPredefinedActions)
 {
   // Factsheet present but does not list the protocol-predefined actions —

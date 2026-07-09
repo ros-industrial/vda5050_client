@@ -98,9 +98,9 @@ public:
 
   double yaw() const;
 
-  uint32_t graph_index() const;
+  std::optional<uint32_t> graph_index() const;
 
-  std::string name() const;
+  std::optional<std::string> name() const;
 
   std::optional<double> speed_limit() const;
 
@@ -108,13 +108,15 @@ private:
   friend class FleetUpdateHandle;
 
   Destination(
-    std::string map, std::array<double, 3> position, uint32_t graph_index,
-    std::string name, std::optional<double> speed_limit = std::nullopt);
+    std::string map, std::array<double, 3> position,
+    std::optional<uint32_t> graph_index = std::nullopt,
+    std::optional<std::string> name = std::nullopt,
+    std::optional<double> speed_limit = std::nullopt);
 
   std::string map_;
   std::array<double, 3> position_;
-  uint32_t graph_index_;
-  std::string name_;
+  std::optional<uint32_t> graph_index_;
+  std::optional<std::string> name_;
   std::optional<double> speed_limit_;
 };
 

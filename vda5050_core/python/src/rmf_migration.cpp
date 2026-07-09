@@ -134,13 +134,13 @@ double Destination::yaw() const
 }
 
 //=============================================================================
-uint32_t Destination::graph_index() const
+std::optional<uint32_t> Destination::graph_index() const
 {
   return graph_index_;
 }
 
 //=============================================================================
-std::string Destination::name() const
+std::optional<std::string> Destination::name() const
 {
   return name_;
 }
@@ -153,12 +153,13 @@ std::optional<double> Destination::speed_limit() const
 
 //=============================================================================
 Destination::Destination(
-  std::string map, std::array<double, 3> position, uint32_t graph_index,
-  std::string name, std::optional<double> speed_limit)
+  std::string map, std::array<double, 3> position,
+  std::optional<uint32_t> graph_index, std::optional<std::string> name,
+  std::optional<double> speed_limit)
 : map_(std::move(map)),
   position_(position),
   graph_index_(graph_index),
-  name_(name),
+  name_(std::move(name)),
   speed_limit_(speed_limit)
 {
   // Nothing to do here
@@ -464,6 +465,15 @@ std::shared_ptr<RobotUpdateHandle> FleetUpdateHandle::add_robot(
 
       callbacks.action_executor()(
         request.action_type(), request.action_id(), std::move(command));
+    });
+
+  adapter->on_localize(
+    [callbacks](client::adapter::LocalizationRequest request, auto execution) {
+      auto destination = Destination(
+        request.map_id(), {request.x(), request.y(), request.theta()});
+      auto command = CommandExecution(execution, ActivityIdentifier());
+
+      callbacks.localize()(std::move(destination), std::move(command));
     });
 
   robots_.insert_or_assign(name, adapter);

@@ -21,45 +21,34 @@
 
 #include <vector>
 
-#include "vda5050_core/master/order/order_lifecycle_manager.hpp"
+#include "vda5050_core/master/order/active_order_snapshot.hpp"
 #include "vda5050_core/types/error.hpp"
 #include "vda5050_core/types/order.hpp"
 
 namespace vda5050_core {
 namespace master {
 
-// =============================================================================
-// OrderStitcher — 4-condition stitch guard.
-// =============================================================================
-//
-// Routes an outbound Order before the publisher chain: SEND_NOW, QUEUE_PENDING
-// (retried on each State via OrderLifecycleManager), or REJECT. Enforces the
-// queue-and-retry guards only, not structural/spec validation (the
-// publisher chain and is_valid_update() handle those). Stateless, thread-safe.
+// Routes an outbound Order via the stitch guards only. Stateless.
 
-/// \brief Routing decision for an outbound Order.
+/// \brief Routing decision for an outbound Order (IGNORE = duplicate no-op).
 enum class StitchDecision
 {
   SEND_NOW,
   QUEUE_PENDING,
+  IGNORE,
   REJECT
 };
 
-/// \brief Identifies which of the 4 stitch guards rejected the candidate.
-/// NONE for SEND_NOW or for REJECT (which is a structural / spec failure,
-/// not a guard failure — see below).
+/// \brief Which stitch guard queued the candidate (NONE for SEND_NOW/REJECT).
 enum class GuardFailure
 {
   NONE,
-  ORDER_ID_MISMATCH,         // cond 1: state.order_id != active.order_id
-  STITCH_PASSED,             // cond 2: AGV is past the stitch point
-  STITCH_NOT_REACHED,        // cond 3: AGV hasn't arrived at the stitch
-  PREV_UPDATE_NOT_CONFIRMED  // cond 4: AGV still on prior order_update_id
+  ORDER_ID_MISMATCH,         // state.order_id != active.order_id
+  NO_STATE_YET,              // no State reported; timing not evaluable
+  PREV_UPDATE_NOT_CONFIRMED  // AGV still on prior order_update_id
 };
 
-/// \brief Result of OrderStitcher::decide. On QUEUE_PENDING/REJECT, `errors`
-///        carries OrderUpdateError entries; `first_failed_guard` names the
-///        triggering stitch guard (NONE for SEND_NOW/REJECT).
+/// \brief OrderStitcher::decide result; errors set on QUEUE_PENDING/REJECT.
 struct StitchResult
 {
   StitchDecision decision = StitchDecision::SEND_NOW;
@@ -80,12 +69,9 @@ public:
   OrderStitcher(const OrderStitcher&) = default;
   OrderStitcher& operator=(const OrderStitcher&) = default;
 
-  /// \brief Decide what to do with `candidate` given the AGV's tracked
-  ///        active-order context (snapshot carries the needed State fields).
+  /// \brief Decide what to do with `candidate` vs the tracked active order.
   /// \param candidate  Outbound Order from the FMS / fleet logic.
-  /// \param snapshot   Stable, by-value view from
-  ///                   OrderLifecycleManager::snapshot().
-  /// \return StitchResult.
+  /// \param snapshot   By-value view from OrderLifecycleManager::snapshot().
   StitchResult decide(
     const vda5050_core::types::Order& candidate,
     const ActiveOrderSnapshot& snapshot) const;

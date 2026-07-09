@@ -42,10 +42,8 @@ const char* guard_failure_to_str(GuardFailure g)
   {
     case GuardFailure::ORDER_ID_MISMATCH:
       return "order_id mismatch";
-    case GuardFailure::STITCH_PASSED:
-      return "AGV passed stitch point";
-    case GuardFailure::STITCH_NOT_REACHED:
-      return "AGV not yet at stitch point";
+    case GuardFailure::NO_STATE_YET:
+      return "AGV has not reported State yet";
     case GuardFailure::PREV_UPDATE_NOT_CONFIRMED:
       return "previous order_update_id not confirmed";
     case GuardFailure::NONE:
@@ -85,11 +83,9 @@ AGV::AGV(
   parent_raw_(parent.lock().get()),
   state_heartbeat_interval_(state_heartbeat_interval),
   created_time_(Clock::now()),
-  update_context_(agv_id_),
   max_queue_size_(max_queue_size),
   drop_oldest_(drop_oldest)
 {
-  register_update_dispatch();
   VDA5050_INFO("[AGV] Created AGV instance: {}", agv_id_);
   // setup_subscriptions() must be called by the constructor's caller
   // after make_shared returns — weak_from_this() is only valid once
@@ -141,114 +137,6 @@ void AGV::setup_subscriptions()
     [this](const auto& msg) { handle_factsheet(msg); }, FactsheetQos);
   create_subscription<vda5050_core::types::Visualization>(
     [this](const auto& msg) { handle_visualization(msg); }, VisualizationQos);
-}
-
-void AGV::register_update_dispatch()
-{
-  auto provider = update_context_.provider();
-
-  provider->on<NodeReachedUpdate>([this](std::shared_ptr<NodeReachedUpdate> u) {
-    if (auto p = parent_.lock())
-    {
-      p->on_node_reached(agv_id_, u->node.node_id);
-    }
-  });
-
-  provider->on<ErrorsChangedUpdate>(
-    [this](std::shared_ptr<ErrorsChangedUpdate> u) {
-      if (auto p = parent_.lock())
-      {
-        if (!u->appeared.empty())
-        {
-          p->on_errors_appeared(agv_id_, u->appeared);
-        }
-        if (!u->resolved.empty())
-        {
-          p->on_errors_resolved(agv_id_, u->resolved);
-        }
-      }
-    });
-
-  provider->on<NewBaseRequestUpdate>(
-    [this](std::shared_ptr<NewBaseRequestUpdate>) {
-      if (auto p = parent_.lock())
-      {
-        p->on_new_base_requested(agv_id_);
-      }
-    });
-
-  provider->on<OperatingModeChangedUpdate>(
-    [this](std::shared_ptr<OperatingModeChangedUpdate> u) {
-      // capture+drain runs BEFORE on_mode_changed so the FMS override
-      // sees the queue already drained and the buffer populated.
-      if (
-        u->prev_mode == vda5050_core::types::OperatingMode::AUTOMATIC &&
-        u->mode != vda5050_core::types::OperatingMode::AUTOMATIC)
-      {
-        capture_and_drain_on_leave_automatic(u->prev_mode, u->mode);
-      }
-      if (auto p = parent_.lock())
-      {
-        p->on_mode_changed(agv_id_, u->mode, u->prev_mode);
-      }
-    });
-
-  provider->on<PausedChangedUpdate>(
-    [this](std::shared_ptr<PausedChangedUpdate> u) {
-      if (auto p = parent_.lock())
-      {
-        p->on_paused(agv_id_, u->paused);
-      }
-    });
-
-  provider->on<DrivingChangedUpdate>(
-    [this](std::shared_ptr<DrivingChangedUpdate> u) {
-      if (auto p = parent_.lock())
-      {
-        p->on_driving(agv_id_, u->driving);
-      }
-    });
-
-  provider->on<LoadsChangedUpdate>(
-    [this](std::shared_ptr<LoadsChangedUpdate> u) {
-      if (auto p = parent_.lock())
-      {
-        p->on_loads_changed(agv_id_, u->loads);
-      }
-    });
-
-  provider->on<ConnectionChangedUpdate>(
-    [this](std::shared_ptr<ConnectionChangedUpdate> u) {
-      // Last-will cleanup runs BEFORE on_connection_broken so user code
-      // can rely on the queue already being clean.
-      if (u->kind == ConnectionTransition::CONNECTIONBROKEN)
-      {
-        VDA5050_WARN(
-          "[AGV] Last-will fired for {}: connection broken unexpectedly. "
-          "Clearing pending queues; firing on_connection_broken.",
-          agv_id_);
-        cancel_pending_orders();
-      }
-      if (auto p = parent_.lock())
-      {
-        switch (u->kind)
-        {
-          case ConnectionTransition::CONNECTED:
-            p->on_connect(agv_id_);
-            break;
-          case ConnectionTransition::OFFLINE:
-            p->on_offline(agv_id_);
-            break;
-          case ConnectionTransition::CONNECTIONBROKEN:
-            p->on_connection_broken(agv_id_);
-            break;
-          case ConnectionTransition::NONE:
-            break;
-        }
-      }
-    });
-
-  update_context_.init();
 }
 
 void AGV::stop()
@@ -519,7 +407,7 @@ void AGV::handle_connection(const vda5050_core::types::Connection& msg)
     last_connection_time_ = Clock::now();
   }
 
-  // Update connection status
+  const auto prev_status = get_connection_status();
   set_connection_status(msg.connection_state);
 
   // Manage heartbeat based on connection state
@@ -528,6 +416,12 @@ void AGV::handle_connection(const vda5050_core::types::Connection& msg)
     // Start heartbeat and queue processor when ONLINE
     setup_heartbeat();
     start_queue_processor();
+    // Reset the stale-State gate on the reconnect edge only (ONLINE recurs as
+    // a heartbeat) so a restarted AGV isn't locked out.
+    if (prev_status != vda5050_core::types::ConnectionState::ONLINE)
+    {
+      order_lifecycle_.reset_state_baseline();
+    }
   }
   else
   {
@@ -536,16 +430,23 @@ void AGV::handle_connection(const vda5050_core::types::Connection& msg)
     stop_queue_processor();
   }
 
-  // Dispatch to user override
+  // Last-will: clear the outbound queues and stale pending stitch updates
+  // before the fleet detector fires on_connection_broken.
+  if (
+    msg.connection_state ==
+    vda5050_core::types::ConnectionState::CONNECTIONBROKEN)
+  {
+    cancel_pending_orders();
+    order_lifecycle_.clear_pending();
+  }
+
+  // Dispatch to the user override, then feed the fleet event detector, which
+  // diffs the connection and fans the transition out to the named hooks.
   if (auto p = parent_.lock())
   {
     p->on_connection(agv_id_, msg);
+    p->ingest_connection(agv_id_, msg);
   }
-
-  // Diff the connection and fan the transition out to the named hooks.
-  // The dispatch clears pending queues on a last-will fire before
-  // on_connection_broken.
-  update_context_.on_connection(msg);
 }
 
 void AGV::cancel_pending_orders()
@@ -569,7 +470,8 @@ void AGV::capture_and_drain_on_leave_automatic(
   mode_cancelled_queue_.instant_actions.clear();
   while (!order_queue_.empty())
   {
-    mode_cancelled_queue_.orders.push_back(std::move(order_queue_.front()));
+    mode_cancelled_queue_.orders.push_back(
+      std::move(order_queue_.front().order));
     order_queue_.pop();
   }
   while (!instant_actions_queue_.empty())
@@ -619,10 +521,12 @@ std::pair<std::size_t, std::size_t> AGV::resume_mode_cancelled_queue()
 
   if (orders_resumed > 0)
   {
-    std::queue<vda5050_core::types::Order> reordered;
+    std::queue<QueuedOrder> reordered;
     for (auto& o : mode_cancelled_queue_.orders)
     {
-      reordered.push(std::move(o));
+      // Resumed orders re-run the stitch decision — the world moved on while
+      // parked out of AUTOMATIC.
+      reordered.push(QueuedOrder{std::move(o), false});
     }
     while (!order_queue_.empty())
     {
@@ -687,9 +591,12 @@ void AGV::handle_state(const vda5050_core::types::State& msg)
     return;
   }
 
-  // Update cached message
+  // Prior operating mode, read before the cache is overwritten — used for the
+  // AGV's own leave-AUTOMATIC queue capture below.
+  std::optional<vda5050_core::types::OperatingMode> prev_mode;
   {
     std::lock_guard<std::mutex> lock(data_mutex_);
+    if (last_state_) prev_mode = last_state_->operating_mode;
     last_state_ = msg;
     last_state_time_ = Clock::now();
   }
@@ -712,35 +619,26 @@ void AGV::handle_state(const vda5050_core::types::State& msg)
   // Update operational state to AVAILABLE
   set_operational_state(AGVState::AVAILABLE);
 
-  // Order lifecycle. Apply state to mismatch counter, completion
-  // detection, newBaseRequest tracking, and pending-update drain. Runs
-  // BEFORE the user callback so observers see lifecycle state already
-  // current. Returned vector contains updates whose stitch conditions
-  // are now satisfied — we route them through send_order() so they go
-  // through the standard publish chain (validators + record_published
-  // hook below).
+  // Runs before the user callback so observers see current lifecycle state.
+  // Drained updates are enqueued pre_stitched (they already cleared the guard).
   auto ready_updates = order_lifecycle_.on_state_update(msg);
-  for (const auto& update : ready_updates)
+  for (std::size_t i = 0; i < ready_updates.size(); ++i)
   {
-    // The lifecycle already removed this update from its pending queue, so a
-    // drop here loses it. send_order only fails when the outbound queue is
-    // full and drop_oldest is off — surface that loudly rather than stalling
-    // the AGV silently at the stitch node.
-    if (!send_order(update))
+    if (enqueue_order(ready_updates[i], true)) continue;
+    // Outbound queue full — re-queue this and the rest to pending, in order,
+    // so a later State retries and no update is sent ahead of an earlier one.
+    VDA5050_WARN(
+      "[AGV] Outbound queue full for {}; re-queuing {} order update(s)",
+      agv_id_, ready_updates.size() - i);
+    for (std::size_t j = i; j < ready_updates.size(); ++j)
     {
-      VDA5050_ERROR(
-        "[AGV] Drained order update {} for {} dropped: outbound queue full",
-        update.order_update_id, agv_id_);
+      order_lifecycle_.enqueue_pending_update(ready_updates[j]);
     }
+    break;
   }
 
-  // Recovery edge dispatch. Fires once when we transition
-  // out of STATE_UNKNOWN — covers both the AGV's first-ever State
-  // (initial STATE_UNKNOWN at construction → AVAILABLE) and the
-  // post-silence recovery (heartbeat timeout → fresh State arrives).
-  // FMS that needs to distinguish those two uses the connection
-  // events. Fired BEFORE the user's on_state hook so observers see
-  // the named recovery edge before the raw-message hook.
+  // Fires once on the STATE_UNKNOWN edge (first State, or post-silence
+  // recovery), before the user's on_state hook.
   if (prev_op_state == AGVState::STATE_UNKNOWN)
   {
     if (auto p = parent_.lock())
@@ -749,17 +647,23 @@ void AGV::handle_state(const vda5050_core::types::State& msg)
     }
   }
 
-  // Dispatch to user override
+  // Capture+drain the outbound queues before on_mode_changed fires, so an
+  // override sees the buffer populated.
+  if (
+    prev_mode == vda5050_core::types::OperatingMode::AUTOMATIC &&
+    msg.operating_mode != vda5050_core::types::OperatingMode::AUTOMATIC)
+  {
+    capture_and_drain_on_leave_automatic(*prev_mode, msg.operating_mode);
+  }
+
+  // Dispatch to the user override, then feed the fleet event detector, which
+  // diffs the state and fans each transition out to the named hooks (the first
+  // State only seeds — no hooks fire).
   if (auto p = parent_.lock())
   {
     p->on_state(agv_id_, msg);
+    p->ingest_state(agv_id_, msg);
   }
-
-  // Diff the state and fan each transition out to the named hooks via
-  // the update context (the first State only seeds — no hooks fire).
-  // The dispatch drains outbound queues on an AUTOMATIC→non-AUTOMATIC
-  // edge before on_mode_changed.
-  update_context_.on_state(msg);
 }
 
 void AGV::handle_factsheet(const vda5050_core::types::Factsheet& msg)
@@ -978,6 +882,12 @@ std::optional<AGV::TimePoint> AGV::get_last_visualization_time() const
 
 bool AGV::send_order(const vda5050_core::types::Order& order)
 {
+  return enqueue_order(order, false);
+}
+
+bool AGV::enqueue_order(
+  const vda5050_core::types::Order& order, bool pre_stitched)
+{
   std::lock_guard<std::mutex> lock(queue_mutex_);
 
   if (order_queue_.size() >= max_queue_size_)
@@ -996,7 +906,7 @@ bool AGV::send_order(const vda5050_core::types::Order& order)
     order_queue_.pop();
   }
 
-  order_queue_.push(order);
+  order_queue_.push(QueuedOrder{order, pre_stitched});
   queue_cv_.notify_one();
 
   VDA5050_INFO("[AGV] Queued order for AGV: {}", agv_id_);
@@ -1108,7 +1018,7 @@ void AGV::process_queues()
 
   while (true)
   {
-    std::optional<vda5050_core::types::Order> order;
+    std::optional<QueuedOrder> order;
     std::optional<vda5050_core::types::InstantActions> actions;
 
     {
@@ -1148,7 +1058,7 @@ void AGV::process_queues()
     }
     else if (order)
     {
-      publish_order(*order);
+      publish_order(order->order, order->pre_stitched);
     }
   }
 
@@ -1159,7 +1069,8 @@ void AGV::process_queues()
 // Publishing
 // ============================================================================
 
-void AGV::publish_order(const vda5050_core::types::Order& order)
+void AGV::publish_order(
+  const vda5050_core::types::Order& order, bool pre_stitched)
 {
   if (!protocol_adapter_)
   {
@@ -1168,44 +1079,48 @@ void AGV::publish_order(const vda5050_core::types::Order& order)
     return;
   }
 
-  // Capture the lifecycle snapshot once: feeds both the stitch guard
-  // and the publisher chain's active_order field.
   const auto snap = order_lifecycle_.snapshot();
 
-  // Stitch guard runs BEFORE the publisher chain. Stitching is
-  // a routing decision (queue / send / reject), not a publish-gate
-  // validation — keeps the publisher chain focused on schema / graph /
-  // traversability / publish.
-  const auto stitch = order_stitcher_.decide(order, snap);
-  switch (stitch.decision)
+  // A drained update already cleared the guard; re-deciding could wrongly
+  // reject it if the state advanced meanwhile.
+  if (!pre_stitched)
   {
-    case StitchDecision::SEND_NOW:
-      break;  // fall through to the publisher chain below
-    case StitchDecision::QUEUE_PENDING:
-      if (!order_lifecycle_.enqueue_pending_update(order))
-      {
-        VDA5050_WARN(
-          "[AGV] Pending queue full for {}; dropping order {} (update {})",
-          agv_id_, order.order_id, order.order_update_id);
-      }
-      else
-      {
+    const auto stitch = order_stitcher_.decide(order, snap);
+    switch (stitch.decision)
+    {
+      case StitchDecision::SEND_NOW:
+        break;
+      case StitchDecision::IGNORE:
         VDA5050_INFO(
-          "[AGV] Queued order {} (update {}) for {}: {}", order.order_id,
-          order.order_update_id, agv_id_,
-          guard_failure_to_str(stitch.first_failed_guard));
-      }
-      return;
-    case StitchDecision::REJECT:
-      VDA5050_ERROR(
-        "[AGV] Stitch validation rejected order {} (update {}) for {}: "
-        "{} error(s)",
-        order.order_id, order.order_update_id, agv_id_, stitch.errors.size());
-      return;
+          "[AGV] Ignoring duplicate order {} (update {}) for {}: already "
+          "applied",
+          order.order_id, order.order_update_id, agv_id_);
+        return;
+      case StitchDecision::QUEUE_PENDING:
+        if (!order_lifecycle_.enqueue_pending_update(order))
+        {
+          VDA5050_WARN(
+            "[AGV] Pending queue full for {}; dropping order {} (update {})",
+            agv_id_, order.order_id, order.order_update_id);
+        }
+        else
+        {
+          VDA5050_INFO(
+            "[AGV] Queued order {} (update {}) for {}: {}", order.order_id,
+            order.order_update_id, agv_id_,
+            guard_failure_to_str(stitch.first_failed_guard));
+        }
+        return;
+      case StitchDecision::REJECT:
+        VDA5050_ERROR(
+          "[AGV] Stitch validation rejected order {} (update {}) for {}: "
+          "{} error(s)",
+          order.order_id, order.order_update_id, agv_id_, stitch.errors.size());
+        return;
+    }
   }
 
-  // Reconstruct an Order from the snapshot for the publisher chain's
-  // is_valid_update branch. Nullopt when no active order.
+  // Rebuild the active order from the snapshot for the publisher chain.
   std::optional<vda5050_core::types::Order> active_order;
   if (snap.has_active)
   {
@@ -1217,22 +1132,14 @@ void AGV::publish_order(const vda5050_core::types::Order& order)
     active_order = std::move(ao);
   }
 
-  // Pull the master's currently-loaded graph snapshot before building the
-  // PreSendContext. The graph is a Graph::ConstPtr — capturing it now keeps
-  // it alive for the duration of validation even if the master swaps the
-  // layout mid-flight. Use parent_raw_ (raw pointer) instead of
-  // parent_.lock() — see parent_raw_ doc-comment for the rationale
-  // (the temporary shared_ptr would extend master lifetime and could
-  // make this thread the last-ref owner, leading to ~AGV self-join).
+  // Capture the loaded graph so it outlives a mid-flight layout swap. Use
+  // parent_raw_, not parent_.lock() (see parent_raw_ doc-comment).
   vda5050_core::layout::Graph::ConstPtr loaded_graph;
   if (parent_raw_)
   {
     loaded_graph = parent_raw_->get_loaded_graph();
   }
 
-  // Build snapshot once under existing AGV mutexes (each getter takes its
-  // own lock). Snapshot is then immutable for the validator chain —
-  // race-safe by construction.
   vda5050_core::validation::PreSendContext ctx{
     get_connection_status(), get_last_state(), get_last_factsheet(),
     get_operational_state(), std::move(loaded_graph)};
@@ -1264,10 +1171,7 @@ void AGV::publish_order(const vda5050_core::types::Order& order)
     return;
   }
 
-  // Record successful publish into the lifecycle tracker. Only
-  // recorded on TRUTHY validator chain — failed validations do not
-  // advance lifecycle state. Pass the publisher's merged order so the
-  // tracker adopts it without re-combining against an advanced state.
+  // Pass the merged order so the tracker adopts it without re-combining.
   order_lifecycle_.record_published(order, merged);
 }
 

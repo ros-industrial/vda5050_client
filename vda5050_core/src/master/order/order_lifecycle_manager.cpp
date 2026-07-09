@@ -27,12 +27,12 @@
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
 #include "vda5050_core/logger/logger.hpp"
+#include "vda5050_core/master/order/order_stitcher.hpp"
 
 namespace vda5050_core::master {
 
 namespace {
 
-// Build an Error with order-id ref attached. Used inside combine_order().
 vda5050_core::types::Error make_combine_error(
   const std::string& description, const std::string& order_id,
   std::vector<vda5050_core::types::ErrorReference> extra_refs = {})
@@ -42,6 +42,17 @@ vda5050_core::types::Error make_combine_error(
   refs.push_back({errors::RefOrderId, order_id});
   for (auto& r : extra_refs) refs.push_back(std::move(r));
   return errors::create_error(errors::OrderUpdateError, description, refs);
+}
+
+bool all_actions_terminal(
+  const std::vector<vda5050_core::types::ActionState>& actions)
+{
+  return std::all_of(
+    actions.begin(), actions.end(),
+    [](const vda5050_core::types::ActionState& a) {
+      return a.action_status == vda5050_core::types::ActionStatus::FINISHED ||
+             a.action_status == vda5050_core::types::ActionStatus::FAILED;
+    });
 }
 
 }  // namespace
@@ -61,7 +72,6 @@ CombineResult combine_order(
       make_combine_error(msg, base.order_id, std::move(refs)));
   };
 
-  // Pre-check: order_id must match (updates extend the same order).
   if (base.order_id != update.order_id)
   {
     fail(
@@ -70,7 +80,6 @@ CombineResult combine_order(
     return res;
   }
 
-  // Pre-check: order_update_id must strictly increase.
   if (update.order_update_id <= base.order_update_id)
   {
     fail(
@@ -79,8 +88,6 @@ CombineResult combine_order(
     return res;
   }
 
-  // Partition base.nodes into released (base) vs unreleased (horizon).
-  // Released nodes appear before unreleased per VDA5050 base/horizon ordering.
   std::vector<vda5050_core::types::Node> preserved;
   preserved.reserve(base.nodes.size());
 
@@ -96,9 +103,7 @@ CombineResult combine_order(
     return res;
   }
 
-  // preserved = [old_base_last] + horizon. The last released base node is
-  // kept because it's the stitch anchor. AGVs already past it would not
-  // reach this code path (graph validator would already have rejected).
+  // preserved = last released base node (the stitch anchor) + horizon.
   bool seen_base_last = false;
   for (const auto& n : base.nodes)
   {
@@ -116,8 +121,7 @@ CombineResult combine_order(
     }
   }
 
-  // Reachability check on the stitch point: AGV must not have passed it.
-  // (Strict inequality — equal is fine, AGV is parked at the stitch node.)
+  // AGV must not have passed the stitch point (parked at it is fine).
   if (
     old_base_last != nullptr &&
     last_node_sequence_id > old_base_last->sequence_id)
@@ -128,7 +132,6 @@ CombineResult combine_order(
     return res;
   }
 
-  // Walk update.nodes and merge into `preserved`.
   uint32_t preserved_max_seq =
     preserved.empty() ? 0 : preserved.back().sequence_id;
 
@@ -158,7 +161,6 @@ CombineResult combine_order(
       continue;
     }
 
-    // Beyond the preserved tail → append (extension).
     if (nu.sequence_id > preserved_max_seq)
     {
       preserved.push_back(nu);
@@ -166,7 +168,6 @@ CombineResult combine_order(
       continue;
     }
 
-    // Within-horizon replacement.
     auto it = std::find_if(
       preserved.begin(), preserved.end(),
       [&](const vda5050_core::types::Node& n) {
@@ -175,7 +176,6 @@ CombineResult combine_order(
 
     if (it == preserved.end())
     {
-      // Sparse insert — keep seq order.
       auto pos = std::find_if(
         preserved.begin(), preserved.end(),
         [&](const vda5050_core::types::Node& n) {
@@ -211,21 +211,11 @@ CombineResult combine_order(
     }
   }
 
-  bool seen_base_last_edge = false;
+  // Keep only horizon (unreleased) edges, mirroring the nodes. The edge into
+  // the anchor would dangle — its start node is dropped.
   for (const auto& e : base.edges)
   {
-    if (!e.released)
-    {
-      preserved_edges.push_back(e);
-      continue;
-    }
-    if (
-      has_base_edge && e.sequence_id == old_base_last_edge_seq &&
-      !seen_base_last_edge)
-    {
-      preserved_edges.push_back(e);
-      seen_base_last_edge = true;
-    }
+    if (!e.released) preserved_edges.push_back(e);
   }
 
   uint32_t preserved_edge_max_seq =
@@ -233,29 +223,13 @@ CombineResult combine_order(
 
   for (const auto& eu : update.edges)
   {
-    if (has_base_edge && eu.sequence_id < old_base_last_edge_seq)
+    // An update must not touch a released base edge (at or before the anchor).
+    if (has_base_edge && eu.sequence_id <= old_base_last_edge_seq)
     {
       fail(
         "Update attempts to alter a released base edge; the base cannot be "
         "changed",
         {{errors::RefEdgeId, eu.edge_id}});
-      continue;
-    }
-    if (has_base_edge && eu.sequence_id == old_base_last_edge_seq)
-    {
-      // Stitching edge — also content-immutable.
-      auto it = std::find_if(
-        preserved_edges.begin(), preserved_edges.end(),
-        [&](const vda5050_core::types::Edge& e) {
-          return e.sequence_id == old_base_last_edge_seq;
-        });
-      if (it != preserved_edges.end() && eu != *it)
-      {
-        fail(
-          "Stitch edge content differs from base; the stitch edge must be "
-          "identical",
-          {{errors::RefEdgeId, eu.edge_id}});
-      }
       continue;
     }
     if (eu.sequence_id > preserved_edge_max_seq)
@@ -319,6 +293,7 @@ void OrderLifecycleManager::record_published(
 {
   std::lock_guard<std::mutex> lock(lifecycle_mutex_);
 
+  const std::string prior_active_id = active_order_id_;
   const bool same_order =
     !active_order_id_.empty() && active_order_id_ == order.order_id;
   const bool real_extension =
@@ -326,32 +301,28 @@ void OrderLifecycleManager::record_published(
 
   if (real_extension && active_order_.has_value())
   {
-    // The wire carries only the stitch node + extension, but the internal
-    // view must remain the full merged base+horizon so next-update
-    // validation, completion detection, and snapshot consumers see the true
-    // route. Adopt the merged order the publisher already validated; that
-    // avoids a second combine against a state that may have advanced since.
+    // Adopt the full merged base+horizon, not the sparse wire update, so
+    // later checks see the true route.
     if (merged.has_value())
     {
       adopt_active_locked(*merged);
     }
     else
     {
-      // Fallback when no merged order was supplied (e.g. a caller that does
-      // not run the publisher chain): re-derive it.
       auto combined =
         combine_order(*active_order_, order, last_node_sequence_id_);
       adopt_active_locked(combined ? combined.order : order);
     }
     needs_more_base_ = false;
+    order_complete_ = false;  // an extension re-opens the order
   }
   else
   {
     adopt_active_locked(order);
     if (!same_order)
     {
-      // New order entirely — reset sticky flags and the mismatch counter so
-      // stale mismatches from the previous order can't trip recovery on it.
+      // New order: reset sticky flags and grace the prior order_id's handover.
+      prev_active_order_id_ = prior_active_id;
       order_complete_ = false;
       needs_more_base_ = false;
       mismatch_count_ = 0;
@@ -364,48 +335,47 @@ std::vector<vda5050_core::types::Order> OrderLifecycleManager::on_state_update(
 {
   std::lock_guard<std::mutex> lock(lifecycle_mutex_);
 
-  // Mirror state into our cache.
+  // Drop stale / duplicate / out-of-order State before diffing.
+  if (have_state_baseline_ && state.header.header_id < last_state_header_id_)
+  {
+    return {};
+  }
+  last_state_header_id_ = state.header.header_id;
+  have_state_baseline_ = true;
+
   last_node_sequence_id_ = state.last_node_sequence_id;
   state_order_update_id_ = state.order_update_id;
   last_state_order_id_ = state.order_id;
 
-  // newBaseRequest is sticky-true; cleared by record_published on extension.
   if (state.new_base_request.value_or(false))
   {
     needs_more_base_ = true;
   }
 
-  // Run mismatch counter. If it fires recovery, drop the rest of the work.
   if (tick_mismatch(state)) return {};
 
-  // Order-completion detection (last node reached).
-  if (active_order_ && !active_order_->nodes.empty())
+  // The order/update gate rejects a lagging State from a just-replaced order.
+  if (
+    active_order_ && !active_order_->nodes.empty() &&
+    state.order_id == active_order_id_ &&
+    state.order_update_id == active_order_update_id_)
   {
     const auto& last = active_order_->nodes.back();
-    if (state.last_node_sequence_id == last.sequence_id)
+    if (
+      state.last_node_sequence_id == last.sequence_id &&
+      state.last_node_id == last.node_id && state.node_states.empty() &&
+      state.edge_states.empty() && all_actions_terminal(state.action_states))
     {
-      if (state.last_node_id == last.node_id)
+      if (!order_complete_)
       {
-        if (!order_complete_)
-        {
-          VDA5050_INFO(
-            "[OrderLifecycle] {} order {} (update {}) completed at node {}",
-            agv_id_, active_order_id_, active_order_update_id_, last.node_id);
-        }
-        order_complete_ = true;
+        VDA5050_INFO(
+          "[OrderLifecycle] {} order {} (update {}) complete", agv_id_,
+          active_order_id_, active_order_update_id_);
       }
-      else
-      {
-        VDA5050_WARN(
-          "[OrderLifecycle] {} state seq={} matches but last_node_id={} "
-          "differs from order's {}; not marking complete",
-          agv_id_, state.last_node_sequence_id, state.last_node_id,
-          last.node_id);
-      }
+      order_complete_ = true;
     }
   }
 
-  // Drain pending queue.
   return drain_pending_locked(state);
 }
 
@@ -420,7 +390,7 @@ bool OrderLifecycleManager::enqueue_pending_update(
       agv_id_, pending_queue_cap_, update.order_update_id);
     return false;
   }
-  pending_updates_.push_back(update);
+  pending_updates_.push_back(PendingUpdate{update, 0});
   return true;
 }
 
@@ -433,10 +403,26 @@ void OrderLifecycleManager::clear()
   last_node_sequence_id_ = 0;
   state_order_update_id_ = 0;
   last_state_order_id_.clear();
+  last_state_header_id_ = 0;
+  have_state_baseline_ = false;
+  prev_active_order_id_.clear();
   order_complete_ = false;
   needs_more_base_ = false;
   pending_updates_.clear();
   mismatch_count_ = 0;
+}
+
+void OrderLifecycleManager::clear_pending()
+{
+  std::lock_guard<std::mutex> lock(lifecycle_mutex_);
+  pending_updates_.clear();
+}
+
+void OrderLifecycleManager::reset_state_baseline()
+{
+  std::lock_guard<std::mutex> lock(lifecycle_mutex_);
+  last_state_header_id_ = 0;
+  have_state_baseline_ = false;
 }
 
 // =============================================================================
@@ -505,8 +491,7 @@ std::size_t OrderLifecycleManager::pending_update_count() const
 bool OrderLifecycleManager::tick_mismatch(
   const vda5050_core::types::State& state)
 {
-  // Skip if no active order to mismatch against, or AGV reports empty
-  // order_id (initial state / post-reset is benign).
+  // No active order or empty state order_id (initial / post-reset) is benign.
   if (active_order_id_.empty() || state.order_id.empty())
   {
     return false;
@@ -515,6 +500,12 @@ bool OrderLifecycleManager::tick_mismatch(
   if (state.order_id == active_order_id_)
   {
     mismatch_count_ = 0;
+    return false;
+  }
+
+  // Handover lag: still reporting the just-replaced order is expected.
+  if (!prev_active_order_id_.empty() && state.order_id == prev_active_order_id_)
+  {
     return false;
   }
 
@@ -547,72 +538,56 @@ OrderLifecycleManager::drain_pending_locked(
   const vda5050_core::types::State& state)
 {
   std::vector<vda5050_core::types::Order> ready;
+  if (pending_updates_.empty() || !active_order_) return ready;
 
+  // Reuse OrderStitcher::decide so drain and the pre-flight can't drift. The
+  // active order and this State are constant across the loop — build once.
+  ActiveOrderSnapshot snap;
+  snap.has_active = true;
+  snap.order_id = active_order_id_;
+  snap.order_update_id = active_order_update_id_;
+  snap.nodes = active_order_->nodes;
+  snap.last_node_sequence_id = state.last_node_sequence_id;
+  snap.state_order_update_id = state.order_update_id;
+  snap.state_order_id = state.order_id;
+  snap.order_complete = order_complete_;
+
+  OrderStitcher stitcher;
   while (!pending_updates_.empty())
   {
-    const auto& candidate = pending_updates_.front();
+    auto& front = pending_updates_.front();
+    const auto decision = stitcher.decide(front.order, snap).decision;
 
-    // Cond 1: order_id must match active.
-    if (!active_order_ || candidate.order_id != active_order_id_)
+    if (decision == StitchDecision::QUEUE_PENDING)
     {
+      // Not ready yet; wait, aging the head out if it never clears. FIFO —
+      // don't skip past the head.
+      if (++front.waits > kDefaultPendingMaxWaits)
+      {
+        VDA5050_WARN(
+          "[OrderLifecycle] {} dropping pending update {}; stitch conditions "
+          "not met in {} states",
+          agv_id_, front.order.order_update_id, kDefaultPendingMaxWaits);
+        pending_updates_.pop_front();
+        continue;
+      }
       break;
     }
 
-    if (candidate.nodes.empty())
+    if (decision != StitchDecision::SEND_NOW)
     {
-      VDA5050_ERROR(
-        "[OrderLifecycle] {} pending update {} has empty nodes; dropping",
-        agv_id_, candidate.order_update_id);
-      pending_updates_.pop_front();
-      continue;
-    }
-
-    const uint32_t first_seq = candidate.nodes.front().sequence_id;
-
-    // Cond 2: AGV has passed this update's stitch point — unrecoverable
-    // (last_node_sequence_id only advances). Discard the dead head so it
-    // cannot starve later updates, and keep draining.
-    if (!order_complete_ && first_seq < state.last_node_sequence_id)
-    {
+      // REJECT / IGNORE — unstitchable or already applied; drop.
       VDA5050_WARN(
-        "[OrderLifecycle] {} dropping pending update {}; AGV already past its "
-        "stitch point (seq {} < {})",
-        agv_id_, candidate.order_update_id, first_seq,
-        state.last_node_sequence_id);
+        "[OrderLifecycle] {} dropping pending update {}; no longer stitchable",
+        agv_id_, front.order.order_update_id);
       pending_updates_.pop_front();
       continue;
     }
 
-    // Cond 3: AGV has not yet reached the stitch point — wait (keep queued).
-    if (!order_complete_ && first_seq != state.last_node_sequence_id)
-    {
-      break;
-    }
-
-    // Cond 4: AGV has confirmed the previous order_update_id.
-    if (state.order_update_id < active_order_update_id_)
-    {
-      break;
-    }
-
-    // All conditions satisfied — validate structurally via combine_order but
-    // publish the candidate as-is (spec-strict: the master re-sends only the
-    // stitch node + extension, the AGV merges internally). Adoption is deferred
-    // to record_published (queue thread, post-publish) so the stitcher's
-    // duplicate check doesn't trip.
-    auto combined =
-      combine_order(*active_order_, candidate, state.last_node_sequence_id);
-    vda5050_core::types::Order to_publish = candidate;
+    // SEND_NOW — release; the queue thread re-validates each against the
+    // advancing active order before publishing.
+    ready.push_back(front.order);
     pending_updates_.pop_front();
-    if (!combined)
-    {
-      VDA5050_ERROR(
-        "[OrderLifecycle] {} combine_order failed for pending update {}; "
-        "dropping ({} errors)",
-        agv_id_, to_publish.order_update_id, combined.errors.size());
-      continue;
-    }
-    ready.push_back(std::move(to_publish));
   }
 
   return ready;

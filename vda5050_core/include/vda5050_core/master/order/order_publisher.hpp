@@ -37,25 +37,19 @@ namespace vda5050_core {
 namespace master {
 
 /// \brief Runs the outgoing-order validator chain, then publishes.
-///
-/// Stateless: encapsulates the order QoS and routes the typed payload through
-/// the per-AGV ProtocolAdapter. Safe to call concurrently.
+///        Stateless and safe to call concurrently.
 class OrderPublisher
 {
 public:
   OrderPublisher() = default;
 
-  /// \brief Validate an order (schema, pre-send, structural, traversability,
-  ///        capability) and publish only if all pass. When active_order shares
-  ///        the id, validates as a stitch update; else as a fresh graph.
-  ///
+  /// \brief Validate, then publish only if all checks pass. A matching
+  ///        active_order id validates as a stitch update, else a fresh graph.
   /// \param adapter       per-AGV typed adapter (caller-owned)
   /// \param ctx           AGV readiness snapshot, built by the caller
-  /// \param order         the order to publish
   /// \param active_order  the AGV's current active order, if any
-  /// \param merged_out    if non-null and the order stitched onto an active
-  ///                      order, receives the full merged order so the caller
-  ///                      can adopt it without re-combining
+  /// \param merged_out    receives the merged order on a stitch, to adopt
+  ///                      without re-combining
   /// \return validation result; no fatal errors means published
   vda5050_core::errors::ValidationResult publish(
     vda5050_core::execution::ProtocolAdapter& adapter,

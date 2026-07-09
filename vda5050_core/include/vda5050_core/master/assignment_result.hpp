@@ -26,8 +26,7 @@
 namespace vda5050_core {
 namespace master {
 
-// Synchronous, caller-visible outcome of assigning an Order to an AGV. The
-// async validator chain still re-checks on the queue thread as defense.
+// Synchronous outcome of assign_order; the queue thread re-checks as defense.
 
 /// \brief Outcome category returned by `VDA5050Master::assign_order`.
 enum class AssignmentDecision
@@ -46,12 +45,13 @@ enum class AssignmentDecision
   AGV_POSITION_NOT_INITIALIZED,
   /// AGV has not yet reported any State message.
   AGV_NO_STATE_YET,
-  /// Update rejected by the stitcher (backward order_update_id, stitch
-  /// mismatch, etc.).
+  /// Update rejected by the stitcher (backward id, stitch mismatch, etc.).
   STITCH_REJECTED,
-  /// Update queued (AGV not yet at the stitch point); drained when its state
-  /// reaches the stitch. Observe via agv->pending_update_count().
-  STITCH_QUEUED
+  /// Update queued (AGV not yet on the order, or prior update unconfirmed);
+  /// drained on a later State. Observe via agv->pending_update_count().
+  STITCH_QUEUED,
+  /// Duplicate order_update_id already applied; nothing published (no-op).
+  DUPLICATE_IGNORED
 };
 
 /// \brief Structured outcome of `VDA5050Master::assign_order`.
@@ -59,11 +59,10 @@ struct AssignmentResult
 {
   AssignmentDecision decision = AssignmentDecision::ASSIGNED;
 
-  /// Diagnostics for non-ASSIGNED outcomes (empty on ASSIGNED); STITCH_QUEUED
-  /// is a success path and carries none.
+  /// Diagnostics for failure outcomes; empty on ASSIGNED / STITCH_QUEUED.
   std::vector<vda5050_core::types::Error> errors;
 
-  /// True iff ASSIGNED; STITCH_QUEUED is false (order not yet published).
+  /// True iff ASSIGNED (STITCH_QUEUED is not yet published).
   explicit operator bool() const
   {
     return decision == AssignmentDecision::ASSIGNED;

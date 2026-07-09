@@ -31,7 +31,6 @@ namespace vda5050_core::master {
 
 namespace {
 
-// Build an OrderUpdateError with order_id + order_update_id refs attached.
 vda5050_core::types::Error make_error(
   const vda5050_core::types::Order& candidate, const std::string& description,
   std::vector<vda5050_core::types::ErrorReference> extra_refs = {})
@@ -45,8 +44,6 @@ vda5050_core::types::Error make_error(
   return errors::create_error(errors::OrderUpdateError, description, refs);
 }
 
-// Find sequence_id of the last released base node in `nodes`.
-// Returns nullopt if no released node exists.
 std::optional<uint32_t> last_released_seq(
   const std::vector<vda5050_core::types::Node>& nodes)
 {
@@ -81,33 +78,23 @@ StitchResult OrderStitcher::decide(
     res.errors.push_back(make_error(candidate, description, std::move(refs)));
   };
 
-  // ===========================================================
-  // Pre-flight: structural and policy checks. Any failure here
-  // is REJECT (no amount of waiting fixes them).
-  // ===========================================================
-
-  // No active order — fresh publish, nothing to stitch onto.
   if (!snapshot.has_active)
   {
     return res;  // SEND_NOW (default)
   }
 
-  // An active order always has at least one node.
   if (candidate.nodes.empty())
   {
     reject("Candidate order has no nodes");
     return res;
   }
 
-  // Different order_id: if the prior order is COMPLETE this is a fresh
-  // assignment (the AGV keeps reporting the finished id until a new one is
-  // accepted) -> SEND_NOW. Otherwise a concurrent order is in flight, which
-  // v2.0.0 doesn't support -> the FMS must cancelOrder first.
+  // Different order_id: fresh assignment if the prior is complete, else reject.
   if (candidate.order_id != snapshot.order_id)
   {
     if (snapshot.order_complete)
     {
-      return res;  // SEND_NOW — fresh assignment, bypass stitch guards
+      return res;  // fresh assignment
     }
     reject(
       "Candidate order_id does not match active order_id; cancel "
@@ -115,42 +102,35 @@ StitchResult OrderStitcher::decide(
     return res;
   }
 
-  // Duplicate (same id + same update_id) — the spec says ignore it; we
-  // surface as REJECT so the caller sees the diagnostic.
+  // Duplicate update_id — already applied; ignore as a no-op.
   if (candidate.order_update_id == snapshot.order_update_id)
   {
-    reject("Duplicate order_update_id; suppressed as already applied");
+    res.decision = StitchDecision::IGNORE;
     return res;
   }
 
-  // Backward update_id — a stale or out-of-order update.
   if (candidate.order_update_id < snapshot.order_update_id)
   {
     reject("Candidate order_update_id is lower than active order_update_id");
     return res;
   }
 
-  // Cannot evaluate timing guards without a State message yet.
+  // No State yet: can't evaluate timing — queue and retry.
   if (snapshot.state_order_id.empty())
   {
-    reject("Cannot evaluate stitch guards: AGV has not yet reported any State");
+    queue(
+      GuardFailure::NO_STATE_YET,
+      "AGV has not yet reported any State; queued until it does");
     return res;
   }
 
-  // Active order with no released base node: combine_order would also
-  // reject this; mirrors lifecycle behavior.
+  // No released base node — combine_order would reject too.
   const auto stitch_seq = last_released_seq(snapshot.nodes);
   if (!stitch_seq.has_value())
   {
     reject("Active order has no released base node");
     return res;
   }
-
-  // ===========================================================
-  // 4 stitch guards. Any failure is
-  // QUEUE_PENDING — the AGV will eventually catch up and a future
-  // State message will release the queued update.
-  // ===========================================================
 
   const bool relax_progress_guards = snapshot.order_complete;
 
@@ -164,13 +144,8 @@ StitchResult OrderStitcher::decide(
     return res;
   }
 
-  // Guard 2: AGV has not passed the stitch point. A passed stitch is
-  // unrecoverable — last_node_sequence_id only advances within an order, so
-  // the AGV can never return to the anchor. Reject (not queue) so a stale
-  // update cannot sit at the pending-queue head and starve later updates.
-  // Strict `>` — parked-at-stitch-node is fine (matches combine_order).
-  // Relaxed when the active order is complete: any future-segment update
-  // can be forwarded immediately.
+  // Guard 2: AGV must not have passed the stitch point. Reaching it is not
+  // required — an update may be sent ahead while the AGV drives toward it.
   if (!relax_progress_guards && snapshot.last_node_sequence_id > *stitch_seq)
   {
     reject(
@@ -180,20 +155,8 @@ StitchResult OrderStitcher::decide(
     return res;
   }
 
-  // Guard 3: AGV has reached the stitch point.
-  if (!relax_progress_guards && snapshot.last_node_sequence_id != *stitch_seq)
-  {
-    queue(
-      GuardFailure::STITCH_NOT_REACHED,
-      "AGV has not yet reached the stitch point",
-      {{errors::RefSequenceId,
-        std::to_string(snapshot.last_node_sequence_id)}});
-    return res;
-  }
-
-  // Guard 4: AGV has confirmed the previous order_update_id.
-  // Always enforced (even when order_complete == true), to avoid a new
-  // update racing past an unconfirmed prior one.
+  // Guard 3: AGV has confirmed the previous order_update_id. Always enforced
+  // (even when complete) so a new update can't race a prior unconfirmed one.
   if (snapshot.state_order_update_id < snapshot.order_update_id)
   {
     queue(
@@ -202,7 +165,6 @@ StitchResult OrderStitcher::decide(
     return res;
   }
 
-  // All pre-flight + guards passed — forward to publisher chain.
   return res;  // SEND_NOW (default)
 }
 

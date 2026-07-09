@@ -27,6 +27,7 @@
 #include <string>
 #include <vector>
 
+#include "vda5050_core/master/order/active_order_snapshot.hpp"
 #include "vda5050_core/types/edge.hpp"
 #include "vda5050_core/types/error.hpp"
 #include "vda5050_core/types/node.hpp"
@@ -36,16 +37,12 @@
 namespace vda5050_core {
 namespace master {
 
-// Tracks the master's view of one AGV's in-flight order; one instance per
-// managed AGV. Owns lifecycle_mutex_, acquired without holding any AGV mutex.
+// Master's view of one AGV's in-flight order. Owns lifecycle_mutex_.
 
-/// \brief Outcome of combine_order(): a merged Order or accumulated errors.
+/// \brief combine_order() result: a merged Order, or errors on failure.
 struct CombineResult
 {
-  /// Merged Order; populated only when errors is empty.
   vda5050_core::types::Order order;
-
-  /// Combine violations; non-empty means failure.
   std::vector<vda5050_core::types::Error> errors;
 
   explicit operator bool() const
@@ -54,40 +51,8 @@ struct CombineResult
   }
 };
 
-/// \brief Read-only snapshot of the manager's tracked state.
-struct ActiveOrderSnapshot
-{
-  /// True when an active order is being tracked.
-  bool has_active = false;
-
-  /// Active order_id (empty when has_active == false).
-  std::string order_id;
-
-  uint32_t order_update_id = 0;
-
-  /// Merged nodes (base + horizon, in seq order).
-  std::vector<vda5050_core::types::Node> nodes;
-
-  std::vector<vda5050_core::types::Edge> edges;
-
-  /// AGV's most recent reported last_node_sequence_id (0 if no state yet).
-  uint32_t last_node_sequence_id = 0;
-
-  /// AGV's most recent reported order_update_id (0 if no state yet).
-  uint32_t state_order_update_id = 0;
-
-  /// AGV's most recent reported order_id (empty if no state yet).
-  std::string state_order_id;
-
-  /// True once the AGV reports it reached the active order's last node.
-  bool order_complete = false;
-};
-
-/// \brief Merge base and update at the stitch point, enforcing the VDA5050
-///        stitching rules. Pure; does not touch manager state.
-///
-/// \param last_node_sequence_id  Used to check the AGV hasn't passed the
-///                               stitch point.
+/// \brief Merge base + update at the stitch point per the VDA5050 rules. Pure.
+/// \param last_node_sequence_id  AGV last-reached seq; fails if past stitch.
 CombineResult combine_order(
   const vda5050_core::types::Order& base,
   const vda5050_core::types::Order& update, uint32_t last_node_sequence_id);
@@ -95,13 +60,11 @@ CombineResult combine_order(
 class OrderLifecycleManager
 {
 public:
-  /// Consecutive mismatched-order_id States before stale tracking clears.
   static constexpr int kDefaultMismatchThreshold = 3;
-
-  /// Pending-update queue cap; enqueue rejects the newest past this.
   static constexpr std::size_t kDefaultPendingQueueCap = 8;
+  // Counted in States, not time.
+  static constexpr int kDefaultPendingMaxWaits = 60;
 
-  /// \brief Construct.
   /// \param agv_id  Used in log messages only.
   explicit OrderLifecycleManager(
     std::string agv_id, int mismatch_threshold = kDefaultMismatchThreshold,
@@ -117,32 +80,30 @@ public:
   // Mutators
   // =====================================================================
 
-  /// \brief Record a successful Order publish and set it active. Call after
-  ///        publish succeeds.
-  /// \param merged  When the publish stitched onto an active order, the
-  ///                merged order to adopt without re-combining.
+  /// \brief Record a successful publish and set it active.
+  /// \param merged  Merged order to adopt without re-combining, if stitched.
   void record_published(
     const vda5050_core::types::Order& order,
     const std::optional<vda5050_core::types::Order>& merged = {});
 
-  /// \brief Apply an incoming State: update last-node tracking, mismatch
-  ///        counter, completion detection, and pending-queue drain.
-  /// \return Pending updates now eligible to publish (caller sends via
-  ///         AGV::send_order); returned by value for lock-free iteration.
+  /// \brief Apply an incoming State (tracking, mismatch, completion, drain).
+  /// \return Pending updates now eligible to publish.
   std::vector<vda5050_core::types::Order> on_state_update(
     const vda5050_core::types::State& state);
 
-  /// \brief Add an order update to the pending-updates queue. The
-  ///        OrderStitcher uses this when a stitch guard returns
-  ///        QUEUE_PENDING.
-  /// \return false if the queue is at capacity (reject-newest); true on
-  ///         successful enqueue.
+  /// \brief Queue an order update (used by OrderStitcher on QUEUE_PENDING).
+  /// \return false if the queue is at capacity.
   bool enqueue_pending_update(const vda5050_core::types::Order& update);
 
-  /// \brief Forced reset: clears active order, pending queue, mismatch
-  ///        counter, completion / needs-more-base flags. For master-side
-  ///        cancelOrder, AGV restart, etc.
+  /// \brief Forced reset of all tracking. For cancelOrder, AGV restart, etc.
   void clear();
+
+  /// \brief Drop queued pending updates only, keeping active-order tracking.
+  void clear_pending();
+
+  /// \brief Reset the stale-State gate so a restarted AGV (header_id back to 0)
+  ///        is not locked out. Call on the disconnect edge.
+  void reset_state_baseline();
 
   // =====================================================================
   // Read-only accessors (each acquires lifecycle_mutex_ briefly)
@@ -154,36 +115,28 @@ public:
   std::optional<uint32_t> active_order_update_id() const;
   bool is_order_complete() const;
 
-  /// \brief True when AGV has reported newBaseRequest for the active order
-  ///        and master has not yet recorded a strictly higher
-  ///        order_update_id for that order_id. Cleared on real extensions
-  ///        (no-op republish does not clear it).
+  /// \brief True while the AGV has requested more base and the master has not
+  ///        yet published a higher order_update_id.
   bool active_order_needs_more_base() const;
 
   std::size_t pending_update_count() const;
 
 private:
-  // Drive the mismatch counter under lifecycle_mutex_. Returns true if
-  // recovery (3-strike clear) just fired.
+  // Returns true if the 3-strike mismatch clear just fired.
   bool tick_mismatch(const vda5050_core::types::State& state);
 
-  // Drain pending_updates_ FIFO under lifecycle_mutex_, returning the
-  // updates whose stitch conditions are now satisfied. Combine errors are
-  // logged and the offending update is discarded. Adopts each successfully
-  // combined update as the new active order in-place.
   std::vector<vda5050_core::types::Order> drain_pending_locked(
     const vda5050_core::types::State& state);
 
-  // Internal accept-and-replace helper. Caller holds lifecycle_mutex_.
+  // Caller holds lifecycle_mutex_.
   void adopt_active_locked(const vda5050_core::types::Order& order);
 
-  std::string agv_id_;  // log identity, immutable
+  std::string agv_id_;
   const int mismatch_threshold_;
   const std::size_t pending_queue_cap_;
 
   mutable std::mutex lifecycle_mutex_;
 
-  // Active order (combined view) and cached primary keys for fast paths.
   std::optional<vda5050_core::types::Order> active_order_;
   std::string active_order_id_;
   uint32_t active_order_update_id_ = 0;
@@ -193,13 +146,23 @@ private:
   uint32_t state_order_update_id_ = 0;
   std::string last_state_order_id_;
 
-  // Sticky flags.
+  // Stale-State gate (QoS 0): drop header_id not strictly newer.
+  uint32_t last_state_header_id_ = 0;
+  bool have_state_baseline_ = false;
+
+  // Prior order_id; a State still reporting it is handover lag, not a mismatch.
+  std::string prev_active_order_id_;
+
   bool order_complete_ = false;
   bool needs_more_base_ = false;
 
-  // Queue-and-retry (deque, not std::queue — we walk front->back
-  // before popping).
-  std::deque<vda5050_core::types::Order> pending_updates_;
+  // waits counts States spent unsent so a wedged update ages out.
+  struct PendingUpdate
+  {
+    vda5050_core::types::Order order;
+    int waits = 0;
+  };
+  std::deque<PendingUpdate> pending_updates_;
 
   int mismatch_count_ = 0;
 };

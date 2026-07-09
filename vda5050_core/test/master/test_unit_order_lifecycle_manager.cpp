@@ -28,6 +28,7 @@
 #include "vda5050_core/types/node.hpp"
 #include "vda5050_core/types/order.hpp"
 #include "vda5050_core/types/state.hpp"
+#include "vda5050_core/validation/order_graph_validator.hpp"
 
 namespace vda5050_core::master {
 namespace test {
@@ -209,25 +210,30 @@ TEST(CombineOrder, RejectsMismatchedOrderId)
 
 TEST(CombineOrder, AppendsExtensionEdges)
 {
-  // Edge-side parallel of AppendsExtensionPastBaseLastReleased. Base has
-  // E0 (released, seq=1) + E1 (horizon, seq=3); update introduces E2
-  // (seq=5) past the horizon. E0 (last released) is preserved as the
-  // stitch edge anchor; E1 stays; E2 appended.
-  auto base = make_base_order();
+  // Realistic stitch: release the horizon (N2/E1) and extend to N3 from the
+  // horizon tail. The pre-anchor released edge E0 is dropped and the merged
+  // order stays graph-valid.
+  auto base = make_base_order();  // n0,n1 rel, n2 horizon; e0 rel, e1 horizon
   vda5050_core::types::Order update;
   update.order_id = kOrderId;
   update.order_update_id = 1;
-  update.nodes = {make_node("N1", 2, true), make_node("N3", 6, true)};
+  update.nodes = {
+    make_node("N1", 2, true),   // stitch node, identical
+    make_node("N2", 4, true),   // release the horizon node
+    make_node("N3", 6, true)};  // extension
   update.edges = {
-    make_edge("E0", 1, "N0", "N1", true),  // stitch edge — must equal base
-    make_edge("E2", 5, "N1", "N3", true)};
+    make_edge("E1", 3, "N1", "N2", true),   // release the horizon edge
+    make_edge("E3", 5, "N2", "N3", true)};  // extension from the horizon tail
 
   auto res = combine_order(base, update, 0);
   ASSERT_TRUE(static_cast<bool>(res)) << "errors=" << res.errors.size();
-  ASSERT_EQ(res.order.edges.size(), 3u);  // E0 + E1 (horizon) + E2
-  EXPECT_EQ(res.order.edges[0].edge_id, "E0");
-  EXPECT_EQ(res.order.edges[1].edge_id, "E1");
-  EXPECT_EQ(res.order.edges[2].edge_id, "E2");
+  // E0 (pre-anchor released edge) dropped; E1 + E3 = 2 edges, 3 nodes.
+  ASSERT_EQ(res.order.edges.size(), 2u);
+  EXPECT_EQ(res.order.edges[0].edge_id, "E1");
+  EXPECT_EQ(res.order.edges[1].edge_id, "E3");
+  // Merged order is a valid graph (nodes == edges + 1, connected).
+  auto v = vda5050_core::validation::is_valid_graph(res.order);
+  EXPECT_FALSE(v.has_warnings()) << "merged stitch order must be graph-valid";
 }
 
 TEST(CombineOrder, RejectsAlteringReleasedBaseEdge)
@@ -311,7 +317,7 @@ TEST(MismatchCounter, SkippedWhenStateOrderIdEmpty)
 // =============================================================================
 // Pending queue / drain
 // =============================================================================
-TEST(PendingQueue, ReleasedWhenStateReachesStitch)
+TEST(PendingQueue, ReleasedAheadOfStitch)
 {
   OrderLifecycleManager mgr(kAGV);
   mgr.record_published(make_base_order());
@@ -323,22 +329,18 @@ TEST(PendingQueue, ReleasedWhenStateReachesStitch)
   update.nodes = {make_node("N1", 2, true), make_node("N3", 6, true)};
   ASSERT_TRUE(mgr.enqueue_pending_update(update));
 
-  // AGV not yet at stitch — no drain.
-  auto ready1 = mgr.on_state_update(make_state(kOrderId, 0, "N0", 0));
-  EXPECT_TRUE(ready1.empty());
-  EXPECT_EQ(mgr.pending_update_count(), 1u);
-
-  // AGV reaches stitch — drain returns the candidate (spec-strict;
-  // adoption is deferred to record_published).
-  auto ready2 = mgr.on_state_update(make_state(kOrderId, 0, "N1", 2));
-  ASSERT_EQ(ready2.size(), 1u);
-  EXPECT_EQ(ready2.front().order_update_id, 1u);
+  // AGV still short of the stitch point (seq 0) but on the order and caught
+  // up — the update drains ahead of the AGV (adoption deferred to
+  // record_published).
+  auto ready = mgr.on_state_update(make_state(kOrderId, 0, "N0", 0));
+  ASSERT_EQ(ready.size(), 1u);
+  EXPECT_EQ(ready.front().order_update_id, 1u);
   EXPECT_EQ(mgr.pending_update_count(), 0u);
   // Drain alone does NOT advance active — record_published does.
   EXPECT_EQ(mgr.active_order_update_id().value_or(99), 0u)
     << "drain must not adopt; only record_published advances active";
   // Caller then publishes the candidate and records it.
-  mgr.record_published(ready2.front());
+  mgr.record_published(ready.front());
   EXPECT_EQ(mgr.active_order_update_id().value_or(0), 1u);
 }
 
@@ -386,6 +388,24 @@ TEST(PendingQueue, BlockedByOrderIdMismatch)
   EXPECT_EQ(mgr.pending_update_count(), 1u);
 }
 
+TEST(PendingQueue, DroppedWhenAgvPassedStitchPoint)
+{
+  OrderLifecycleManager mgr(kAGV);
+  mgr.record_published(make_base_order());  // stitch anchor N1@2
+
+  vda5050_core::types::Order update;
+  update.order_id = kOrderId;
+  update.order_update_id = 1;
+  update.nodes = {make_node("N1", 2, true), make_node("N3", 6, true)};
+  ASSERT_TRUE(mgr.enqueue_pending_update(update));
+
+  // AGV on the order but past the stitch point (seq 4 > 2) → decide() REJECTs
+  // → drain drops it.
+  auto ready = mgr.on_state_update(make_state(kOrderId, 0, "X", 4));
+  EXPECT_TRUE(ready.empty());
+  EXPECT_EQ(mgr.pending_update_count(), 0u);
+}
+
 TEST(PendingQueue, BlockedUntilPrevConfirmed)
 {
   // Bump base.order_update_id to simulate a previously confirmed update.
@@ -408,6 +428,30 @@ TEST(PendingQueue, BlockedUntilPrevConfirmed)
   // AGV reports update_id == active (confirmed) — drain.
   auto ready2 = mgr.on_state_update(make_state(kOrderId, 5, "N1", 2));
   EXPECT_EQ(ready2.size(), 1u);
+  EXPECT_EQ(mgr.pending_update_count(), 0u);
+}
+
+TEST(PendingQueue, AgesOutWhenWaitNeverClears)
+{
+  // High mismatch threshold so aging (not mismatch recovery) drops the head.
+  OrderLifecycleManager mgr(kAGV, /*threshold=*/1000, /*cap=*/8);
+  mgr.record_published(make_base_order());
+
+  vda5050_core::types::Order update;
+  update.order_id = kOrderId;
+  update.order_update_id = 1;
+  update.nodes = {make_node("N1", 2, true), make_node("N3", 6, true)};
+  ASSERT_TRUE(mgr.enqueue_pending_update(update));
+
+  // AGV stays on a different order_id — the wait never clears.
+  for (int i = 0; i < OrderLifecycleManager::kDefaultPendingMaxWaits; ++i)
+  {
+    mgr.on_state_update(make_state("OTHER_ORDER", 0, "N0", 0));
+    ASSERT_EQ(mgr.pending_update_count(), 1u) << "still queued at wait " << i;
+  }
+
+  // One more state crosses the age-out threshold — head dropped.
+  mgr.on_state_update(make_state("OTHER_ORDER", 0, "N0", 0));
   EXPECT_EQ(mgr.pending_update_count(), 0u);
 }
 
@@ -497,6 +541,48 @@ TEST(Completion, NotSetWhenLastNodeIdMismatch)
   EXPECT_FALSE(mgr.is_order_complete());
 }
 
+TEST(Completion, NotSetFromForeignGracedOrderState)
+{
+  OrderLifecycleManager mgr(kAGV);
+  vda5050_core::types::Order a;
+  a.order_id = "ORD_A";
+  a.order_update_id = 0;
+  a.nodes = {make_node("X", 0, true)};
+  mgr.record_published(a);
+  vda5050_core::types::Order b;
+  b.order_id = "ORD_B";
+  b.order_update_id = 0;
+  b.nodes = {make_node("X", 0, true)};  // same node id/seq (fixed map)
+  mgr.record_published(b);              // active=B, prev=A (graced)
+
+  // A lagging State from the just-replaced order A reaches node X, which is
+  // also B's last node. It must NOT complete B.
+  mgr.on_state_update(make_state("ORD_A", 0, "X", 0));
+  EXPECT_FALSE(mgr.is_order_complete());
+}
+
+TEST(StaleStateGate, ResetOnReconnectAcceptsRestartedHeaderId)
+{
+  OrderLifecycleManager mgr(kAGV);
+  mgr.record_published(make_base_order());
+
+  vda5050_core::types::State s1 = make_state(kOrderId, 0, "N1", 2);
+  s1.header.header_id = 500;
+  mgr.on_state_update(s1);
+  EXPECT_EQ(mgr.snapshot().last_node_sequence_id, 2u);
+
+  // A lower header_id is dropped by the stale gate.
+  vda5050_core::types::State s2 = make_state(kOrderId, 0, "N0", 0);
+  s2.header.header_id = 3;
+  mgr.on_state_update(s2);
+  EXPECT_EQ(mgr.snapshot().last_node_sequence_id, 2u) << "stale dropped";
+
+  // After a reconnect reset, the restarted-counter State is accepted.
+  mgr.reset_state_baseline();
+  mgr.on_state_update(s2);
+  EXPECT_EQ(mgr.snapshot().last_node_sequence_id, 0u) << "accepted after reset";
+}
+
 // =============================================================================
 // newBaseRequest
 // =============================================================================
@@ -567,7 +653,9 @@ TEST(LifecycleClear, ClearResetsAllState)
   pending.nodes = {make_node("N1", 2, true), make_node("N3", 6, true)};
   ASSERT_TRUE(mgr.enqueue_pending_update(pending));
 
-  vda5050_core::types::State s = make_state(kOrderId, 0, "N0", 0);
+  // AGV still reports a different order_id, so the pending update stays queued
+  // (not yet on the order) — lets us assert clear() drops a non-empty queue.
+  vda5050_core::types::State s = make_state("OTHER_ORDER", 0, "N0", 0);
   s.new_base_request = true;
   mgr.on_state_update(s);
 
@@ -681,12 +769,11 @@ TEST(RecordPublished, UpdateAdoptsMergedBaseHorizonView)
   EXPECT_EQ(snap.nodes[0].node_id, "N1");
   EXPECT_EQ(snap.nodes[1].node_id, "N2");
   EXPECT_EQ(snap.nodes[2].node_id, "N3");
-  // Edges: last-released base edge (E0) + horizon kept (E1) + new (E2).
-  // Mirrors nodes-stitch-anchor preservation but for edges.
-  ASSERT_EQ(snap.edges.size(), 3u);
-  EXPECT_EQ(snap.edges[0].edge_id, "E0");
-  EXPECT_EQ(snap.edges[1].edge_id, "E1");
-  EXPECT_EQ(snap.edges[2].edge_id, "E2");
+  // Edges: horizon kept (E1) + new (E2). The pre-anchor released edge E0 is
+  // dropped, mirroring the node stitch-anchor preservation.
+  ASSERT_EQ(snap.edges.size(), 2u);
+  EXPECT_EQ(snap.edges[0].edge_id, "E1");
+  EXPECT_EQ(snap.edges[1].edge_id, "E2");
 }
 
 TEST(RecordPublished, SequentialUpdatesGrowAndPromoteHorizon)

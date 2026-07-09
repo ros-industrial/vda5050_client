@@ -381,10 +381,10 @@ TEST_F(MasterAssignOrderTest, EndToEnd_DrainPublishRecord_Cycle)
   EXPECT_EQ(agv->active_order_update_id().value_or(99), 0u);
 }
 
-TEST_F(MasterAssignOrderTest, AssignOrder_StitchedUpdate_Queued)
+TEST_F(MasterAssignOrderTest, AssignOrder_StitchedUpdate_SentAhead)
 {
-  // V0 is multi-node; AGV at N0 (not at stitch anchor N1@2). U1 must
-  // QUEUE_PENDING because cond 3 (AGV reached stitch) fails.
+  // V0 is multi-node; AGV at N0 (not at stitch anchor N1@2). U1 is sent ahead
+  // of the AGV — reaching the stitch is not required.
   auto agv = master_->get_agv(kManufacturer, kSerial);
   ASSERT_NE(agv, nullptr);
 
@@ -401,8 +401,6 @@ TEST_F(MasterAssignOrderTest, AssignOrder_StitchedUpdate_Queued)
     [&] { return agv->has_active_order(); }, std::chrono::milliseconds(500)));
 
   // Simulate AGV acking V0 by sending a state with order_id=ORDER_A.
-  // Without this, snapshot.state_order_id is empty and stitcher's
-  // pre-flight returns REJECT instead of evaluating cond 3.
   agv->handle_state(make_ready_state(
     vda5050_core::types::OperatingMode::AUTOMATIC, true, "N0", 0,
     /*order_id=*/std::string(kOrderId), /*order_update_id=*/0));
@@ -419,10 +417,43 @@ TEST_F(MasterAssignOrderTest, AssignOrder_StitchedUpdate_Queued)
   u1.nodes = {mk_node("N1", 2, true), mk_node("N3", 6, true)};
   u1.edges = {mk_edge("E2", 5, "N1", "N3", true)};
 
-  // AGV is still at N0 — stitcher cond 3 (reached stitch) fails.
+  // AGV still at N0 but on the order and caught up — sent immediately.
+  auto res = master_->assign_order(kManufacturer, kSerial, u1);
+  EXPECT_EQ(res.decision, AssignmentDecision::ASSIGNED)
+    << "expected send-ahead (ASSIGNED) even though AGV is at N0";
+}
+
+TEST_F(MasterAssignOrderTest, AssignOrder_StitchedUpdate_QueuedWhenNotOnOrder)
+{
+  // V0 active, but the AGV still reports a different order_id (has not adopted
+  // it on the wire) — an update to it queues until the AGV is on the order.
+  auto agv = master_->get_agv(kManufacturer, kSerial);
+  ASSERT_NE(agv, nullptr);
+
+  agv->handle_connection(make_online_connection());
+  agv->handle_state(make_ready_state(
+    vda5050_core::types::OperatingMode::AUTOMATIC, true, "N0", 0));
+
+  ASSERT_EQ(
+    master_->assign_order(kManufacturer, kSerial, make_multi_node_v0())
+      .decision,
+    AssignmentDecision::ASSIGNED);
+  ASSERT_TRUE(wait_for(
+    [&] { return agv->has_active_order(); }, std::chrono::milliseconds(500)));
+
+  // AGV still reports its previous order_id — not yet on ORDER_A.
+  agv->handle_state(make_ready_state(
+    vda5050_core::types::OperatingMode::AUTOMATIC, true, "N0", 0,
+    /*order_id=*/std::string("STALE_ORDER"), /*order_update_id=*/0));
+
+  vda5050_core::types::Order u1;
+  u1.order_id = kOrderId;
+  u1.order_update_id = 1;
+  u1.nodes = {mk_node("N1", 2, true), mk_node("N3", 6, true)};
+  u1.edges = {mk_edge("E2", 5, "N1", "N3", true)};
   auto res = master_->assign_order(kManufacturer, kSerial, u1);
   EXPECT_EQ(res.decision, AssignmentDecision::STITCH_QUEUED)
-    << "expected STITCH_QUEUED when AGV is at N0 but stitch is N1";
+    << "expected STITCH_QUEUED while AGV is not yet on the order";
 }
 
 TEST_F(MasterAssignOrderTest, AssignOrder_StitchedUpdate_Rejected)
@@ -452,6 +483,34 @@ TEST_F(MasterAssignOrderTest, AssignOrder_StitchedUpdate_Rejected)
   bad.order_update_id = 3;
   auto res = master_->assign_order(kManufacturer, kSerial, bad);
   EXPECT_EQ(res.decision, AssignmentDecision::STITCH_REJECTED);
+  EXPECT_FALSE(res.errors.empty());
+}
+
+TEST_F(MasterAssignOrderTest, AssignOrder_DifferentOrderWhileBusy_Rejected)
+{
+  // Order A active and NOT complete; assigning a different order_id must be
+  // rejected synchronously, not falsely reported ASSIGNED.
+  auto agv = master_->get_agv(kManufacturer, kSerial);
+  ASSERT_NE(agv, nullptr);
+
+  agv->handle_connection(make_online_connection());
+  agv->handle_state(make_ready_state(
+    vda5050_core::types::OperatingMode::AUTOMATIC, true, "N0", 0));
+
+  ASSERT_EQ(
+    master_->assign_order(kManufacturer, kSerial, make_multi_node_v0())
+      .decision,
+    AssignmentDecision::ASSIGNED);
+  ASSERT_TRUE(wait_for(
+    [&] { return agv->has_active_order(); }, std::chrono::milliseconds(500)));
+
+  vda5050_core::types::Order other;
+  other.order_id = "DIFFERENT_ORDER";
+  other.order_update_id = 0;
+  other.nodes = {mk_node("M0", 0, true)};
+  auto res = master_->assign_order(kManufacturer, kSerial, other);
+  EXPECT_EQ(res.decision, AssignmentDecision::STITCH_REJECTED)
+    << "a different order while busy must be rejected, not ASSIGNED";
   EXPECT_FALSE(res.errors.empty());
 }
 

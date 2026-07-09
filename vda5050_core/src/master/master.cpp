@@ -33,6 +33,7 @@
 #include "vda5050_core/logger/logger.hpp"
 #include "vda5050_core/master/order/order_stitcher.hpp"
 #include "vda5050_core/master/standard_names.hpp"
+#include "vda5050_core/master/updates/agv_updates.hpp"
 #include "vda5050_core/validation/action_conflict_validator.hpp"
 #include "vda5050_core/validation/factsheet_alignment.hpp"
 #include "vda5050_core/validation/instant_action_mode_validator.hpp"
@@ -48,6 +49,7 @@ VDA5050Master::VDA5050Master(
   std::shared_ptr<vda5050_core::transport::MqttClientInterface> mqtt_client)
 : mqtt_client_(std::move(mqtt_client))
 {
+  register_event_dispatch();
   VDA5050_INFO("[VDA5050Master] Created VDA5050Master instance");
   // Broker connection-state callbacks are wired in connect(), where
   // weak_from_this() is valid (it is not during construction).
@@ -269,6 +271,14 @@ std::size_t VDA5050Master::offboard_agv_batch(
     }
   }
 
+  // Drop event-detector baselines so a re-onboard starts clean (idempotent for
+  // keys that were not onboarded).
+  for (const auto& key : keys)
+  {
+    if (key.first.empty() || key.second.empty()) continue;
+    master_context_.forget_agv(key.first + "/" + key.second);
+  }
+
   for (auto& agv : to_stop)
   {
     if (agv) agv->stop();
@@ -336,6 +346,9 @@ void VDA5050Master::offboard_agv(
   // before the AGV instance is gone.
   agv->stop();
 
+  // Drop the AGV's event-detector baselines so a re-onboard starts clean.
+  master_context_.forget_agv(agv_id);
+
   {
     std::lock_guard<std::mutex> lock(assignments_mutex_);
     active_assignments_.erase(agv_id);
@@ -363,6 +376,9 @@ void VDA5050Master::record_assignment(
 std::string VDA5050Master::get_active_assignment_id(
   const std::string& manufacturer, const std::string& serial_number) const
 {
+  // A non-onboarded AGV has no assignment (an entry can linger if it was
+  // offboarded mid-assign). Checked before assignments_mutex_ (lock order).
+  if (!is_agv_onboarded(manufacturer, serial_number)) return {};
   const std::string agv_id = manufacturer + "/" + serial_number;
   std::lock_guard<std::mutex> lock(assignments_mutex_);
   auto it = active_assignments_.find(agv_id);
@@ -407,6 +423,108 @@ std::shared_ptr<AGV> VDA5050Master::get_agv_by_id(
 }
 
 // ============================================================================
+// Fleet event dispatch
+// ============================================================================
+
+void VDA5050Master::ingest_state(
+  const std::string& agv_id, const vda5050_core::types::State& state)
+{
+  master_context_.on_state(agv_id, state);
+}
+
+void VDA5050Master::ingest_connection(
+  const std::string& agv_id, const vda5050_core::types::Connection& connection)
+{
+  master_context_.on_connection(agv_id, connection);
+}
+
+void VDA5050Master::fire_hook(
+  const std::string& agv_id, const char* hook_name,
+  const std::function<void()>& fn)
+{
+  try
+  {
+    fn();
+  }
+  catch (const std::exception& e)
+  {
+    VDA5050_ERROR(
+      "[VDA5050Master] {} hook threw for {}: {}", hook_name, agv_id, e.what());
+  }
+}
+
+void VDA5050Master::register_event_dispatch()
+{
+  auto provider = master_context_.provider();
+
+  provider->on<NodeReachedUpdate>([this](std::shared_ptr<NodeReachedUpdate> u) {
+    fire_hook(u->agv_id, "on_node_reached", [&] {
+      on_node_reached(u->agv_id, u->node_id);
+    });
+  });
+
+  provider->on<ErrorsChangedUpdate>(
+    [this](std::shared_ptr<ErrorsChangedUpdate> u) {
+      fire_hook(u->agv_id, "on_errors", [&] {
+        if (!u->appeared.empty()) on_errors_appeared(u->agv_id, u->appeared);
+        if (!u->resolved.empty()) on_errors_resolved(u->agv_id, u->resolved);
+      });
+    });
+
+  provider->on<NewBaseRequestUpdate>(
+    [this](std::shared_ptr<NewBaseRequestUpdate> u) {
+      fire_hook(u->agv_id, "on_new_base_requested", [&] {
+        on_new_base_requested(u->agv_id);
+      });
+    });
+
+  provider->on<OperatingModeChangedUpdate>(
+    [this](std::shared_ptr<OperatingModeChangedUpdate> u) {
+      fire_hook(u->agv_id, "on_mode_changed", [&] {
+        on_mode_changed(u->agv_id, u->mode, u->prev_mode);
+      });
+    });
+
+  provider->on<PausedChangedUpdate>([this](
+                                      std::shared_ptr<PausedChangedUpdate> u) {
+    fire_hook(u->agv_id, "on_paused", [&] { on_paused(u->agv_id, u->paused); });
+  });
+
+  provider->on<DrivingChangedUpdate>(
+    [this](std::shared_ptr<DrivingChangedUpdate> u) {
+      fire_hook(
+        u->agv_id, "on_driving", [&] { on_driving(u->agv_id, u->driving); });
+    });
+
+  provider->on<LoadsChangedUpdate>(
+    [this](std::shared_ptr<LoadsChangedUpdate> u) {
+      fire_hook(u->agv_id, "on_loads_changed", [&] {
+        on_loads_changed(u->agv_id, u->loads);
+      });
+    });
+
+  provider->on<ConnectionChangedUpdate>(
+    [this](std::shared_ptr<ConnectionChangedUpdate> u) {
+      fire_hook(u->agv_id, "on_connection", [&] {
+        switch (u->kind)
+        {
+          case ConnectionTransition::CONNECTED:
+            on_connect(u->agv_id);
+            break;
+          case ConnectionTransition::OFFLINE:
+            on_offline(u->agv_id);
+            break;
+          case ConnectionTransition::CONNECTIONBROKEN:
+            on_connection_broken(u->agv_id);
+            break;
+          case ConnectionTransition::NONE:
+            break;
+        }
+      });
+    });
+}
+
+// ============================================================================
 // Outgoing Messages
 // ============================================================================
 
@@ -424,8 +542,9 @@ bool VDA5050Master::publish_order(
 
   if (!agv)
   {
-    throw std::runtime_error(
-      "Cannot publish order: AGV not onboarded: " + agv_id);
+    VDA5050_WARN(
+      "[VDA5050Master] Cannot publish order: AGV not onboarded: {}", agv_id);
+    return false;
   }
 
   return agv->send_order(order);
@@ -433,7 +552,7 @@ bool VDA5050Master::publish_order(
 
 AssignmentResult VDA5050Master::assign_order(
   const std::string& manufacturer, const std::string& serial_number,
-  const vda5050_core::types::Order& order)
+  const vda5050_core::types::Order& order, const std::string& assignment_id)
 {
   AssignmentResult res;
   auto add_error = [&](const std::string& description) {
@@ -441,7 +560,6 @@ AssignmentResult VDA5050Master::assign_order(
       vda5050_core::errors::PreSendValidationError, description, {}));
   };
 
-  // Step 1: AGV lookup.
   const std::string agv_id = manufacturer + "/" + serial_number;
   std::shared_ptr<AGV> agv;
   {
@@ -455,7 +573,6 @@ AssignmentResult VDA5050Master::assign_order(
     return res;
   }
 
-  // Step 2: connection ONLINE.
   if (
     agv->get_connection_status() !=
     vda5050_core::types::ConnectionState::ONLINE)
@@ -465,7 +582,6 @@ AssignmentResult VDA5050Master::assign_order(
     return res;
   }
 
-  // Step 3: operational state AVAILABLE.
   if (agv->get_operational_state() != AGVState::AVAILABLE)
   {
     res.decision = AssignmentDecision::AGV_NOT_READY;
@@ -473,7 +589,6 @@ AssignmentResult VDA5050Master::assign_order(
     return res;
   }
 
-  // Steps 4-5: state-derived checks.
   auto last_state = agv->get_last_state();
   if (!last_state.has_value())
   {
@@ -497,13 +612,11 @@ AssignmentResult VDA5050Master::assign_order(
     return res;
   }
 
-  // Step 6: stitch pre-flight (only for an update to the active order).
-  // Snapshot the stitcher decision for caller feedback, but always hand off to
-  // send_order on non-REJECT: the queue thread re-runs the stitcher and is the
-  // sole owner of pending enqueue (avoids duplicate enqueue + state drift).
+  // Caller-feedback pre-flight only; the queue thread re-runs the stitcher and
+  // solely owns the pending enqueue.
   const auto snap = agv->active_order_snapshot();
   bool stitch_will_queue = false;
-  if (snap.has_active && snap.order_id == order.order_id)
+  if (snap.has_active)
   {
     OrderStitcher stitcher;
     auto stitch = stitcher.decide(order, snap);
@@ -513,17 +626,33 @@ AssignmentResult VDA5050Master::assign_order(
       res.errors = std::move(stitch.errors);
       return res;
     }
+    if (stitch.decision == StitchDecision::IGNORE)
+    {
+      // Duplicate already applied — don't re-publish.
+      res.decision = AssignmentDecision::DUPLICATE_IGNORED;
+      return res;
+    }
     stitch_will_queue = (stitch.decision == StitchDecision::QUEUE_PENDING);
   }
 
-  // Step 7: hand off to async path. send_order returns false only on
-  // outbound queue full.
+  // send_order returns false only when the outbound queue is full.
   if (!agv->send_order(order))
   {
     res.decision = AssignmentDecision::AGV_NOT_READY;
     add_error("AGV outbound queue full or unable to accept order");
     return res;
   }
+
+  // Record the correlation. Re-check onboarding first (sequential, honoring
+  // the assignments_mutex_/agv_mutex_ lock order) to skip a stale entry if the
+  // AGV was offboarded meanwhile.
+  if (!assignment_id.empty() && is_agv_onboarded(manufacturer, serial_number))
+  {
+    record_assignment(
+      manufacturer, serial_number, assignment_id, order.order_id,
+      order.order_update_id);
+  }
+
   res.decision = stitch_will_queue ? AssignmentDecision::STITCH_QUEUED
                                    : AssignmentDecision::ASSIGNED;
   return res;
@@ -543,8 +672,10 @@ bool VDA5050Master::publish_instant_actions(
 
   if (!agv)
   {
-    throw std::runtime_error(
-      "Cannot publish instant actions: AGV not onboarded: " + agv_id);
+    VDA5050_WARN(
+      "[VDA5050Master] Cannot publish instant actions: AGV not onboarded: {}",
+      agv_id);
+    return false;
   }
 
   return agv->send_instant_actions(actions);

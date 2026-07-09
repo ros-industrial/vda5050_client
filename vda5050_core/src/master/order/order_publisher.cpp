@@ -20,6 +20,8 @@
 
 #include <cstdint>
 
+#include "vda5050_core/errors/error_codes.hpp"
+#include "vda5050_core/errors/error_factory.hpp"
 #include "vda5050_core/logger/logger.hpp"
 #include "vda5050_core/master/order/order_lifecycle_manager.hpp"
 #include "vda5050_core/master/standard_names.hpp"
@@ -38,8 +40,7 @@ vda5050_core::errors::ValidationResult OrderPublisher::publish(
   const std::optional<vda5050_core::types::Order>& active_order,
   std::optional<vda5050_core::types::Order>* merged_out)
 {
-  // Validator chain: schema → PreSend → structural → traversability →
-  // capability → publish. Each link short-circuits on failure.
+  // Chain: schema → PreSend → structural → traversability → capability.
   auto schema_result = vda5050_core::validation::validate_order_content(order);
   if (!schema_result)
   {
@@ -52,11 +53,7 @@ vda5050_core::errors::ValidationResult OrderPublisher::publish(
     return pre_send_result;
   }
 
-  // Structural validation branches: a fresh order is checked whole by
-  // is_valid_graph; an update has sparse sequence_ids (the spec forbids
-  // retransmitting the base), so combine_order validates it against the active
-  // order instead. The candidate is published as-sent; merged_out returns the
-  // merged order so the caller adopts it without re-combining.
+  // Stitch update is sparse: merge, validate the merged graph, publish as-sent.
   if (active_order.has_value() && active_order->order_id == order.order_id)
   {
     const uint32_t last_seq =
@@ -69,6 +66,18 @@ vda5050_core::errors::ValidationResult OrderPublisher::publish(
       {
         res.add_error(std::move(error));
       }
+      return res;
+    }
+    // is_valid_graph reports structural problems as warnings. A malformed
+    // merge is a master-side bug, not FMS input — reject, don't adopt it.
+    auto merged_graph =
+      vda5050_core::validation::is_valid_graph(combine_res.order);
+    if (!merged_graph || merged_graph.has_warnings())
+    {
+      vda5050_core::errors::ValidationResult res;
+      res.add_error(vda5050_core::errors::create_error(
+        vda5050_core::errors::ValidationError,
+        "Merged stitch order is not a valid graph", {}));
       return res;
     }
     if (merged_out != nullptr)
@@ -100,6 +109,16 @@ vda5050_core::errors::ValidationResult OrderPublisher::publish(
   if (!capability_result)
   {
     return capability_result;
+  }
+
+  // Fail rather than mark an order active that never went on the wire.
+  if (!adapter.connected())
+  {
+    vda5050_core::errors::ValidationResult res;
+    res.add_error(vda5050_core::errors::create_error(
+      vda5050_core::errors::ValidationError,
+      "Broker not connected; order not published", {}));
+    return res;
   }
 
   adapter.publish<vda5050_core::types::Order>(

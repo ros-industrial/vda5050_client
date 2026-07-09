@@ -56,6 +56,10 @@ public:
   void on_connection(
     const std::string& agv_id, const types::Connection& connection);
 
+  /// \brief Drop an AGV's baselines on offboard so a re-onboard of the same
+  ///        id starts clean (no phantom edges, no leaked State).
+  void forget_agv(const std::string& agv_id);
+
 protected:
   /// \brief Producer-only: the per-AGV latest lives on the AGV, so no cache.
   std::shared_ptr<execution::UpdateBase> get_update_raw(

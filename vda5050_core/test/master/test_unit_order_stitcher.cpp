@@ -127,12 +127,13 @@ TEST(OrderStitcher, DifferentOrderIdAfterComplete_SendsNow)
   EXPECT_TRUE(res.errors.empty());
 }
 
-TEST(OrderStitcher, DuplicateUpdateId_Rejects)
+TEST(OrderStitcher, DuplicateUpdateId_Ignores)
 {
   OrderStitcher stitcher;
   auto snap = make_active_snapshot(kOrderId, /*update_id=*/3);
   auto res = stitcher.decide(make_candidate(kOrderId, 3), snap);
-  EXPECT_EQ(res.decision, StitchDecision::REJECT);
+  EXPECT_EQ(res.decision, StitchDecision::IGNORE);
+  EXPECT_TRUE(res.errors.empty());
 }
 
 TEST(OrderStitcher, BackwardUpdateId_Rejects)
@@ -155,13 +156,13 @@ TEST(OrderStitcher, EmptyCandidateNodes_Rejects)
   EXPECT_EQ(res.decision, StitchDecision::REJECT);
 }
 
-TEST(OrderStitcher, NoStateYet_Rejects)
+TEST(OrderStitcher, NoStateYet_Queues)
 {
   OrderStitcher stitcher;
-  // state_order_id empty → no State has been received yet.
+  // state_order_id empty → no State yet; queue and retry, don't reject.
   auto snap = make_active_snapshot(kOrderId, 0, 0, 2, /*state_order_id=*/"");
   auto res = stitcher.decide(make_candidate(kOrderId, 1), snap);
-  EXPECT_EQ(res.decision, StitchDecision::REJECT);
+  EXPECT_EQ(res.decision, StitchDecision::QUEUE_PENDING);
 }
 
 TEST(OrderStitcher, ActiveOrderHasNoReleasedBaseNode_Rejects)
@@ -198,14 +199,15 @@ TEST(OrderStitcher, Cond2_AgvPassedStitchPoint_Rejects)
   EXPECT_EQ(res.decision, StitchDecision::REJECT);
 }
 
-TEST(OrderStitcher, Cond3_AgvNotYetAtStitchPoint_Queues)
+TEST(OrderStitcher, AgvNotYetAtStitchPoint_SendsAhead)
 {
   OrderStitcher stitcher;
-  // stitch_seq = 2. State reports seq = 0 (AGV at start).
+  // stitch_seq = 2. State reports seq = 0 (AGV at start). Reaching the stitch
+  // is not required — send the update ahead of the AGV.
   auto snap = make_active_snapshot(kOrderId, 0, 0, /*last_node_sequence_id=*/0);
   auto res = stitcher.decide(make_candidate(kOrderId, 1), snap);
-  EXPECT_EQ(res.decision, StitchDecision::QUEUE_PENDING);
-  EXPECT_EQ(res.first_failed_guard, GuardFailure::STITCH_NOT_REACHED);
+  EXPECT_EQ(res.decision, StitchDecision::SEND_NOW);
+  EXPECT_TRUE(res.errors.empty());
 }
 
 TEST(OrderStitcher, Cond4_PreviousUpdateIdNotConfirmed_Queues)
@@ -281,10 +283,11 @@ TEST(OrderStitcher, ErrorContentSurfacesOrderUpdateError)
   ASSERT_FALSE(reject_res.errors.empty());
   EXPECT_TRUE(every_error_is_order_update(reject_res));
 
-  // Stitch not yet reached (seq 1 < stitch_seq 2) — a genuine QUEUE case.
-  auto snap_queue =
-    make_active_snapshot(kOrderId, 0, 0, /*last_node_sequence_id=*/1);
-  auto queue_res = stitcher.decide(make_candidate(kOrderId, 1), snap_queue);
+  // Prior order_update_id not yet confirmed by the AGV — a genuine QUEUE case.
+  auto snap_queue = make_active_snapshot(
+    kOrderId, /*order_update_id=*/5, /*state_order_update_id=*/3,
+    /*last_node_sequence_id=*/2);
+  auto queue_res = stitcher.decide(make_candidate(kOrderId, 6), snap_queue);
   ASSERT_EQ(queue_res.decision, StitchDecision::QUEUE_PENDING);
   ASSERT_FALSE(queue_res.errors.empty());
   EXPECT_TRUE(every_error_is_order_update(queue_res));

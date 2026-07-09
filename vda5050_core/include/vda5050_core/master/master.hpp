@@ -37,6 +37,7 @@
 #include "vda5050_core/master/actions/instant_action_assignment_result.hpp"
 #include "vda5050_core/master/agv.hpp"
 #include "vda5050_core/master/assignment_result.hpp"
+#include "vda5050_core/master/contexts/master_context.hpp"
 #include "vda5050_core/master/master_types.hpp"
 #include "vda5050_core/transport/mqtt_client_interface.hpp"
 #include "vda5050_core/types/operating_mode.hpp"
@@ -155,8 +156,7 @@ public:
   /// \param manufacturer   AGV manufacturer.
   /// \param serial_number  AGV serial number.
   /// \param order          The order to queue.
-  /// \return false if the queue is full.
-  /// \throws std::runtime_error if the AGV is not onboarded.
+  /// \return false if the AGV is not onboarded or the queue is full.
   bool publish_order(
     const std::string& manufacturer, const std::string& serial_number,
     const vda5050_core::types::Order& order);
@@ -167,9 +167,12 @@ public:
   /// The recommended FMS entry point. Returns an AssignmentResult naming the
   /// failed check with diagnostics (nothing queued) or ASSIGNED/STITCH_QUEUED;
   /// the async validator chain re-checks on the queue thread as defense.
+  /// \param assignment_id  Correlation token recorded on success; empty skips
+  ///                       it. Read back via get_active_assignment_id.
   AssignmentResult assign_order(
     const std::string& manufacturer, const std::string& serial_number,
-    const vda5050_core::types::Order& order);
+    const vda5050_core::types::Order& order,
+    const std::string& assignment_id = "");
 
   // ===========================================================================
   // Batch onboarding — Device Manager integration
@@ -230,8 +233,8 @@ public:
     const std::string& manufacturer, const std::string& serial_number);
 
   /// \brief Queue instant actions to an AGV (lower-level; skips the
-  ///        assign_instant_actions pre-flight). \return false if queue full.
-  /// \throws std::runtime_error if the AGV is not onboarded.
+  ///        assign_instant_actions pre-flight).
+  /// \return false if the AGV is not onboarded or the queue is full.
   bool publish_instant_actions(
     const std::string& manufacturer, const std::string& serial_number,
     const vda5050_core::types::InstantActions& actions);
@@ -301,6 +304,18 @@ public:
 
   /// \brief Called after a Connection message arrives and is cached.
   virtual void on_connection(
+    const std::string& agv_id,
+    const vda5050_core::types::Connection& connection);
+
+  /// \brief Feed a State into the fleet event detector. Called by the AGV after
+  ///        on_state; drives the named edge-detected hooks below. Not an
+  ///        override point.
+  void ingest_state(
+    const std::string& agv_id, const vda5050_core::types::State& state);
+
+  /// \brief Feed a Connection into the fleet event detector. Called by the AGV
+  ///        after on_connection; drives the connection event hooks.
+  void ingest_connection(
     const std::string& agv_id,
     const vda5050_core::types::Connection& connection);
 
@@ -437,6 +452,19 @@ private:
 
   std::shared_ptr<AGV> get_agv_by_id(const std::string& agv_id) const;
 
+  // Subscribe the fleet fan-out to master_context_'s Provider once, in the
+  // constructor: each typed update is routed to the matching observer hook by
+  // its agv_id tag. Callbacks fire the hook directly (no AGV lookup — the
+  // AGV-local side-effects live on the AGV) and are wrapped so a throwing
+  // override can't kill the shared inbound thread.
+  void register_event_dispatch();
+
+  // Run one observer hook, swallowing any exception so one bad override can't
+  // stall the shared inbound thread.
+  void fire_hook(
+    const std::string& agv_id, const char* hook_name,
+    const std::function<void()>& fn);
+
   // Build an AGV. Caller holds `agv_mutex_`; insert into `agvs_` and call
   // setup_subscriptions() AFTER releasing it: subscribing under the mutex can
   // deadlock against an inbound on_state -> get_agv() on Paho's network thread.
@@ -451,6 +479,13 @@ private:
 
   // Shared MQTT client for protocol adapters
   std::shared_ptr<vda5050_core::transport::MqttClientInterface> mqtt_client_;
+
+  // One fleet-wide event detector: every AGV feeds its State / Connection here
+  // (via ingest_*), it diffs per-AGV baselines and publishes agv_id-tagged
+  // updates that register_event_dispatch() fans out. Declared before agvs_ so
+  // it outlives the AGVs that feed it; the fan-out never fires during teardown
+  // because AGVs are stopped first and ingest goes through parent_.lock().
+  MasterContext master_context_;
 
   // Onboarded AGVs (shared_ptr allows safe access)
   mutable std::mutex agv_mutex_;
@@ -472,11 +507,8 @@ private:
     broker_last_disconnect_at_;
   std::uint64_t broker_reconnect_count_ = 0;
 
-  // Active assignment_id per onboarded AGV (async dispatch
-  // correlation). One entry per (mfg, serial); a second record
-  // overwrites. Map key is the same `{mfg}/{serial}` id format used
-  // by agvs_. See record_assignment / get_active_assignment_id /
-  // clear_assignment for the contract.
+  // Async dispatch correlation, one entry per AGV (keyed like agvs_). See
+  // record_assignment / get_active_assignment_id / clear_assignment.
   struct ActiveAssignment
   {
     std::string assignment_id;

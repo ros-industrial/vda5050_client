@@ -125,28 +125,25 @@ TEST_F(MasterLogicTestFixture, OffboardAGVRemovesInstance)
   master->disconnect();
 }
 
-TEST_F(MasterLogicTestFixture, PublishOrderToNotOnboardedAGVThrows)
+TEST_F(MasterLogicTestFixture, PublishOrderToNotOnboardedAGVReturnsFalse)
 {
   auto master = create_master();
   master->connect();
 
-  EXPECT_THROW(
-    master->publish_order(
-      manufacturer_, serial_number_, create_test_order("1")),
-    std::runtime_error);
+  EXPECT_FALSE(master->publish_order(
+    manufacturer_, serial_number_, create_test_order("1")));
 
   master->disconnect();
 }
 
-TEST_F(MasterLogicTestFixture, PublishInstantActionsToNotOnboardedAGVThrows)
+TEST_F(
+  MasterLogicTestFixture, PublishInstantActionsToNotOnboardedAGVReturnsFalse)
 {
   auto master = create_master();
   master->connect();
 
-  EXPECT_THROW(
-    master->publish_instant_actions(
-      manufacturer_, serial_number_, create_test_instant_actions(1)),
-    std::runtime_error);
+  EXPECT_FALSE(master->publish_instant_actions(
+    manufacturer_, serial_number_, create_test_instant_actions(1)));
 
   master->disconnect();
 }

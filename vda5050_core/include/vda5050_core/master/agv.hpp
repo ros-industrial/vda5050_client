@@ -36,9 +36,9 @@
 #include "vda5050_core/execution/protocol_adapter.hpp"
 #include "vda5050_core/logger/logger.hpp"
 #include "vda5050_core/master/actions/instant_actions_publisher.hpp"
-#include "vda5050_core/master/contexts/agv_update_context.hpp"
 #include "vda5050_core/master/heartbeat.hpp"
 #include "vda5050_core/master/master_types.hpp"
+#include "vda5050_core/master/order/active_order_snapshot.hpp"
 #include "vda5050_core/master/order/order_lifecycle_manager.hpp"
 #include "vda5050_core/master/order/order_publisher.hpp"
 #include "vda5050_core/master/order/order_stitcher.hpp"
@@ -412,8 +412,12 @@ private:
   void stop_queue_processor();
   void process_queues();
 
-  // Publishing
-  void publish_order(const vda5050_core::types::Order& order);
+  bool enqueue_order(
+    const vda5050_core::types::Order& order, bool pre_stitched);
+
+  // pre_stitched skips the stitch decision for a drained update.
+  void publish_order(
+    const vda5050_core::types::Order& order, bool pre_stitched = false);
   void publish_instant_actions(
     const vda5050_core::types::InstantActions& actions);
 
@@ -442,8 +446,8 @@ private:
   // from handle_state (incoming) and publish_order (outgoing).
   OrderLifecycleManager order_lifecycle_;
 
-  // Stateless 4-condition stitch guard. Decides SEND_NOW /
-  // QUEUE_PENDING / REJECT at the front of publish_order.
+  // Stateless stitch guard. Decides SEND_NOW / QUEUE_PENDING / IGNORE /
+  // REJECT at the front of publish_order.
   OrderStitcher order_stitcher_;
 
   // Non-owning back-pointer, set at construction and never reassigned (safe to
@@ -487,34 +491,33 @@ private:
   std::optional<vda5050_core::types::Visualization> last_visualization_;
   std::optional<TimePoint> last_visualization_time_;
 
-  // Per-AGV update context: diffs inbound State / Connection into typed
-  // updates on its Provider; this AGV subscribes to fan them out to the
-  // master's virtual hooks. Fed only from the MQTT-callback thread.
-  AGVUpdateContext update_context_;
-
   // Outgoing message queues (protected by queue_mutex_)
   size_t max_queue_size_;
   bool drop_oldest_;
 
+  // Drained updates carry pre_stitched=true so publish_order skips the guard.
+  struct QueuedOrder
+  {
+    vda5050_core::types::Order order;
+    bool pre_stitched = false;
+  };
+
   mutable std::mutex queue_mutex_;
   std::condition_variable queue_cv_;
-  std::queue<vda5050_core::types::Order> order_queue_;
+  std::queue<QueuedOrder> order_queue_;
   std::queue<vda5050_core::types::InstantActions> instant_actions_queue_;
 
   // Mode-cancelled buffer. Protected by queue_mutex_ —
-  // populated by capture_and_drain_on_leave_automatic_, drained by
+  // populated by capture_and_drain_on_leave_automatic, drained by
   // resume_mode_cancelled_queue / discard_mode_cancelled_queue.
   ModeCancelledQueue mode_cancelled_queue_;
 
-  // Capture the live queues into mode_cancelled_queue_ and drain them.
-  // Called on the AUTOMATIC→non-AUTOMATIC edge BEFORE on_mode_changed.
+  // Capture the live outbound queues into mode_cancelled_queue_ and drain them.
+  // Called from handle_state on the AUTOMATIC→non-AUTOMATIC edge, before the
+  // fleet detector fires on_mode_changed.
   void capture_and_drain_on_leave_automatic(
     vda5050_core::types::OperatingMode from,
     vda5050_core::types::OperatingMode to);
-
-  // Subscribe to update_context_'s Provider, fanning each typed update
-  // out to the matching master virtual hook.
-  void register_update_dispatch();
 
   // Queue processing thread
   std::mutex thread_mutex_;

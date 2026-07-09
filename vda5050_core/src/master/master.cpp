@@ -185,6 +185,9 @@ void VDA5050Master::onboard_agv(
     agvs_[agv_id] = new_agv;
   }
 
+  // Clear any baseline a prior offboard may have left so this AGV starts clean.
+  master_context_.forget_agv(agv_id);
+
   // Subscribe outside agv_mutex_: SUBSCRIBE blocks on SUBACK, and a racing
   // inbound on_state -> get_agv() needs the same lock (deadlock otherwise).
   new_agv->setup_subscriptions();
@@ -228,9 +231,13 @@ VDA5050Master::BatchOnboardResult VDA5050Master::onboard_agv_batch(
     }
   }
 
-  // Wire MQTT subscriptions outside agv_mutex_ — see onboard_agv() for
-  // the deadlock this avoids.
-  for (auto& agv : new_agvs) agv->setup_subscriptions();
+  // Clear any prior-offboard baseline, then wire MQTT subscriptions outside
+  // agv_mutex_ — see onboard_agv() for the deadlock this avoids.
+  for (auto& agv : new_agvs)
+  {
+    master_context_.forget_agv(agv->get_agv_id());
+    agv->setup_subscriptions();
+  }
 
   VDA5050_INFO(
     "[VDA5050Master] onboard_agv_batch: onboarded={} skipped={} failed={}",
@@ -277,22 +284,23 @@ std::size_t VDA5050Master::offboard_agv_batch(
     }
   }
 
-  // Drop event-detector baselines so a re-onboard starts clean (idempotent for
-  // keys that were not onboarded).
+  // Stop and destroy first (the dtor unsubscribes), THEN drop the baselines so
+  // an in-flight message can't re-seed them after forget.
+  for (auto& agv : to_stop)
+  {
+    if (agv) agv->stop();
+  }
+  const std::size_t offboarded = to_stop.size();
+  to_stop.clear();
+
   for (const auto& key : keys)
   {
     if (key.first.empty() || key.second.empty()) continue;
     master_context_.forget_agv(key.first + "/" + key.second);
   }
 
-  for (auto& agv : to_stop)
-  {
-    if (agv) agv->stop();
-  }
-
-  VDA5050_INFO(
-    "[VDA5050Master] offboard_agv_batch: offboarded={}", to_stop.size());
-  return to_stop.size();
+  VDA5050_INFO("[VDA5050Master] offboard_agv_batch: offboarded={}", offboarded);
+  return offboarded;
 }
 
 std::vector<std::pair<std::string, std::string>>
@@ -346,11 +354,10 @@ void VDA5050Master::offboard_agv(
     agvs_.erase(it);
   }
 
-  // Stop after removing from the map; the AGV dtor unsubscribes so the broker
-  // stops routing before the instance is gone.
+  // Stop, then destroy so the dtor unsubscribes before we drop the baselines —
+  // otherwise an in-flight State/Connection could re-seed them after forget.
   agv->stop();
-
-  // Drop the AGV's event-detector baselines so a re-onboard starts clean.
+  agv.reset();
   master_context_.forget_agv(agv_id);
 
   {

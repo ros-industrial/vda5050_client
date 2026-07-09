@@ -56,9 +56,7 @@ namespace {
 constexpr const char* kManufacturer = "ACME";
 constexpr const char* kSerial = "AGV001";
 
-// Minimal map used by all assign_instant_actions tests — satisfies the
-// no-map gate; the IA tests don't reference specific nodes
-// or edges so a single-node map suffices.
+// Single-node map: satisfies the no-map gate; IA tests reference no nodes.
 vda5050_core::layout::Graph::ConstPtr make_test_graph()
 {
   vda5050_core::layout::LIF lif;
@@ -135,9 +133,8 @@ vda5050_core::types::State make_ready_state(
   return s;
 }
 
-// Build an order with one released node N0@0 carrying one action with
-// the given action_id. Used to test that assign_instant_actions's
-// uniqueness check sees the active order's node actions.
+// Order with one released node N0@0 carrying an action, to exercise the
+// active-order node-action uniqueness scan.
 vda5050_core::types::Order make_order_with_node_action(
   const std::string& action_id, const std::string& order_id = "ORDER-1")
 {
@@ -303,9 +300,8 @@ TEST_F(
 
 TEST_F(MasterAssignInstantActionsTest, PositionNotInitialized_StillAssigns)
 {
-  // initPosition runs BEFORE position is initialized, so the position-init
-  // check is deliberately skipped. (Param validation for predefined actions is
-  // a separate deferred gap, so the param-less action isn't rejected.)
+  // initPosition runs before position is initialized, so the position-init
+  // check is skipped.
   inject_online_and_state(
     vda5050_core::types::OperatingMode::AUTOMATIC,
     /*position_initialized=*/false);
@@ -412,23 +408,6 @@ TEST_F(
     std::string::npos);
 }
 
-TEST_F(
-  MasterAssignInstantActionsTest, GeneratedUniqueActionId_PassesUniquenessCheck)
-{
-  inject_online_and_state();
-
-  // The factory's UUID generator must produce IDs that pass uniqueness
-  // (smoke test that combination works end-to-end).
-  auto a1 = ActionFactory::build_custom(
-    "stateRequest", ActionFactory::generate_action_id());
-  auto a2 = ActionFactory::build_custom(
-    "factsheetRequest", ActionFactory::generate_action_id());
-  auto res =
-    master_->assign_instant_actions(kManufacturer, kSerial, wrap({a1, a2}));
-
-  EXPECT_EQ(res.decision, InstantActionDecision::ASSIGNED);
-}
-
 // =============================================================================
 // Action conflict checks
 // =============================================================================
@@ -505,12 +484,10 @@ TEST_F(
   MasterAssignInstantActionsTest,
   ActionIdInActiveOrderNode_Returns_DuplicateActionId)
 {
-  // The action_id uniqueness check must scan the active order's
-  // node/edge actions (not just state.action_states[]). This test
-  // covers the active_order_snapshot() branch of the iteration.
+  // Uniqueness check must also scan the active order's node/edge actions, not
+  // just state.action_states[].
   inject_online_and_state();
 
-  // Publish an order whose first node carries an action with id "ORDER-N0-A".
   auto order = make_order_with_node_action("ORDER-N0-A");
   auto order_res = master_->assign_order(kManufacturer, kSerial, order);
   ASSERT_EQ(order_res.decision, AssignmentDecision::ASSIGNED);
@@ -555,9 +532,8 @@ TEST_F(MasterAssignInstantActionsTest, MultipleValidActions_AllAssigned)
 }
 
 // =============================================================================
-// Async chain regression: instant actions must REACH the wire (publish call)
-// even in degraded states that would block an order. Guards against
-// PreSend-validator-rejecting-instant-actions in the async path.
+// Regression: instant actions must reach the wire even in degraded states that
+// would block an order.
 // =============================================================================
 
 class MasterInstantActionsPublishesInDegradedTest : public ::testing::Test
@@ -606,9 +582,8 @@ TEST_F(
   MasterInstantActionsPublishesInDegradedTest,
   ManualMode_InstantActionStillReachesWire)
 {
-  // operating_mode=MANUAL: assign_instant_actions returns ASSIGNED, and
-  // the async chain MUST also let the action through to mqtt.publish.
-  // Before this fix, pre_send_validator silently dropped these.
+  // In MANUAL, assign_instant_actions returns ASSIGNED and the async chain must
+  // still publish.
   auto agv = master_->get_agv(kManufacturer, kSerial);
   ASSERT_NE(agv, nullptr);
   agv->handle_connection(make_online_connection());

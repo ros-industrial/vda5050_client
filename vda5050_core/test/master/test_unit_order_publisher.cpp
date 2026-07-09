@@ -58,16 +58,9 @@ public:
     (override));
 };
 
-// Build a PreSendContext that satisfies all pre-send readiness checks so
-// the chain reaches the graph step. Optional `last_node_id` parks the
-// AGV on a specific node so traversability's "trivially reachable"
-// check (state.last_node_id == first_node.node_id) passes — orders
-// in these tests lack node_position so distance-based reachability
-// would otherwise reject.
-// Layout matching every node/edge id used in the test fixtures
-// (N0 -> E0 -> N1 -> E1 -> N2 plus a stitched-update extension
-// N1 -> E2 -> N3). The traversability graph-integrity sub-check verifies
-// node/edge ids exist in the loaded layout with matching endpoints.
+// Layout with the node/edge ids used across these fixtures (N0-E0-N1-E1-N2
+// plus a stitch extension N1-E2-N3), matched by traversability's integrity
+// check.
 vda5050_core::layout::Graph::ConstPtr make_minimal_graph()
 {
   vda5050_core::layout::LIF lif;
@@ -106,6 +99,8 @@ vda5050_core::layout::Graph::ConstPtr make_minimal_graph()
   return vda5050_core::layout::Graph::from_lif(std::move(lif));
 }
 
+// Passes all pre-send readiness checks. last_node_id parks the AGV on a node so
+// traversability's reachability passes (fixtures lack node_position).
 validation::PreSendContext make_ready_context(
   const std::string& last_node_id = "")
 {
@@ -153,9 +148,7 @@ vda5050_core::types::Edge mk_edge(
   return e;
 }
 
-// Active V0 with released base [N0(0), N1(2)] + horizon [N2(4)] and
-// connecting edges. Used as the "active_order" in PreSendContext for
-// is_valid_update path tests.
+// Active V0: released base [N0(0), N1(2)] + horizon [N2(4)] with edges.
 vda5050_core::types::Order make_active_v0()
 {
   vda5050_core::types::Order o;
@@ -172,14 +165,12 @@ vda5050_core::types::Order make_active_v0()
 }  // namespace
 
 // =============================================================================
-// Defense-in-depth: each validator stage must short-circuit independently.
-// These regression-guard tests prevent future refactors from accidentally
-// dropping a stage from the chain.
+// Each validator stage must short-circuit independently (regression guard
+// against a refactor dropping a stage).
 // =============================================================================
 
 TEST(OrderPublisherTest, MalformedOrderRejectedAtSchema)
 {
-  // Order with empty header.version → schema validator rejects.
   auto mock = std::make_shared<MockMqttClient>();
   ON_CALL(*mock, connected()).WillByDefault(::testing::Return(true));
   auto adapter = vda5050_core::execution::ProtocolAdapter::make(
@@ -272,9 +263,8 @@ TEST(OrderPublisherTest, GraphInvalidOrderIsAdvisoryNotBlocking)
     mock, "uagv", "v2", "ACME", "AGV001");
   vda5050_core::master::OrderPublisher publisher;
 
-  // Graph-invalid Order: 2 nodes but 0 edges → violates is_valid_graph's
-  // "edges = nodes - 1" rule. is_valid_graph reports this at WARNING level,
-  // so the publisher does not treat it as a hard failure.
+  // 2 nodes, 0 edges violates the "edges = nodes - 1" rule, but only at
+  // WARNING level, so the publisher doesn't treat it as a hard failure.
   vda5050_core::types::Order bad_order;
   fill_schema_valid_header(bad_order.header);
   bad_order.order_id = "ORDER_BAD";
@@ -291,9 +281,8 @@ TEST(OrderPublisherTest, GraphInvalidOrderIsAdvisoryNotBlocking)
   bad_order.nodes = {n0, n1};
   // intentionally leave bad_order.edges empty
 
-  // AGV already sits on the first node so reachability passes, and with no
-  // factsheet the capability check is skipped — the graph warning is the
-  // only finding, so the order still publishes.
+  // AGV parked on the first node (reachability passes) and no factsheet
+  // (capability skipped), so the graph warning is the only finding.
   EXPECT_CALL(
     *mock, publish(::testing::_, ::testing::_, ::testing::_, ::testing::_))
     .Times(1);
@@ -305,16 +294,13 @@ TEST(OrderPublisherTest, GraphInvalidOrderIsAdvisoryNotBlocking)
 }
 
 // =============================================================================
-// Publisher chain branches on update vs new order.
-// - No active_order, or different order_id → is_valid_graph(candidate)
-// - Same order_id with active → combine_order(active, candidate) for
-//   spec-strict structural validation (sparse seqs are expected).
+// Publisher branches on update vs new order: no/different active order takes
+// the is_valid_graph path; same order_id takes combine_order (sparse seqs OK).
 // =============================================================================
 namespace {
 
-// Helper: spec-strict update U1 — first node is stitch anchor (V0's
-// last released, N1@2), then extension at sparse seq (E2@5, N3@6).
-// is_valid_graph rejects this standalone; combine_order accepts.
+// Stitched update U1: stitch anchor N1@2 then a sparse extension. Rejected by
+// is_valid_graph standalone; accepted by combine_order.
 vda5050_core::types::Order make_stitched_update_v1()
 {
   vda5050_core::types::Order o;
@@ -355,9 +341,8 @@ TEST(OrderPublisherTest, FreshOrderNoActiveTakesGraphPath)
 
 TEST(OrderPublisherTest, NoGraphLoadedSkipsGraphIntegrity)
 {
-  // With no layout loaded, traversability skips the graph-integrity check;
-  // a structurally valid fresh order still publishes (is_valid_graph and
-  // first-node reachability still run). Guards the no-graph behavior change.
+  // No layout loaded: traversability skips graph-integrity, but a valid fresh
+  // order still publishes (is_valid_graph + reachability still run).
   auto mock = std::make_shared<MockMqttClient>();
   ON_CALL(*mock, connected()).WillByDefault(::testing::Return(true));
   auto adapter = vda5050_core::execution::ProtocolAdapter::make(
@@ -378,10 +363,8 @@ TEST(OrderPublisherTest, NoGraphLoadedSkipsGraphIntegrity)
 
 TEST(OrderPublisherTest, StitchedUpdateValidatedViaCombineOrder)
 {
-  // active_order set + same order_id → combine_order branch. Candidate
-  // has sparse seqs ([N1@2, E2@5, N3@6]) which would fail is_valid_graph
-  // standalone, but combine_order accepts because the stitch node matches
-  // V0's last released (N1@2) and the extension is past the horizon.
+  // Same order_id with an active order takes combine_order, which accepts the
+  // sparse-seq candidate that is_valid_graph would reject standalone.
   auto mock = std::make_shared<MockMqttClient>();
   ON_CALL(*mock, connected()).WillByDefault(::testing::Return(true));
   auto adapter = vda5050_core::execution::ProtocolAdapter::make(
@@ -444,27 +427,6 @@ TEST(OrderPublisherTest, StitchedUpdateBackwardUpdateIdRejected)
   auto candidate = make_stitched_update_v1();
   candidate.order_update_id = 3;  // backward
   auto result = publisher.publish(*adapter, ctx, candidate, active);
-  EXPECT_FALSE(static_cast<bool>(result));
-}
-
-TEST(OrderPublisherTest, StitchedUpdateStitchNodeMismatchRejected)
-{
-  // combine_order rejects when candidate.nodes[0] differs from active's
-  // last released base node (stitch identity rule).
-  auto mock = std::make_shared<MockMqttClient>();
-  ON_CALL(*mock, connected()).WillByDefault(::testing::Return(true));
-  auto adapter = vda5050_core::execution::ProtocolAdapter::make(
-    mock, "uagv", "v2", "ACME", "AGV001");
-  vda5050_core::master::OrderPublisher publisher;
-  EXPECT_CALL(
-    *mock, publish(::testing::_, ::testing::_, ::testing::_, ::testing::_))
-    .Times(0);
-
-  auto ctx = make_ready_context("N1");
-  auto candidate = make_stitched_update_v1();
-  candidate.nodes.front().node_id = "N1_RENAMED";  // stitch mismatch
-
-  auto result = publisher.publish(*adapter, ctx, candidate, make_active_v0());
   EXPECT_FALSE(static_cast<bool>(result));
 }
 

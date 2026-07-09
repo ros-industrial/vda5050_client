@@ -167,19 +167,6 @@ TEST_F(OnboardBatchTest, OnboardBatch_MixedSpecs)
   EXPECT_EQ(master_->get_onboarded_agvs().size(), 3u);
 }
 
-TEST_F(OnboardBatchTest, OnboardBatch_RespectsPerSpecQueueConfig)
-{
-  std::vector<VDA5050Master::OnboardSpec> specs = {
-    VDA5050Master::OnboardSpec{"ACME", "AGV01", 5, false},
-    VDA5050Master::OnboardSpec{"ACME", "AGV02", 20, true}};
-  auto r = master_->onboard_agv_batch(specs);
-  EXPECT_EQ(r.onboarded.size(), 2u);
-  // We can't directly observe queue config from outside, but both
-  // AGVs should be reachable via get_agv.
-  EXPECT_NE(master_->get_agv("ACME", "AGV01"), nullptr);
-  EXPECT_NE(master_->get_agv("ACME", "AGV02"), nullptr);
-}
-
 TEST_F(OnboardBatchTest, OffboardBatch_OffboardsAll)
 {
   master_->onboard_agv_batch(

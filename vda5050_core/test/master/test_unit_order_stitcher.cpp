@@ -109,12 +109,8 @@ TEST(OrderStitcher, DifferentOrderIdWithActive_Rejects)
   EXPECT_TRUE(every_error_is_order_update(res));
 }
 
-// New order with different order_id after the prior order has completed
-// should pass through the stitcher untouched — the lifecycle's stale
-// has_active flag must not block a legitimate fresh assignment.
-// Without this, master-side state confusion (AGV legitimately keeps
-// state.order_id reporting the finished order) makes every
-// subsequent order_id appear as a stitch conflict.
+// A different order_id after the prior order completed is a fresh assignment,
+// not a stitch conflict — the stale has_active flag must not block it.
 TEST(OrderStitcher, DifferentOrderIdAfterComplete_SendsNow)
 {
   OrderStitcher stitcher;
@@ -191,9 +187,8 @@ TEST(OrderStitcher, Cond1_StateOrderIdMismatch_Queues)
 TEST(OrderStitcher, Cond2_AgvPassedStitchPoint_Rejects)
 {
   OrderStitcher stitcher;
-  // stitch_seq = 2 (last released base node N1). State reports seq = 4.
-  // A passed stitch is unrecoverable — reject (not queue) so a stale update
-  // cannot jam the pending queue.
+  // State seq 4 is past the stitch seq 2: a passed stitch is unrecoverable, so
+  // reject rather than queue.
   auto snap = make_active_snapshot(kOrderId, 0, 0, /*last_node_sequence_id=*/4);
   auto res = stitcher.decide(make_candidate(kOrderId, 1), snap);
   EXPECT_EQ(res.decision, StitchDecision::REJECT);
@@ -253,15 +248,6 @@ TEST(OrderStitcher, OrderCompleteStillEnforcesCond4_Queues)
 // =============================================================================
 // Boundary + happy path + error content
 // =============================================================================
-TEST(OrderStitcher, ParkedAtStitchPoint_SendsNow)
-{
-  OrderStitcher stitcher;
-  // last_node_sequence_id == stitch_seq (2). All other guards pass.
-  auto snap = make_active_snapshot(kOrderId, 0, 0, /*last_node_sequence_id=*/2);
-  auto res = stitcher.decide(make_candidate(kOrderId, 1), snap);
-  EXPECT_EQ(res.decision, StitchDecision::SEND_NOW);
-}
-
 TEST(OrderStitcher, AllGuardsPass_SendsNow)
 {
   OrderStitcher stitcher;

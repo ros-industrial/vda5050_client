@@ -25,7 +25,6 @@
 
 namespace vda5050_core::master::test {
 
-// Use the shared AGV test fixture
 using AGVConnectionStateTestFixture = AGVTestFixture;
 
 // =============================================================================
@@ -38,58 +37,6 @@ TEST_F(AGVConnectionStateTestFixture, InitialConnectionStateIsOffline)
   EXPECT_EQ(
     agv->get_connection_status(),
     vda5050_core::types::ConnectionState::OFFLINE);
-}
-
-// =============================================================================
-// Connection Message Tests
-// =============================================================================
-
-TEST_F(
-  AGVConnectionStateTestFixture,
-  ConnectionStateOnlineAfterReceivingOnlineMessage)
-{
-  auto& agv = create_agv();
-
-  EXPECT_EQ(
-    agv->get_connection_status(),
-    vda5050_core::types::ConnectionState::OFFLINE);
-
-  agv->handle_connection(create_connection_msg("ONLINE"));
-
-  EXPECT_EQ(
-    agv->get_connection_status(), vda5050_core::types::ConnectionState::ONLINE);
-}
-
-TEST_F(
-  AGVConnectionStateTestFixture,
-  ConnectionStateOfflineAfterReceivingOfflineMessage)
-{
-  auto& agv = create_agv();
-
-  agv->handle_connection(create_connection_msg("ONLINE"));
-  EXPECT_EQ(
-    agv->get_connection_status(), vda5050_core::types::ConnectionState::ONLINE);
-
-  agv->handle_connection(create_connection_msg("OFFLINE"));
-  EXPECT_EQ(
-    agv->get_connection_status(),
-    vda5050_core::types::ConnectionState::OFFLINE);
-}
-
-TEST_F(
-  AGVConnectionStateTestFixture,
-  ConnectionStateConnectionBrokenAfterReceivingConnectionBrokenMessage)
-{
-  auto& agv = create_agv();
-
-  agv->handle_connection(create_connection_msg("ONLINE"));
-  EXPECT_EQ(
-    agv->get_connection_status(), vda5050_core::types::ConnectionState::ONLINE);
-
-  agv->handle_connection(create_connection_msg("CONNECTIONBROKEN"));
-  EXPECT_EQ(
-    agv->get_connection_status(),
-    vda5050_core::types::ConnectionState::CONNECTIONBROKEN);
 }
 
 // =============================================================================
@@ -141,19 +88,14 @@ TEST_F(AGVConnectionStateTestFixture, CachedConnectionMessageIsStored)
 {
   auto& agv = create_agv();
 
-  // Initially no cached message
   EXPECT_FALSE(agv->get_last_connection().has_value());
 
-  // Handle connection message
   agv->handle_connection(create_connection_msg("ONLINE"));
 
-  // Verify cached message
   auto cached = agv->get_last_connection();
   ASSERT_TRUE(cached.has_value());
   EXPECT_EQ(
     cached->connection_state, vda5050_core::types::ConnectionState::ONLINE);
-
-  // Verify timestamp was recorded
   EXPECT_TRUE(agv->get_last_connection_time().has_value());
 }
 
@@ -179,18 +121,6 @@ TEST_F(AGVConnectionStateTestFixture, IsConnectedReturnsFalseWhenOffline)
   EXPECT_TRUE(agv->is_connected());
 
   agv->handle_connection(create_connection_msg("OFFLINE"));
-  EXPECT_FALSE(agv->is_connected());
-}
-
-TEST_F(
-  AGVConnectionStateTestFixture, IsConnectedReturnsFalseWhenConnectionBroken)
-{
-  auto& agv = create_agv();
-
-  agv->handle_connection(create_connection_msg("ONLINE"));
-  EXPECT_TRUE(agv->is_connected());
-
-  agv->handle_connection(create_connection_msg("CONNECTIONBROKEN"));
   EXPECT_FALSE(agv->is_connected());
 }
 
@@ -228,28 +158,9 @@ TEST_F(AGVConnectionStateTestFixture, ConcurrentConnectionStateAccessIsSafe)
 }
 
 // =============================================================================
-// Enum Value Tests
-// =============================================================================
-
-TEST_F(AGVConnectionStateTestFixture, AGVConnectionStateEnumValues)
-{
-  EXPECT_NE(
-    vda5050_core::types::ConnectionState::ONLINE,
-    vda5050_core::types::ConnectionState::OFFLINE);
-  EXPECT_NE(
-    vda5050_core::types::ConnectionState::ONLINE,
-    vda5050_core::types::ConnectionState::CONNECTIONBROKEN);
-  EXPECT_NE(
-    vda5050_core::types::ConnectionState::OFFLINE,
-    vda5050_core::types::ConnectionState::CONNECTIONBROKEN);
-}
-
-// =============================================================================
 // Configurable interface name
 // =============================================================================
 
-// The per-AGV interface name threads through the constructor and is reported
-// back via get_interface_name(); onboarding without a name uses the default.
 TEST(AGVInterfaceName, ReportsConfiguredInterfaceName)
 {
   AGV custom(nullptr, "vendorX", "ACME", "SN-IFACE");

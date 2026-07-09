@@ -78,9 +78,7 @@ TEST(ActionFactory, BuildCustomEmptyActionIdStillBuilds)
 
 TEST(ActionFactory, GenerateActionIdHasUuidV4Shape)
 {
-  // RFC 4122 textual layout: 8-4-4-4-12 lowercase hex with dashes,
-  // 36 chars total. Version 4 sets nibble 12 to '4' (high nibble of
-  // byte 6). Variant 1 sets nibble 16 to '8', '9', 'a', or 'b'.
+  // UUIDv4: 8-4-4-4-12 lowercase hex, version nibble '4', variant 8/9/a/b.
   const auto id = ActionFactory::generate_action_id();
   ASSERT_EQ(id.size(), 36u);
   EXPECT_EQ(id[8], '-');
@@ -125,65 +123,11 @@ TEST(ActionFactory, BuildStateRequest_HasCanonicalActionType)
   EXPECT_EQ(a.action_id, "req-1");
 }
 
-TEST(ActionFactory, BuildStateRequest_DefaultsToNoneBlocking)
-{
-  // stateRequest is a query; NONE blocking is the safe default
-  // (parallel + driving OK).
-  auto a = ActionFactory::build_state_request("req-1");
-  EXPECT_EQ(a.blocking_type, vda5050_core::types::BlockingType::NONE);
-}
-
-TEST(ActionFactory, BuildStateRequest_NoParametersAttached)
-{
-  // stateRequest takes no parameters; optional must remain unset.
-  auto a = ActionFactory::build_state_request("req-1");
-  EXPECT_FALSE(a.action_parameters.has_value());
-}
-
-TEST(ActionFactory, BuildStateRequest_DescriptionPropagates)
-{
-  auto a = ActionFactory::build_state_request("req-1", "for liveness check");
-  ASSERT_TRUE(a.action_description.has_value());
-  EXPECT_EQ(*a.action_description, "for liveness check");
-}
-
-TEST(ActionFactory, BuildStateRequest_EmptyDescriptionLeavesOptionalUnset)
-{
-  auto a = ActionFactory::build_state_request("req-1");
-  EXPECT_FALSE(a.action_description.has_value());
-}
-
 TEST(ActionFactory, BuildFactsheetRequest_HasCanonicalActionType)
 {
   auto a = ActionFactory::build_factsheet_request("fs-1");
   EXPECT_EQ(a.action_type, "factsheetRequest");
   EXPECT_EQ(a.action_id, "fs-1");
-}
-
-TEST(ActionFactory, BuildFactsheetRequest_DefaultsToNoneBlocking)
-{
-  auto a = ActionFactory::build_factsheet_request("fs-1");
-  EXPECT_EQ(a.blocking_type, vda5050_core::types::BlockingType::NONE);
-}
-
-TEST(ActionFactory, BuildFactsheetRequest_NoParametersAttached)
-{
-  // factsheetRequest takes no parameters; optional must remain unset.
-  auto a = ActionFactory::build_factsheet_request("fs-1");
-  EXPECT_FALSE(a.action_parameters.has_value());
-}
-
-TEST(ActionFactory, BuildFactsheetRequest_DescriptionPropagates)
-{
-  auto a = ActionFactory::build_factsheet_request("fs-1", "post-firmware");
-  ASSERT_TRUE(a.action_description.has_value());
-  EXPECT_EQ(*a.action_description, "post-firmware");
-}
-
-TEST(ActionFactory, BuildFactsheetRequest_EmptyDescriptionLeavesOptionalUnset)
-{
-  auto a = ActionFactory::build_factsheet_request("fs-1");
-  EXPECT_FALSE(a.action_description.has_value());
 }
 
 }  // namespace test

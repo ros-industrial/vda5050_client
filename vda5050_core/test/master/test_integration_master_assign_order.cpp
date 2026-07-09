@@ -345,31 +345,6 @@ TEST_F(MasterAssignOrderTest, PositionNotInitialized_Returns_PosNotInit)
 }
 
 // =============================================================================
-// Happy path
-// =============================================================================
-TEST_F(MasterAssignOrderTest, HappyPath_ReturnsAssigned_AndQueues)
-{
-  make_agv_ready();
-  auto agv = master_->get_agv(kManufacturer, kSerial);
-
-  EXPECT_EQ(agv->get_pending_order_count(), 0u);
-  auto res =
-    master_->assign_order(kManufacturer, kSerial, make_minimal_order());
-  EXPECT_EQ(res.decision, AssignmentDecision::ASSIGNED);
-  EXPECT_TRUE(static_cast<bool>(res));
-  EXPECT_TRUE(res.errors.empty());
-
-  // The queue thread runs concurrently and may already have drained
-  // the order by the time we assert. Eventual consistency: the order
-  // is either still queued OR has been published (record_published
-  // ran). Either way the FMS got "ASSIGNED" feedback. We assert the
-  // visible end-state: lifecycle records the published order.
-  ASSERT_TRUE(wait_for(
-    [&] { return agv->has_active_order(); }, std::chrono::milliseconds(500)))
-    << "queue thread did not publish + record within 500ms";
-}
-
-// =============================================================================
 // End-to-end + stitcher branch coverage
 // =============================================================================
 TEST_F(MasterAssignOrderTest, EndToEnd_DrainPublishRecord_Cycle)

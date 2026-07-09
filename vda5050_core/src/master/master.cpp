@@ -34,14 +34,12 @@
 #include "vda5050_core/execution/protocol_adapter.hpp"
 #include "vda5050_core/json_utils/serialization.hpp"
 #include "vda5050_core/logger/logger.hpp"
+#include "vda5050_core/master/actions/instant_actions_publisher.hpp"
 #include "vda5050_core/master/order/order_stitcher.hpp"
 #include "vda5050_core/master/standard_names.hpp"
 #include "vda5050_core/master/updates/agv_updates.hpp"
-#include "vda5050_core/validation/action_conflict_validator.hpp"
-#include "vda5050_core/validation/capability_validator.hpp"
 #include "vda5050_core/validation/content_validator.hpp"
 #include "vda5050_core/validation/factsheet_alignment.hpp"
-#include "vda5050_core/validation/instant_action_mode_validator.hpp"
 #include "vda5050_core/validation/operating_mode_control.hpp"
 #include "vda5050_core/validation/pre_send_validator.hpp"
 
@@ -825,35 +823,32 @@ InstantActionAssignmentResult VDA5050Master::assign_instant_actions(
     return res;
   }
 
-  auto mode_res =
-    vda5050_core::validation::validate_instant_action_mode(ia_ctx, actions);
-  if (!mode_res)
+  auto gate = InstantActionsPublisher::validate_gate(ia_ctx, actions);
+  if (gate.failed != ActionGateStep::NONE)
   {
-    res.errors = mode_res.fatal_errors();
-    res.decision = InstantActionDecision::AGV_MODE_NOT_AUTO_FOR_ACTION;
-    return res;
-  }
-
-  auto cap_res = vda5050_core::validation::validate_capability(ia_ctx, actions);
-  if (!cap_res)
-  {
-    res.errors = cap_res.fatal_errors();
-    res.decision = InstantActionDecision::AGV_CANNOT_PERFORM_ACTION;
-    return res;
-  }
-
-  auto conflict_res =
-    vda5050_core::validation::validate_action_conflict(ia_ctx, actions);
-  if (!conflict_res)
-  {
-    res.errors = conflict_res.fatal_errors();
-    // Report HARD if any error is HARD (a mixed batch can carry both types).
-    const bool any_hard =
-      std::any_of(res.errors.begin(), res.errors.end(), [](const auto& e) {
-        return e.error_type == vda5050_core::errors::HardActionBlockedError;
-      });
-    res.decision = any_hard ? InstantActionDecision::HARD_ACTION_BLOCKED
-                            : InstantActionDecision::ACTION_BLOCKED_BY_DRIVING;
+    res.errors = gate.result.fatal_errors();
+    switch (gate.failed)
+    {
+      case ActionGateStep::MODE:
+        res.decision = InstantActionDecision::AGV_MODE_NOT_AUTO_FOR_ACTION;
+        break;
+      case ActionGateStep::CAPABILITY:
+        res.decision = InstantActionDecision::AGV_CANNOT_PERFORM_ACTION;
+        break;
+      case ActionGateStep::CONFLICT: {
+        // A mixed batch can carry both; report HARD if any error is HARD.
+        const bool any_hard =
+          std::any_of(res.errors.begin(), res.errors.end(), [](const auto& e) {
+            return e.error_type == vda5050_core::errors::HardActionBlockedError;
+          });
+        res.decision = any_hard
+                         ? InstantActionDecision::HARD_ACTION_BLOCKED
+                         : InstantActionDecision::ACTION_BLOCKED_BY_DRIVING;
+        break;
+      }
+      case ActionGateStep::NONE:
+        break;
+    }
     return res;
   }
 

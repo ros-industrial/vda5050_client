@@ -18,6 +18,8 @@
 
 #include "vda5050_core/master/actions/instant_actions_publisher.hpp"
 
+#include <utility>
+
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
 #include "vda5050_core/master/standard_names.hpp"
@@ -28,6 +30,39 @@
 #include "vda5050_core/validation/pre_send_validator.hpp"
 
 namespace vda5050_core::master {
+
+ActionGateResult InstantActionsPublisher::validate_gate(
+  const vda5050_core::validation::PreSendContext& ctx,
+  const vda5050_core::types::InstantActions& actions)
+{
+  ActionGateResult gate;
+
+  auto mode =
+    vda5050_core::validation::validate_instant_action_mode(ctx, actions);
+  if (!mode)
+  {
+    gate.result = std::move(mode);
+    gate.failed = ActionGateStep::MODE;
+    return gate;
+  }
+
+  auto capability = vda5050_core::validation::validate_capability(ctx, actions);
+  if (!capability)
+  {
+    gate.result = std::move(capability);
+    gate.failed = ActionGateStep::CAPABILITY;
+    return gate;
+  }
+
+  auto conflict =
+    vda5050_core::validation::validate_action_conflict(ctx, actions);
+  if (!conflict)
+  {
+    gate.result = std::move(conflict);
+    gate.failed = ActionGateStep::CONFLICT;
+  }
+  return gate;
+}
 
 vda5050_core::errors::ValidationResult InstantActionsPublisher::publish(
   vda5050_core::execution::ProtocolAdapter& adapter,
@@ -52,25 +87,10 @@ vda5050_core::errors::ValidationResult InstantActionsPublisher::publish(
     return res;
   }
 
-  auto mode_result =
-    vda5050_core::validation::validate_instant_action_mode(ctx, actions);
-  if (!mode_result)
+  auto gate = validate_gate(ctx, actions);
+  if (gate.failed != ActionGateStep::NONE)
   {
-    return mode_result;
-  }
-
-  auto capability_result =
-    vda5050_core::validation::validate_capability(ctx, actions);
-  if (!capability_result)
-  {
-    return capability_result;
-  }
-
-  auto conflict_result =
-    vda5050_core::validation::validate_action_conflict(ctx, actions);
-  if (!conflict_result)
-  {
-    return conflict_result;
+    return gate.result;
   }
 
   // Fail rather than drop silently when the broker is down (QoS 0).

@@ -34,6 +34,22 @@ struct PreSendContext;
 namespace vda5050_core {
 namespace master {
 
+/// \brief The stateless gate step that rejected the actions, if any.
+enum class ActionGateStep
+{
+  NONE,
+  MODE,
+  CAPABILITY,
+  CONFLICT
+};
+
+/// \brief Outcome of the shared stateless action gate.
+struct ActionGateResult
+{
+  vda5050_core::errors::ValidationResult result;
+  ActionGateStep failed = ActionGateStep::NONE;
+};
+
 /// \brief Runs the outgoing instant-action validator chain, then publishes.
 ///
 /// Stateless; safe to call concurrently.
@@ -41,6 +57,12 @@ class InstantActionsPublisher
 {
 public:
   InstantActionsPublisher() = default;
+
+  /// \brief Run the stateless action gate (mode, capability, conflict) shared
+  ///        by the synchronous pre-flight and the queue-thread publish.
+  static ActionGateResult validate_gate(
+    const vda5050_core::validation::PreSendContext& ctx,
+    const vda5050_core::types::InstantActions& actions);
 
   /// \brief Validate instant actions (schema, online, mode gate, capability,
   ///        action conflict) and publish only if all pass.

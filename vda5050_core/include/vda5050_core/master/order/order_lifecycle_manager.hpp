@@ -64,6 +64,9 @@ public:
   static constexpr std::size_t kDefaultPendingQueueCap = 8;
   // Counted in States, not time.
   static constexpr int kDefaultPendingMaxWaits = 60;
+  // States still reporting the prior order_id tolerated as handover lag before
+  // it counts toward the mismatch recovery.
+  static constexpr int kMaxHandoverLagStates = 5;
 
   /// \param agv_id  Used in log messages only.
   explicit OrderLifecycleManager(
@@ -94,6 +97,12 @@ public:
   /// \brief Queue an order update (used by OrderStitcher on QUEUE_PENDING).
   /// \return false if the queue is at capacity.
   bool enqueue_pending_update(const vda5050_core::types::Order& update);
+
+  /// \brief Return drained-but-unsent updates to the front of the pending
+  ///        queue, preserving order, so a congested outbound queue can't
+  ///        reorder the stitch chain.
+  void requeue_pending_front(
+    const std::vector<vda5050_core::types::Order>& updates);
 
   /// \brief Forced reset of all tracking. For cancelOrder, AGV restart, etc.
   void clear();
@@ -165,6 +174,7 @@ private:
   std::deque<PendingUpdate> pending_updates_;
 
   int mismatch_count_ = 0;
+  int handover_lag_count_ = 0;
 };
 
 }  // namespace master

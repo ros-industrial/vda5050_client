@@ -175,6 +175,11 @@ void AGV::restart()
 
   order_lifecycle_.clear();
 
+  {
+    std::lock_guard<std::mutex> lock(queue_mutex_);
+    mode_cancelled_queue_ = ModeCancelledQueue{};
+  }
+
   VDA5050_INFO("[AGV] AGV restarted, ready for connections: {}", agv_id_);
 }
 
@@ -611,15 +616,13 @@ void AGV::handle_state(const vda5050_core::types::State& msg)
   for (std::size_t i = 0; i < ready_updates.size(); ++i)
   {
     if (enqueue_order(ready_updates[i], true)) continue;
-    // Outbound queue full — re-queue this and the rest to pending, in order,
-    // so a later State retries and no update is sent ahead of an earlier one.
+    // Outbound queue full — return the unsent updates to the front of pending,
+    // in order, so a congested queue can't reorder the stitch chain.
     VDA5050_WARN(
       "[AGV] Outbound queue full for {}; re-queuing {} order update(s)",
       agv_id_, ready_updates.size() - i);
-    for (std::size_t j = i; j < ready_updates.size(); ++j)
-    {
-      order_lifecycle_.enqueue_pending_update(ready_updates[j]);
-    }
+    order_lifecycle_.requeue_pending_front(
+      {ready_updates.begin() + i, ready_updates.end()});
     break;
   }
 
@@ -883,6 +886,10 @@ bool AGV::enqueue_order(
 
   if (order_queue_.size() >= max_queue_size_)
   {
+    // Never drop-oldest a stitch update: it would break in-order delivery of
+    // the stitch chain. Return so the caller re-queues it to pending.
+    if (pre_stitched) return false;
+
     if (!drop_oldest_)
     {
       VDA5050_WARN(

@@ -326,6 +326,7 @@ void OrderLifecycleManager::record_published(
       order_complete_ = false;
       needs_more_base_ = false;
       mismatch_count_ = 0;
+      handover_lag_count_ = 0;
     }
   }
 }
@@ -394,6 +395,17 @@ bool OrderLifecycleManager::enqueue_pending_update(
   return true;
 }
 
+void OrderLifecycleManager::requeue_pending_front(
+  const std::vector<vda5050_core::types::Order>& updates)
+{
+  std::lock_guard<std::mutex> lock(lifecycle_mutex_);
+  // Reverse so the first update ends up at the front.
+  for (auto it = updates.rbegin(); it != updates.rend(); ++it)
+  {
+    pending_updates_.push_front(PendingUpdate{*it, 0});
+  }
+}
+
 void OrderLifecycleManager::clear()
 {
   std::lock_guard<std::mutex> lock(lifecycle_mutex_);
@@ -410,6 +422,7 @@ void OrderLifecycleManager::clear()
   needs_more_base_ = false;
   pending_updates_.clear();
   mismatch_count_ = 0;
+  handover_lag_count_ = 0;
 }
 
 void OrderLifecycleManager::clear_pending()
@@ -500,11 +513,15 @@ bool OrderLifecycleManager::tick_mismatch(
   if (state.order_id == active_order_id_)
   {
     mismatch_count_ = 0;
+    handover_lag_count_ = 0;
     return false;
   }
 
-  // Handover lag: still reporting the just-replaced order is expected.
-  if (!prev_active_order_id_.empty() && state.order_id == prev_active_order_id_)
+  // Handover lag: still reporting the just-replaced order is expected briefly,
+  // but bounded so a permanently-stuck AGV still trips the mismatch recovery.
+  if (
+    !prev_active_order_id_.empty() && state.order_id == prev_active_order_id_ &&
+    ++handover_lag_count_ <= kMaxHandoverLagStates)
   {
     return false;
   }
@@ -523,6 +540,7 @@ bool OrderLifecycleManager::tick_mismatch(
     order_complete_ = false;
     needs_more_base_ = false;
     mismatch_count_ = 0;
+    handover_lag_count_ = 0;
     return true;
   }
 
@@ -584,9 +602,11 @@ OrderLifecycleManager::drain_pending_locked(
       continue;
     }
 
-    // SEND_NOW — release; the queue thread re-validates each against the
-    // advancing active order before publishing.
+    // SEND_NOW — release, then advance the snapshot to this update so the next
+    // one honors the prev-update-not-confirmed guard instead of also releasing.
     ready.push_back(front.order);
+    snap.order_update_id = front.order.order_update_id;
+    snap.nodes = front.order.nodes;
     pending_updates_.pop_front();
   }
 

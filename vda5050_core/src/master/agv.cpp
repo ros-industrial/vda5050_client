@@ -36,7 +36,7 @@ namespace vda5050_core::master {
 namespace {
 
 // Human-readable label for a stitch GuardFailure, used only in log
-// messages. Stable strings — FMS log scrapers may match on these.
+// messages. Stable strings — log scrapers may match on these.
 const char* guard_failure_to_str(GuardFailure g)
 {
   switch (g)
@@ -64,9 +64,7 @@ std::chrono::nanoseconds age_since(
 
 }  // namespace
 
-// ============================================================================
-// Constructor / Destructor
-// ============================================================================
+// --- Constructor / Destructor ---
 
 AGV::AGV(
   std::shared_ptr<vda5050_core::execution::ProtocolAdapter> protocol_adapter,
@@ -87,29 +85,19 @@ AGV::AGV(
   drop_oldest_(drop_oldest)
 {
   VDA5050_INFO("[AGV] Created AGV instance: {}", agv_id_);
-  // setup_subscriptions() must be called by the constructor's caller
-  // after make_shared returns — weak_from_this() is only valid once
-  // the shared_ptr ownership has been associated.
+  // Caller wires subscriptions after make_shared (weak_from_this needs it).
 }
 
 AGV::~AGV()
 {
   VDA5050_INFO("[AGV] Destroying AGV instance: {}", agv_id_);
 
-  // Teardown order matters (per CLAUDE.md):
-  //   1. Stop spinning   — halt the queue processor and heartbeat threads
-  //   2. Release resources — unsubscribe per-topic; drop protocol_adapter_
-  //   3. Join threads     — handled inside stop_queue_processor() and
-  //                         cleanup_heartbeat() above
-
-  // 1. Stop spinning
+  // Teardown order: stop threads (they join inside), then release resources.
   stop_queue_processor();
   cleanup_heartbeat();
 
-  // 2. Release resources — unsubscribe via ProtocolAdapter so the broker
-  // stops routing to lambdas captured at subscribe time, then drop the
-  // shared_ptr. The underlying MqttClient stays alive (master owns it);
-  // only the per-AGV typed wrapper goes away.
+  // Unsubscribe so the broker stops routing to captured lambdas, then drop the
+  // per-AGV adapter (the master keeps the underlying MqttClient).
   if (protocol_adapter_)
   {
     protocol_adapter_->unsubscribe<vda5050_core::types::Connection>();
@@ -143,18 +131,15 @@ void AGV::stop()
 {
   VDA5050_INFO("[AGV] Stopping AGV: {}", agv_id_);
 
-  // Stop queue processor and heartbeat
   stop_queue_processor();
   cleanup_heartbeat();
 
-  // Reset states
   {
     std::lock_guard<std::mutex> lock(state_mutex_);
     connection_status_ = vda5050_core::types::ConnectionState::OFFLINE;
     operational_state_ = AGVState::STATE_UNKNOWN;
   }
 
-  // Clear message queues
   {
     std::lock_guard<std::mutex> lock(queue_mutex_);
     order_queue_ = {};
@@ -170,7 +155,6 @@ void AGV::restart()
 
   stop();
 
-  // Clear cached messages and timestamps
   {
     std::lock_guard<std::mutex> lock(data_mutex_);
     last_connection_.reset();
@@ -189,8 +173,6 @@ void AGV::restart()
     have_visualization_baseline_ = false;
   }
 
-  // Clear order lifecycle tracking (no active order, no pending updates)
-  // — the AGV's prior order context is no longer valid after restart.
   order_lifecycle_.clear();
 
   VDA5050_INFO("[AGV] AGV restarted, ready for connections: {}", agv_id_);
@@ -222,9 +204,7 @@ void AGV::resume()
   VDA5050_INFO("[AGV] AGV resumed: {}", agv_id_);
 }
 
-// ============================================================================
-// Connection and Operational State
-// ============================================================================
+// --- Connection and Operational State ---
 
 bool AGV::is_connected() const
 {
@@ -250,7 +230,6 @@ void AGV::set_connection_status(vda5050_core::types::ConnectionState status)
   auto old_status = connection_status_;
   connection_status_ = status;
 
-  // When connection is lost, AGV becomes unavailable
   if (
     status == vda5050_core::types::ConnectionState::OFFLINE ||
     status == vda5050_core::types::ConnectionState::CONNECTIONBROKEN)
@@ -292,10 +271,8 @@ AGVState AGV::set_operational_state(AGVState state)
 {
   std::lock_guard<std::mutex> lock(state_mutex_);
 
-  // Precedence: connection-loss UNAVAILABLE and fault ERROR outrank the
-  // heartbeat-timer STATE_UNKNOWN, so a state-timeout on a disconnected AGV
-  // can't mask "connection lost" as "STATE_UNKNOWN". Recovery is unaffected:
-  // a valid State sets AVAILABLE, which skips this guard.
+  // Precedence: UNAVAILABLE/ERROR outrank STATE_UNKNOWN, so a timeout on a
+  // disconnected AGV can't mask "connection lost" (a valid State skips this).
   if (
     state == AGVState::STATE_UNKNOWN &&
     (operational_state_ == AGVState::UNAVAILABLE ||
@@ -337,28 +314,23 @@ void AGV::on_state_heartbeat_timeout()
     }
   }
 
-  // Only signal the timeout when STATE_UNKNOWN actually latched. If the AGV is
-  // already UNAVAILABLE/ERROR the request is ignored, and firing here would be
-  // an on_state_timeout with no paired STATE_UNKNOWN->AVAILABLE recovery edge.
+  // Signal the timeout only when STATE_UNKNOWN actually latched — else it fires
+  // with no paired recovery edge (masked by UNAVAILABLE/ERROR).
   if (set_operational_state(AGVState::STATE_UNKNOWN) != AGVState::STATE_UNKNOWN)
   {
     return;
   }
   VDA5050_WARN("[AGV] State heartbeat timeout for {}", agv_id_);
 
-  // Dispatch the named timeout edge to the user. Library
-  // does NOT auto-cancel pending orders here — silence is potentially
-  // transient. The pre-send validator chain hard-rejects orders for
-  // STATE_UNKNOWN AGVs at publish time as defense-in-depth.
+  // Pending orders are NOT auto-cancelled (silence may be transient); pre-send
+  // rejects orders for STATE_UNKNOWN AGVs anyway.
   if (auto p = parent_.lock())
   {
     p->on_state_timeout(agv_id_);
   }
 }
 
-// ============================================================================
-// Heartbeat Management
-// ============================================================================
+// --- Heartbeat Management ---
 
 void AGV::setup_heartbeat()
 {
@@ -396,14 +368,11 @@ void AGV::cleanup_heartbeat()
   heartbeat_to_stop->stop_connection_heartbeat();
 }
 
-// ============================================================================
-// Message Handlers
-// ============================================================================
+// --- Message Handlers ---
 
 void AGV::handle_connection(const vda5050_core::types::Connection& msg)
 {
-  // Schema gate. Drop malformed messages before they touch
-  // cache, heartbeat, or user callbacks.
+  // Schema gate.
   auto schema_result =
     vda5050_core::validation::validate_connection_content(msg);
   if (!schema_result)
@@ -414,7 +383,6 @@ void AGV::handle_connection(const vda5050_core::types::Connection& msg)
     return;
   }
 
-  // Update cached message
   {
     std::lock_guard<std::mutex> lock(data_mutex_);
     last_connection_ = msg;
@@ -427,12 +395,10 @@ void AGV::handle_connection(const vda5050_core::types::Connection& msg)
   // Manage heartbeat based on connection state
   if (msg.connection_state == vda5050_core::types::ConnectionState::ONLINE)
   {
-    // Start heartbeat and queue processor when ONLINE
     setup_heartbeat();
     start_queue_processor();
-    // Reset the stale-State and stale-Visualization gates on the reconnect
-    // edge only (ONLINE recurs as a heartbeat) so a restarted AGV isn't
-    // locked out.
+    // Reset the stale-State/Visualization gates on the reconnect edge only
+    // (ONLINE recurs) so a restarted AGV isn't locked out.
     if (prev_status != vda5050_core::types::ConnectionState::ONLINE)
     {
       order_lifecycle_.reset_state_baseline();
@@ -443,7 +409,6 @@ void AGV::handle_connection(const vda5050_core::types::Connection& msg)
   }
   else
   {
-    // Stop heartbeat and queue processor when OFFLINE/CONNECTIONBROKEN
     cleanup_heartbeat();
     stop_queue_processor();
   }
@@ -475,9 +440,7 @@ void AGV::cancel_pending_orders()
   VDA5050_INFO("[AGV] Cleared pending outbound queues for {}", agv_id_);
 }
 
-// ============================================================================
-// Mode-cancelled queue
-// ============================================================================
+// --- Mode-cancelled queue ---
 
 void AGV::capture_and_drain_on_leave_master_control(
   vda5050_core::types::OperatingMode from,
@@ -527,11 +490,8 @@ AGV::ModeCancelledQueue AGV::get_mode_cancelled_queue() const
 
 std::pair<std::size_t, std::size_t> AGV::resume_mode_cancelled_queue()
 {
-  // Atomic prepend: build a reordered queue with buffer items first +
-  // existing live queue items second, then swap. Single lock — no
-  // nested-lock window. Preserves FMS-intended ordering: buffered
-  // orders execute BEFORE any new orders dispatched between AUTOMATIC
-  // return and this call.
+  // Atomic prepend (single lock): buffer items first, then the existing queue,
+  // then swap — buffered run before any queued since the AUTOMATIC return.
   std::lock_guard<std::mutex> lock(queue_mutex_);
   const std::size_t orders_resumed = mode_cancelled_queue_.orders.size();
   const std::size_t actions_resumed =
@@ -619,9 +579,8 @@ void AGV::handle_state(const vda5050_core::types::State& msg)
     }
   }
 
-  // Drop stale / out-of-order State (QoS 0 is lossy and reorderable) before it
-  // overwrites the cache or feeds the mode-drain diff. Prior operating mode is
-  // read here, under the same lock, for the leave-master-control capture below.
+  // Drop stale/out-of-order State (QoS 0) before it overwrites the cache or
+  // feeds the mode-drain diff. Prior mode is read here for the capture below.
   std::optional<vda5050_core::types::OperatingMode> prev_mode;
   {
     std::lock_guard<std::mutex> lock(data_mutex_);
@@ -640,13 +599,10 @@ void AGV::handle_state(const vda5050_core::types::State& msg)
     have_state_baseline_ = true;
   }
 
-  // Capture prior operational state BEFORE flipping to AVAILABLE — used
-  // to detect the STATE_UNKNOWN→AVAILABLE recovery edge.
-  // get_operational_state() takes data_mutex_ once; result is a stack-
-  // local snapshot.
+  // Capture prior op-state BEFORE flipping to AVAILABLE, to detect the
+  // STATE_UNKNOWN->AVAILABLE recovery edge.
   const auto prev_op_state = get_operational_state();
 
-  // Update operational state to AVAILABLE
   set_operational_state(AGVState::AVAILABLE);
 
   // Runs before the user callback so observers see current lifecycle state.
@@ -677,9 +633,8 @@ void AGV::handle_state(const vda5050_core::types::State& msg)
     }
   }
 
-  // Capture+drain the outbound queues before on_mode_changed fires, so an
-  // override sees the buffer populated. Triggers when the AGV leaves master
-  // control (AUTOMATIC/SEMIAUTOMATIC) for MANUAL/SERVICE/TEACHIN.
+  // Capture+drain the outbound queues before on_mode_changed fires (so an
+  // override sees the buffer), when the AGV leaves master control.
   if (
     prev_mode.has_value() &&
     vda5050_core::validation::is_master_in_control(*prev_mode) &&
@@ -688,9 +643,8 @@ void AGV::handle_state(const vda5050_core::types::State& msg)
     capture_and_drain_on_leave_master_control(*prev_mode, msg.operating_mode);
   }
 
-  // Dispatch to the user override, then feed the fleet event detector, which
-  // diffs the state and fans each transition out to the named hooks (the first
-  // State only seeds — no hooks fire).
+  // Dispatch to on_state, then feed the fleet event detector (diffs + fans out
+  // named hooks; the first State only seeds).
   if (auto p = parent_.lock())
   {
     p->on_state(agv_id_, msg);
@@ -759,16 +713,13 @@ void AGV::handle_visualization(const vda5050_core::types::Visualization& msg)
     have_visualization_baseline_ = true;
   }
 
-  // Dispatch to user override
   if (auto p = parent_.lock())
   {
     p->on_visualization(agv_id_, msg);
   }
 }
 
-// ============================================================================
-// Cached Messages - Get
-// ============================================================================
+// --- Cached Messages - Get ---
 
 std::optional<vda5050_core::types::Connection> AGV::get_last_connection() const
 {
@@ -821,9 +772,7 @@ PoseView AGV::get_pose_view() const
   if (last_state_) view.driving = last_state_->driving;
 
   // Latest-wins between State and Visualization by AGV header timestamp,
-  // considering only sources that carry an initialized position (an
-  // un-localized position is not usable, as the order gates also require).
-  // Both timestamps come from the same AGV clock, so they are comparable.
+  // among sources with an initialized position (same AGV clock, comparable).
   const bool state_has_pos = last_state_ && last_state_->agv_position &&
                              last_state_->agv_position->position_initialized;
   const bool viz_has_pos =
@@ -837,9 +786,8 @@ PoseView AGV::get_pose_view() const
       last_visualization_->header.timestamp >= last_state_->header.timestamp;
   }
 
-  // Position and velocity always come from the same source (never mix a
-  // position from one with a velocity from the other). data_age uses the
-  // master receive time so it stays on a single clock.
+  // Position + velocity always from the same source (never mixed); data_age
+  // uses the master receive time (single clock).
   if (use_viz)
   {
     view.source = PoseSource::Visualization;
@@ -858,9 +806,7 @@ PoseView AGV::get_pose_view() const
   return view;
 }
 
-// ============================================================================
-// Order Lifecycle (forwarders to OrderLifecycleManager)
-// ============================================================================
+// --- Order Lifecycle (forwarders to OrderLifecycleManager) ---
 
 bool AGV::has_active_order() const
 {
@@ -897,9 +843,7 @@ ActiveOrderSnapshot AGV::active_order_snapshot() const
   return order_lifecycle_.snapshot();
 }
 
-// ============================================================================
-// Timestamps
-// ============================================================================
+// --- Timestamps ---
 
 std::optional<AGV::TimePoint> AGV::get_last_connection_time() const
 {
@@ -925,9 +869,7 @@ std::optional<AGV::TimePoint> AGV::get_last_visualization_time() const
   return last_visualization_time_;
 }
 
-// ============================================================================
-// Outgoing Messages - Queue
-// ============================================================================
+// --- Outgoing Messages - Queue ---
 
 bool AGV::send_order(const vda5050_core::types::Order& order)
 {
@@ -1015,9 +957,7 @@ std::vector<std::string> AGV::get_queued_instant_action_ids() const
   return ids;
 }
 
-// ============================================================================
-// Queue Processing
-// ============================================================================
+// --- Queue Processing ---
 
 void AGV::start_queue_processor()
 {
@@ -1045,13 +985,8 @@ void AGV::stop_queue_processor()
   {
     std::lock_guard<std::mutex> lock(thread_mutex_);
 
-    // Always signal stop + steal the thread handle, even when
-    // queue_processor_running_ is false. Without this, a destructor
-    // racing against a freshly-started queue thread (e.g. start fired
-    // from handle_connection on the test thread, dtor entered before
-    // the queue thread first observed stop_processing_) could leave
-    // queue_thread_ joinable when member destructors run -> std::thread
-    // dtor calls std::terminate.
+    // Signal stop + steal the thread handle even when the flag is false: a dtor
+    // racing a fresh queue thread could leave it joinable -> terminate.
     {
       std::lock_guard<std::mutex> queue_lock(queue_mutex_);
       stop_processing_ = true;
@@ -1086,13 +1021,11 @@ void AGV::process_queues()
     {
       std::unique_lock<std::mutex> lock(queue_mutex_);
 
-      // Wait for a message or stop signal
       queue_cv_.wait(lock, [this] {
         return stop_processing_ || !order_queue_.empty() ||
                !instant_actions_queue_.empty();
       });
 
-      // Check if we should stop
       if (
         stop_processing_ ||
         (order_queue_.empty() && instant_actions_queue_.empty()))
@@ -1100,7 +1033,7 @@ void AGV::process_queues()
         break;
       }
 
-      // Process instant actions first (higher priority)
+      // Instant actions first (higher priority).
       if (!instant_actions_queue_.empty())
       {
         actions = std::move(instant_actions_queue_.front());
@@ -1113,7 +1046,7 @@ void AGV::process_queues()
       }
     }
 
-    // Publish the message (outside the lock)
+    // Publish outside the lock.
     if (actions)
     {
       publish_instant_actions(*actions);
@@ -1127,9 +1060,7 @@ void AGV::process_queues()
   VDA5050_INFO("[AGV] Queue processing thread stopped for {}", agv_id_);
 }
 
-// ============================================================================
-// Publishing
-// ============================================================================
+// --- Publishing ---
 
 void AGV::publish_order(
   const vda5050_core::types::Order& order, bool pre_stitched)
@@ -1248,9 +1179,8 @@ void AGV::publish_instant_actions(
     return;
   }
 
-  // Pull master's loaded-graph snapshot for the traversability checks.
-  // Use parent_raw_ instead of parent_.lock() to avoid extending master
-  // lifetime inside the queue thread — see parent_raw_ doc-comment.
+  // Loaded-graph snapshot for traversability. Use parent_raw_ (not
+  // parent_.lock()) to avoid extending master lifetime in the queue thread.
   vda5050_core::layout::Graph::ConstPtr loaded_graph;
   if (parent_raw_)
   {
@@ -1279,9 +1209,7 @@ void AGV::publish_instant_actions(
   }
 }
 
-// ============================================================================
-// Helper Methods
-// ============================================================================
+// --- Helper Methods ---
 
 std::string AGV::build_topic(const std::string& topic_name) const
 {

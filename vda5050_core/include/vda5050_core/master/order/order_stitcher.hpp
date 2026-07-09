@@ -70,7 +70,7 @@ public:
   OrderStitcher& operator=(const OrderStitcher&) = default;
 
   /// \brief Decide what to do with `candidate` vs the tracked active order.
-  /// \param candidate  Outbound Order from the FMS / fleet logic.
+  /// \param candidate  Outbound Order from the fleet logic.
   /// \param snapshot   By-value view from OrderLifecycleManager::snapshot().
   StitchResult decide(
     const vda5050_core::types::Order& candidate,

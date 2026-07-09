@@ -64,9 +64,8 @@ VDA5050Master::VDA5050Master(
 VDA5050Master::~VDA5050Master()
 {
   VDA5050_INFO("[VDA5050Master] Destroying VDA5050Master instance");
-  // Unregister the connection-state callbacks. The weak_ptr
-  // capture already makes an in-flight callback a no-op during teardown;
-  // clearing them also stops a post-destruction auto-reconnect from firing.
+  // Clear the connection-state callbacks: the weak_ptr already no-ops in-flight
+  // ones, and this stops a post-destruction auto-reconnect from firing.
   if (mqtt_client_)
   {
     mqtt_client_->set_connection_lost_callback(nullptr);
@@ -74,13 +73,8 @@ VDA5050Master::~VDA5050Master()
   }
   disconnect();
 
-  // Stop AGV worker threads BEFORE agvs_ is destructed at the end of
-  // this body. Each AGV's queue-processor thread can call back into
-  // this master (e.g. get_loaded_graph()) via parent_raw_; that pointer
-  // must remain valid for the lifetime of any in-flight publish. By
-  // joining queue threads here — synchronously, while *this is still
-  // fully alive — we guarantee no AGV thread is mid-call into the
-  // master when the rest of the master's members destruct.
+  // Join AGV worker threads before any member destructs: a queue thread can
+  // call back via parent_raw_, so *this must stay alive until they join.
   {
     std::lock_guard<std::mutex> lock(agv_mutex_);
     for (auto& kv : agvs_)
@@ -112,11 +106,8 @@ void VDA5050Master::connect()
     return;
   }
 
-  // Wire broker connection-state callbacks. Capture a weak_ptr,
-  // not `this`: the transport invokes the handler outside its lock, so a
-  // callback can race destruction. lock() returns null once the master is
-  // gone, making the handler a clean no-op; while it holds the locked
-  // shared_ptr the master cannot be destroyed mid-call.
+  // Capture weak_ptr, not `this`: lock() no-ops once the master is gone, and
+  // keeps it alive while held (callbacks can race destruction).
   std::weak_ptr<VDA5050Master> weak = weak_from_this();
   mqtt_client_->set_connection_lost_callback([weak](const std::string& cause) {
     if (auto self = weak.lock()) self->handle_broker_connection_lost(cause);
@@ -164,11 +155,8 @@ std::shared_ptr<AGV> VDA5050Master::create_agv_locked(
   const std::string& serial_number, std::size_t max_queue_size,
   bool drop_oldest)
 {
-  // weak_from_this() back-ref lets the AGV dispatch into our virtuals
-  // and detect master destruction. Caller wires MQTT subscriptions
-  // separately, outside `agv_mutex_`, to avoid a deadlock where Paho's
-  // network thread fires an inbound `on_state` callback that needs the
-  // master mutex while the subscribing thread is still inside SUBSCRIBE.
+  // weak_from_this() back-ref lets the AGV dispatch into our virtuals and
+  // detect master destruction. Caller wires subscriptions outside agv_mutex_.
   return std::make_shared<AGV>(
     vda5050_core::execution::ProtocolAdapter::make(
       mqtt_client_, interface_name, Version, manufacturer, serial_number),
@@ -197,9 +185,8 @@ void VDA5050Master::onboard_agv(
     agvs_[agv_id] = new_agv;
   }
 
-  // MQTT SUBSCRIBE blocks on SUBACK; if a PUBLISH races in on Paho's
-  // network thread it will dispatch on_state -> get_agv() which needs
-  // agv_mutex_. Wire subscriptions outside the lock.
+  // Subscribe outside agv_mutex_: SUBSCRIBE blocks on SUBACK, and a racing
+  // inbound on_state -> get_agv() needs the same lock (deadlock otherwise).
   new_agv->setup_subscriptions();
 
   VDA5050_INFO("[VDA5050Master] Onboarded AGV: {}", agv_id);
@@ -359,10 +346,8 @@ void VDA5050Master::offboard_agv(
     agvs_.erase(it);
   }
 
-  // Stop AGV after removing from map. The AGV destructor calls
-  // protocol_adapter_->unsubscribe<T>() for each subscribed topic, so
-  // the broker stops routing to lambdas captured at subscribe time
-  // before the AGV instance is gone.
+  // Stop after removing from the map; the AGV dtor unsubscribes so the broker
+  // stops routing before the instance is gone.
   agv->stop();
 
   // Drop the AGV's event-detector baselines so a re-onboard starts clean.
@@ -879,9 +864,7 @@ InstantActionAssignmentResult VDA5050Master::assign_instant_actions(
 // User-Extension Callbacks — default empty implementations
 // ============================================================================
 //
-// Override these in a subclass to react to incoming AGV messages.
-// Default implementations are empty so a master that doesn't subclass
-// still works silently.
+// Override in a subclass to react to AGV messages; defaults are empty.
 
 void VDA5050Master::on_state(
   const std::string& /*agv_id*/, const vda5050_core::types::State& /*state*/)
@@ -930,9 +913,8 @@ vda5050_core::layout::LayoutLoadResult VDA5050Master::load_layout_from_config(
 
 void VDA5050Master::set_graph(vda5050_core::layout::Graph::ConstPtr graph)
 {
-  // Snapshot AGVs first (lock order: agv → map). Snapshot the IDs +
-  // shared_ptrs into a local copy so we can release agv_mutex_ before
-  // doing factsheet IO + map_mutex_ work.
+  // Snapshot AGVs under agv_mutex_ (lock order: agv then map) so alignment can
+  // be computed off-lock below.
   std::vector<std::pair<std::string, std::shared_ptr<AGV>>> agvs_snapshot;
   {
     std::lock_guard<std::mutex> lock(agv_mutex_);

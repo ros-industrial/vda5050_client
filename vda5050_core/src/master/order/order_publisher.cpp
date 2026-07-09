@@ -69,7 +69,7 @@ vda5050_core::errors::ValidationResult OrderPublisher::publish(
       return res;
     }
     // is_valid_graph reports structural problems as warnings. A malformed
-    // merge is a master-side bug, not FMS input — reject, don't adopt it.
+    // merge is a master-side bug, not caller input — reject, don't adopt it.
     auto merged_graph =
       vda5050_core::validation::is_valid_graph(combine_res.order);
     if (!merged_graph || merged_graph.has_warnings())

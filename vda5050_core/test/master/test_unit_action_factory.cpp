@@ -180,5 +180,11 @@ TEST(ActionFactory, BuildFactsheetRequest_DescriptionPropagates)
   EXPECT_EQ(*a.action_description, "post-firmware");
 }
 
+TEST(ActionFactory, BuildFactsheetRequest_EmptyDescriptionLeavesOptionalUnset)
+{
+  auto a = ActionFactory::build_factsheet_request("fs-1");
+  EXPECT_FALSE(a.action_description.has_value());
+}
+
 }  // namespace test
 }  // namespace vda5050_core::master

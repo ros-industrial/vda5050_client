@@ -26,6 +26,7 @@
 
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
+#include "vda5050_core/validation/predefined_action_types.hpp"
 
 namespace vda5050_core::validation {
 
@@ -203,6 +204,9 @@ errors::ValidationResult validate_capability(
 
   for (const auto& action : actions.actions)
   {
+    // Always-supported protocol actions aren't in factsheet.agv_actions, so
+    // skip the check. Their param validation (e.g. initPosition) is deferred.
+    if (is_capability_exempt_action_type(action.action_type)) continue;
     validate_action_against_factsheet(
       action, types::ActionScope::INSTANT, fs, add_error);
   }

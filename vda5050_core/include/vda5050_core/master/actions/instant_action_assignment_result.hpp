@@ -37,23 +37,23 @@ enum class InstantActionDecision
   ASSIGNED,
   /// Master has no AGV with this manufacturer/serial.
   AGV_NOT_ONBOARDED,
-  /// AGV connection_state != ONLINE. Sending at QoS 0 to an offline AGV
-  /// is a silent drop, so we reject pre-send.
+  /// AGV offline; a QoS-0 send would be silently dropped, so reject pre-send.
   AGV_OFFLINE,
-  /// A candidate action_id is empty, duplicated in the batch, or collides with
-  /// an in-flight (state.action_states) or active-order action_id. Must be
-  /// globally unique (UUID suggested).
+  /// Candidate action_id duplicated in the batch or colliding with an
+  /// in-flight, active-order, or queued id. Empty id is INVALID_CONTENT.
   DUPLICATE_ACTION_ID,
   /// The AGV's outbound queue is full (connection is up, unlike AGV_OFFLINE).
   AGV_QUEUE_FULL,
-  /// HARD-blocking candidate while the AGV has an active action
-  /// (WAITING/INITIALIZING/RUNNING/PAUSED) — must not run in parallel.
+  /// HARD-blocking candidate while the AGV already has an active action.
   HARD_ACTION_BLOCKED,
-  /// SOFT/HARD-blocking candidate while the AGV is driving — must not drive.
+  /// SOFT/HARD-blocking candidate while the AGV is driving.
   ACTION_BLOCKED_BY_DRIVING,
-  /// AGV not in AUTOMATIC/SEMIAUTOMATIC and the action_type isn't on the
-  /// instant-scope allowlist (stateRequest, cancelOrder, initPosition, etc.).
-  AGV_MODE_NOT_AUTO_FOR_ACTION
+  /// AGV not in an automatic mode and the action_type isn't instant-allowed.
+  AGV_MODE_NOT_AUTO_FOR_ACTION,
+  /// Batch failed schema validation, or is empty.
+  INVALID_CONTENT,
+  /// An action_type is not in the AGV's factsheet capabilities.
+  AGV_CANNOT_PERFORM_ACTION
 };
 
 /// \brief Structured outcome of `VDA5050Master::assign_instant_actions`.
@@ -61,11 +61,9 @@ struct InstantActionAssignmentResult
 {
   InstantActionDecision decision = InstantActionDecision::ASSIGNED;
 
-  /// Diagnostic errors, populated for non-ASSIGNED outcomes. Empty on
-  /// ASSIGNED.
+  /// Diagnostics for non-ASSIGNED outcomes; empty on ASSIGNED.
   std::vector<vda5050_core::types::Error> errors;
 
-  /// True iff `decision == ASSIGNED`.
   explicit operator bool() const
   {
     return decision == InstantActionDecision::ASSIGNED;

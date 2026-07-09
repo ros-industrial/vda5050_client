@@ -19,31 +19,18 @@
 #include "vda5050_core/validation/instant_action_mode_validator.hpp"
 
 #include <fmt/format.h>
-#include <set>
 #include <string>
 
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
+#include "vda5050_core/validation/predefined_action_types.hpp"
 
 namespace vda5050_core::validation {
 
-namespace {
-
-// Predefined instant-scope actions exempt from the mode gate.
-const std::set<std::string>& exempt_action_types()
-{
-  static const std::set<std::string> kExempt = {
-    "stateRequest", "factsheetRequest", "logReport",
-    "cancelOrder",  "initPosition",     "startPause",
-    "stopPause",    "startCharging",    "stopCharging"};
-  return kExempt;
-}
-
-}  // namespace
-
 bool is_mode_exempt_action_type(const std::string& action_type)
 {
-  return exempt_action_types().count(action_type) != 0;
+  // Exempt outside AUTOMATIC is exactly the always-supported protocol set.
+  return is_capability_exempt_action_type(action_type);
 }
 
 errors::ValidationResult validate_instant_action_mode(

@@ -21,7 +21,6 @@
 #include <array>
 #include <cstdint>
 #include <random>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -70,7 +69,6 @@ vda5050_core::types::Action ActionFactory::build_custom(
 vda5050_core::types::Action ActionFactory::build_state_request(
   const std::string& action_id, const std::string& description)
 {
-  // stateRequest takes no parameters; NONE blocking.
   return build_custom(
     "stateRequest", action_id, vda5050_core::types::BlockingType::NONE,
     description, {});
@@ -79,7 +77,6 @@ vda5050_core::types::Action ActionFactory::build_state_request(
 vda5050_core::types::Action ActionFactory::build_factsheet_request(
   const std::string& action_id, const std::string& description)
 {
-  // factsheetRequest takes no parameters; NONE blocking.
   return build_custom(
     "factsheetRequest", action_id, vda5050_core::types::BlockingType::NONE,
     description, {});

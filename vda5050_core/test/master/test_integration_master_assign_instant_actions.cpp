@@ -303,8 +303,9 @@ TEST_F(
 
 TEST_F(MasterAssignInstantActionsTest, PositionNotInitialized_StillAssigns)
 {
-  // initPosition is itself an instant action and runs BEFORE position is
-  // initialized. The skip is deliberate by design.
+  // initPosition runs BEFORE position is initialized, so the position-init
+  // check is deliberately skipped. (Param validation for predefined actions is
+  // a separate deferred gap, so the param-less action isn't rejected.)
   inject_online_and_state(
     vda5050_core::types::OperatingMode::AUTOMATIC,
     /*position_initialized=*/false);
@@ -336,7 +337,17 @@ TEST_F(MasterAssignInstantActionsTest, NoStateYet_StillAssigns)
 // action_id uniqueness checks
 // =============================================================================
 
-TEST_F(MasterAssignInstantActionsTest, EmptyActionId_Returns_DuplicateActionId)
+TEST_F(MasterAssignInstantActionsTest, EmptyBatch_Returns_InvalidContent)
+{
+  inject_online_and_state();
+
+  auto res = master_->assign_instant_actions(kManufacturer, kSerial, wrap({}));
+
+  EXPECT_EQ(res.decision, InstantActionDecision::INVALID_CONTENT);
+  EXPECT_FALSE(res.errors.empty());
+}
+
+TEST_F(MasterAssignInstantActionsTest, EmptyActionId_Returns_InvalidContent)
 {
   inject_online_and_state();
 
@@ -344,13 +355,13 @@ TEST_F(MasterAssignInstantActionsTest, EmptyActionId_Returns_DuplicateActionId)
   auto res =
     master_->assign_instant_actions(kManufacturer, kSerial, wrap({act}));
 
-  EXPECT_EQ(res.decision, InstantActionDecision::DUPLICATE_ACTION_ID);
+  // Empty action_id is a schema violation (caught before the uniqueness check).
+  EXPECT_EQ(res.decision, InstantActionDecision::INVALID_CONTENT);
   ASSERT_FALSE(res.errors.empty());
   ASSERT_TRUE(res.errors.front().error_description.has_value());
   EXPECT_NE(
-    res.errors.front().error_description->find("empty action_id"),
-    std::string::npos)
-    << "error message should call out empty action_id";
+    res.errors.front().error_description->find("action_id"), std::string::npos)
+    << "error message should call out action_id";
 }
 
 TEST_F(
@@ -619,6 +630,8 @@ TEST_F(
   MasterInstantActionsPublishesInDegradedTest,
   PositionNotInitialized_InstantActionStillReachesWire)
 {
+  // Asserts the position-init skip only; predefined-action parameter
+  // validation is a deferred gap, so the param-less action isn't rejected.
   auto agv = master_->get_agv(kManufacturer, kSerial);
   ASSERT_NE(agv, nullptr);
   agv->handle_connection(make_online_connection());

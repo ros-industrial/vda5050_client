@@ -18,10 +18,13 @@
 
 #include "vda5050_core/master/master.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <optional>
 #include <set>
 #include <sstream>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -35,6 +38,8 @@
 #include "vda5050_core/master/standard_names.hpp"
 #include "vda5050_core/master/updates/agv_updates.hpp"
 #include "vda5050_core/validation/action_conflict_validator.hpp"
+#include "vda5050_core/validation/capability_validator.hpp"
+#include "vda5050_core/validation/content_validator.hpp"
 #include "vda5050_core/validation/factsheet_alignment.hpp"
 #include "vda5050_core/validation/instant_action_mode_validator.hpp"
 #include "vda5050_core/validation/pre_send_validator.hpp"
@@ -678,7 +683,65 @@ bool VDA5050Master::publish_instant_actions(
     return false;
   }
 
+  // Enforce action_id uniqueness even on the thin path (readiness pre-flight
+  // is still skipped) — a duplicate id is undefined on the AGV.
+  if (
+    auto conflict =
+      first_instant_action_id_conflict(agv, agv->get_last_state(), actions))
+  {
+    VDA5050_WARN(
+      "[VDA5050Master] Not publishing instant actions for {}: {}", agv_id,
+      *conflict);
+    return false;
+  }
+
   return agv->send_instant_actions(actions);
+}
+
+std::optional<std::string> VDA5050Master::first_instant_action_id_conflict(
+  const std::shared_ptr<AGV>& agv,
+  const std::optional<vda5050_core::types::State>& last_state,
+  const vda5050_core::types::InstantActions& actions) const
+{
+  std::set<std::string> in_flight;
+  if (last_state.has_value())
+  {
+    for (const auto& as : last_state->action_states)
+    {
+      in_flight.insert(as.action_id);
+    }
+  }
+  const auto snap = agv->active_order_snapshot();
+  if (snap.has_active)
+  {
+    for (const auto& n : snap.nodes)
+      for (const auto& a : n.actions) in_flight.insert(a.action_id);
+    for (const auto& e : snap.edges)
+      for (const auto& a : e.actions) in_flight.insert(a.action_id);
+  }
+  for (const auto& id : agv->get_queued_instant_action_ids())
+  {
+    in_flight.insert(id);
+  }
+
+  std::set<std::string> seen_in_batch;
+  for (const auto& a : actions.actions)
+  {
+    if (a.action_id.empty())
+    {
+      return "action with empty action_id is not allowed";
+    }
+    if (in_flight.count(a.action_id))
+    {
+      return "action_id '" + a.action_id +
+             "' collides with an in-flight, active-order, or queued action";
+    }
+    if (!seen_in_batch.insert(a.action_id).second)
+    {
+      return "action_id '" + a.action_id + "' is duplicated within the batch";
+    }
+  }
+  return std::nullopt;
 }
 
 InstantActionAssignmentResult VDA5050Master::assign_instant_actions(
@@ -691,7 +754,6 @@ InstantActionAssignmentResult VDA5050Master::assign_instant_actions(
       vda5050_core::errors::PreSendValidationError, description, {}));
   };
 
-  // Step 1: AGV lookup.
   const std::string agv_id = manufacturer + "/" + serial_number;
   std::shared_ptr<AGV> agv;
   {
@@ -705,7 +767,6 @@ InstantActionAssignmentResult VDA5050Master::assign_instant_actions(
     return res;
   }
 
-  // Step 2: connection ONLINE.
   if (
     agv->get_connection_status() !=
     vda5050_core::types::ConnectionState::ONLINE)
@@ -715,64 +776,37 @@ InstantActionAssignmentResult VDA5050Master::assign_instant_actions(
     return res;
   }
 
-  // Step 3: action_id uniqueness — within the batch, vs state's in-flight
-  // action_states[], and vs the active order's node/edge actions. The spec
-  // mandates global uniqueness; AGV behaviour on collision is undefined
-  // across vendors.
-  std::set<std::string> in_flight;
-  if (auto last_state = agv->get_last_state(); last_state.has_value())
+  if (actions.actions.empty())
   {
-    for (const auto& as : last_state->action_states)
-    {
-      in_flight.insert(as.action_id);
-    }
-  }
-  const auto snap = agv->active_order_snapshot();
-  if (snap.has_active)
-  {
-    for (const auto& n : snap.nodes)
-    {
-      for (const auto& a : n.actions) in_flight.insert(a.action_id);
-    }
-    for (const auto& e : snap.edges)
-    {
-      for (const auto& a : e.actions) in_flight.insert(a.action_id);
-    }
-  }
-  std::set<std::string> seen_in_batch;
-  for (const auto& a : actions.actions)
-  {
-    if (a.action_id.empty())
-    {
-      res.decision = InstantActionDecision::DUPLICATE_ACTION_ID;
-      add_error("Action with empty action_id is not allowed");
-      return res;
-    }
-    if (in_flight.count(a.action_id))
-    {
-      res.decision = InstantActionDecision::DUPLICATE_ACTION_ID;
-      add_error(
-        "action_id '" + a.action_id +
-        "' collides with an in-flight action on the AGV");
-      return res;
-    }
-    if (!seen_in_batch.insert(a.action_id).second)
-    {
-      res.decision = InstantActionDecision::DUPLICATE_ACTION_ID;
-      add_error(
-        "action_id '" + a.action_id + "' is duplicated within the batch");
-      return res;
-    }
+    res.decision = InstantActionDecision::INVALID_CONTENT;
+    add_error("InstantActions batch is empty");
+    return res;
   }
 
-  // Steps 4-5: operating-mode gate and action-conflict pre-flight — the
-  // sync mirror of the async publisher chain so the FMS gets caller-visible
-  // feedback before queue hand-off. One context serves both checks so the
-  // sync pre-flight and async chain see identical inputs.
+  // One coherent readiness snapshot feeds every check below.
   vda5050_core::validation::PreSendContext ia_ctx{
     agv->get_connection_status(), agv->get_last_state(),
     agv->get_last_factsheet(), agv->get_operational_state(),
     get_loaded_graph()};
+
+  auto schema_res =
+    vda5050_core::validation::validate_instant_actions_content(actions);
+  if (!schema_res)
+  {
+    res.errors = schema_res.fatal_errors();
+    res.decision = InstantActionDecision::INVALID_CONTENT;
+    return res;
+  }
+
+  // Global action_id uniqueness (spec-mandated; collision is vendor-undefined).
+  if (
+    auto conflict =
+      first_instant_action_id_conflict(agv, ia_ctx.last_state, actions))
+  {
+    res.decision = InstantActionDecision::DUPLICATE_ACTION_ID;
+    add_error(*conflict);
+    return res;
+  }
 
   auto mode_res =
     vda5050_core::validation::validate_instant_action_mode(ia_ctx, actions);
@@ -783,27 +817,29 @@ InstantActionAssignmentResult VDA5050Master::assign_instant_actions(
     return res;
   }
 
+  auto cap_res = vda5050_core::validation::validate_capability(ia_ctx, actions);
+  if (!cap_res)
+  {
+    res.errors = cap_res.fatal_errors();
+    res.decision = InstantActionDecision::AGV_CANNOT_PERFORM_ACTION;
+    return res;
+  }
+
   auto conflict_res =
     vda5050_core::validation::validate_action_conflict(ia_ctx, actions);
   if (!conflict_res)
   {
-    // Map the conflict error_type to the fine-grained decision case.
     res.errors = conflict_res.fatal_errors();
-    if (
-      res.errors.front().error_type ==
-      vda5050_core::errors::HardActionBlockedError)
-    {
-      res.decision = InstantActionDecision::HARD_ACTION_BLOCKED;
-    }
-    else
-    {
-      res.decision = InstantActionDecision::ACTION_BLOCKED_BY_DRIVING;
-    }
+    // Report HARD if any error is HARD (a mixed batch can carry both types).
+    const bool any_hard =
+      std::any_of(res.errors.begin(), res.errors.end(), [](const auto& e) {
+        return e.error_type == vda5050_core::errors::HardActionBlockedError;
+      });
+    res.decision = any_hard ? InstantActionDecision::HARD_ACTION_BLOCKED
+                            : InstantActionDecision::ACTION_BLOCKED_BY_DRIVING;
     return res;
   }
 
-  // Step 6: hand off to async path. send_instant_actions returns false
-  // only on outbound queue full.
   if (!agv->send_instant_actions(actions))
   {
     res.decision = InstantActionDecision::AGV_QUEUE_FULL;

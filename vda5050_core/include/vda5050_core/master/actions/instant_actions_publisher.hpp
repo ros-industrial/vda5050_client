@@ -36,8 +36,7 @@ namespace master {
 
 /// \brief Runs the outgoing instant-action validator chain, then publishes.
 ///
-/// Stateless: encapsulates the instant-actions QoS and routes the typed
-/// payload through the per-AGV ProtocolAdapter. Safe to call concurrently.
+/// Stateless; safe to call concurrently.
 class InstantActionsPublisher
 {
 public:

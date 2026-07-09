@@ -34,12 +34,8 @@ vda5050_core::errors::ValidationResult InstantActionsPublisher::publish(
   const vda5050_core::validation::PreSendContext& ctx,
   const vda5050_core::types::InstantActions& actions)
 {
-  // Validator chain: schema -> online -> mode gate -> capability -> action
-  // conflict, short-circuiting on failure. Full pre-send is intentionally
-  // skipped: its order-centric checks (AUTOMATIC, position, AVAILABLE) would
-  // block instant actions meant for degraded states (cancelOrder in error,
-  // initPosition before localization). The online + mode-gate checks below are
-  // the two targeted defenses.
+  // Full pre-send is skipped so instant actions still work in degraded states
+  // (cancelOrder in error, initPosition before localization).
   auto schema_result =
     vda5050_core::validation::validate_instant_actions_content(actions);
   if (!schema_result)
@@ -77,10 +73,20 @@ vda5050_core::errors::ValidationResult InstantActionsPublisher::publish(
     return conflict_result;
   }
 
+  // Fail rather than drop silently when the broker is down (QoS 0).
+  if (!adapter.connected())
+  {
+    vda5050_core::errors::ValidationResult res;
+    res.add_error(vda5050_core::errors::create_error(
+      vda5050_core::errors::ValidationError,
+      "Broker not connected; instant actions not published", {}));
+    return res;
+  }
+
   adapter.publish<vda5050_core::types::InstantActions>(
     actions, static_cast<int>(InstantActionsQos));
 
-  return vda5050_core::errors::ValidationResult{};  // success
+  return vda5050_core::errors::ValidationResult{};
 }
 
 }  // namespace vda5050_core::master

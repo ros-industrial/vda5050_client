@@ -29,19 +29,14 @@
 namespace vda5050_core {
 namespace master {
 
-/// \brief Builds Action structs (arbitrary custom actions plus the predefined
-///        stateRequest / factsheetRequest).
+/// \brief Builds Action structs (custom + predefined state/factsheet requests).
 ///
-/// Never sets the header — ProtocolAdapter owns it and overwrites it on
-/// publish. The predefined builders take no parameters and default to NONE
-/// blocking; the caller-supplied action_id correlates the AGV's response in
-/// on_state's action_states.
+/// Set the wrapping InstantActions header (version/manufacturer/serial) before
+/// assign/publish; validation checks it.
 class ActionFactory
 {
 public:
-  /// \brief Build an instantAction. Caller owns action_id (see
-  ///        generate_action_id() if none). blocking_type defaults to NONE;
-  ///        action_parameters is set only when `parameters` is non-empty.
+  /// \brief Build an Action. Caller owns action_id (see generate_action_id()).
   static vda5050_core::types::Action build_custom(
     const std::string& action_type, const std::string& action_id,
     vda5050_core::types::BlockingType blocking_type =
@@ -49,21 +44,14 @@ public:
     const std::string& description = "",
     const std::vector<vda5050_core::types::ActionParameter>& parameters = {});
 
-  /// \brief Generate a UUIDv4 hex action_id (RFC 4122, 8-4-4-4-12 lowercase).
-  ///        Use only when the caller has no FMS-side id to correlate.
+  /// \brief Generate a UUIDv4 action_id; use when there's no id to correlate.
   static std::string generate_action_id();
 
-  /// \brief Build a stateRequest instantAction (no params, NONE-blocking); the
-  ///        AGV replies with a fresh State, observed via on_state.
-  /// \param action_id     Caller-supplied unique id (UUID recommended).
-  /// \param description   Optional human-readable annotation.
+  /// \brief Build a stateRequest instantAction; the AGV replies with a State.
   static vda5050_core::types::Action build_state_request(
     const std::string& action_id, const std::string& description = "");
 
-  /// \brief Build a factsheetRequest instantAction (no params, NONE-blocking);
-  ///        the AGV replies on the retained factsheet topic (on_factsheet).
-  /// \param action_id     Caller-supplied unique id (UUID recommended).
-  /// \param description   Optional human-readable annotation.
+  /// \brief Build a factsheetRequest instantAction; AGV replies on factsheet.
   static vda5050_core::types::Action build_factsheet_request(
     const std::string& action_id, const std::string& description = "");
 };

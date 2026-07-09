@@ -281,6 +281,10 @@ public:
   /// \return Number of instant actions waiting to be sent
   size_t get_pending_instant_actions_count() const;
 
+  /// \brief action_ids of instant actions queued but not yet published.
+  ///        Used to keep action_id uniqueness checks queue-aware.
+  std::vector<std::string> get_queued_instant_action_ids() const;
+
   /// \brief Drop all queued outbound Orders and InstantActions (master-side
   ///        only; does not send a cancelOrder to the AGV). Thread-safe.
   void cancel_pending_orders();

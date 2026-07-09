@@ -953,6 +953,19 @@ size_t AGV::get_pending_instant_actions_count() const
   return instant_actions_queue_.size();
 }
 
+std::vector<std::string> AGV::get_queued_instant_action_ids() const
+{
+  std::lock_guard<std::mutex> lock(queue_mutex_);
+  std::vector<std::string> ids;
+  auto queue_copy = instant_actions_queue_;
+  while (!queue_copy.empty())
+  {
+    for (const auto& a : queue_copy.front().actions) ids.push_back(a.action_id);
+    queue_copy.pop();
+  }
+  return ids;
+}
+
 // ============================================================================
 // Queue Processing
 // ============================================================================

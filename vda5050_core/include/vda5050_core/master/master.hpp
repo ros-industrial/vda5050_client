@@ -452,6 +452,14 @@ private:
 
   std::shared_ptr<AGV> get_agv_by_id(const std::string& agv_id) const;
 
+  // First action_id in `actions` that is empty, duplicated in the batch, or
+  // collides with an in-flight, active-order, or already-queued id (else
+  // nullopt). `last_state` is passed in to reuse one AGV State snapshot.
+  std::optional<std::string> first_instant_action_id_conflict(
+    const std::shared_ptr<AGV>& agv,
+    const std::optional<vda5050_core::types::State>& last_state,
+    const vda5050_core::types::InstantActions& actions) const;
+
   // Subscribe the fleet fan-out to master_context_'s Provider once, in the
   // constructor: each typed update is routed to the matching observer hook by
   // its agv_id tag. Callbacks fire the hook directly (no AGV lookup — the

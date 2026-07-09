@@ -31,24 +31,21 @@ namespace master {
 /// \brief Which cached message supplied the position / velocity in a PoseView.
 enum class PoseSource
 {
-  None,  // No position received yet; agv_position / velocity empty.
-  Visualization,
-  State,
-  Extrapolated  // Reserved for the extrapolation mode; never set in relay mode.
+  None,  ///< No usable (initialized) position; position/velocity empty.
+  Visualization,  ///< From the Visualization message.
+  State,          ///< From the State message.
+  Extrapolated    ///< Reserved for the extrapolation mode; never set here.
 };
 
-/// \brief Fused per-AGV pose for the pose_view stream.
-///
-/// Carries the freshest of the AGV's cached State / Visualization position and
-/// velocity, with driving relayed from State. data_age is the age of the
-/// underlying sample measured against the master receive time.
+/// \brief Fused per-AGV pose: freshest initialized position/velocity from
+///        cached State or Visualization; driving relayed from State.
 struct PoseView
 {
   bool driving = false;
   std::optional<vda5050_core::types::AGVPosition> agv_position;
   std::optional<vda5050_core::types::Velocity> velocity;
-  PoseSource source = PoseSource::None;
-  std::chrono::nanoseconds data_age{0};
+  PoseSource source = PoseSource::None;  ///< Winning source; None if no pose.
+  std::chrono::nanoseconds data_age{0};  ///< Monotonic age since receive.
 };
 
 }  // namespace master

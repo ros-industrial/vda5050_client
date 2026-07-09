@@ -53,14 +53,13 @@ const char* guard_failure_to_str(GuardFailure g)
   }
 }
 
-// Age of a cached sample at "now", floored at zero so a backward wall-clock
-// step never yields a negative duration.
-std::chrono::nanoseconds age_since(const AGV::TimePoint& tp)
+// Elapsed since a cached sample was received, on the monotonic clock so a
+// wall-clock adjustment can't skew (or zero out) the age.
+std::chrono::nanoseconds age_since(
+  const std::chrono::steady_clock::time_point& tp)
 {
-  return std::max(
-    std::chrono::nanoseconds::zero(),
-    std::chrono::duration_cast<std::chrono::nanoseconds>(
-      AGV::Clock::now() - tp));
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(
+    std::chrono::steady_clock::now() - tp);
 }
 
 }  // namespace
@@ -178,10 +177,16 @@ void AGV::restart()
     last_connection_time_.reset();
     last_state_.reset();
     last_state_time_.reset();
+    last_state_steady_.reset();
+    last_state_header_id_ = 0;
+    have_state_baseline_ = false;
     last_factsheet_.reset();
     last_factsheet_time_.reset();
     last_visualization_.reset();
     last_visualization_time_.reset();
+    last_visualization_steady_.reset();
+    last_visualization_header_id_ = 0;
+    have_visualization_baseline_ = false;
   }
 
   // Clear order lifecycle tracking (no active order, no pending updates)
@@ -425,13 +430,15 @@ void AGV::handle_connection(const vda5050_core::types::Connection& msg)
     // Start heartbeat and queue processor when ONLINE
     setup_heartbeat();
     start_queue_processor();
-    // Reset the stale-State gate on the reconnect edge only (ONLINE recurs as
-    // a heartbeat) so a restarted AGV isn't locked out.
+    // Reset the stale-State and stale-Visualization gates on the reconnect
+    // edge only (ONLINE recurs as a heartbeat) so a restarted AGV isn't
+    // locked out.
     if (prev_status != vda5050_core::types::ConnectionState::ONLINE)
     {
       order_lifecycle_.reset_state_baseline();
       std::lock_guard<std::mutex> lock(data_mutex_);
       have_state_baseline_ = false;
+      have_visualization_baseline_ = false;
     }
   }
   else
@@ -628,6 +635,7 @@ void AGV::handle_state(const vda5050_core::types::State& msg)
     if (last_state_) prev_mode = last_state_->operating_mode;
     last_state_ = msg;
     last_state_time_ = Clock::now();
+    last_state_steady_ = std::chrono::steady_clock::now();
     last_state_header_id_ = msg.header.header_id;
     have_state_baseline_ = true;
   }
@@ -733,8 +741,22 @@ void AGV::handle_visualization(const vda5050_core::types::Visualization& msg)
 
   {
     std::lock_guard<std::mutex> lock(data_mutex_);
+    // Drop stale / out-of-order Visualization (QoS 0), same policy as State,
+    // so a reordered sample can't roll back the pose or reset its data_age.
+    if (
+      have_visualization_baseline_ &&
+      msg.header.header_id < last_visualization_header_id_)
+    {
+      VDA5050_DEBUG(
+        "[AGV] Dropping stale visualization from {} (header_id {} < {})",
+        agv_id_, msg.header.header_id, last_visualization_header_id_);
+      return;
+    }
     last_visualization_ = msg;
     last_visualization_time_ = Clock::now();
+    last_visualization_steady_ = std::chrono::steady_clock::now();
+    last_visualization_header_id_ = msg.header.header_id;
+    have_visualization_baseline_ = true;
   }
 
   // Dispatch to user override
@@ -799,11 +821,14 @@ PoseView AGV::get_pose_view() const
   if (last_state_) view.driving = last_state_->driving;
 
   // Latest-wins between State and Visualization by AGV header timestamp,
-  // considering only sources that actually carry a position. Both timestamps
-  // come from the same AGV clock, so they are directly comparable.
-  const bool state_has_pos = last_state_ && last_state_->agv_position;
+  // considering only sources that carry an initialized position (an
+  // un-localized position is not usable, as the order gates also require).
+  // Both timestamps come from the same AGV clock, so they are comparable.
+  const bool state_has_pos = last_state_ && last_state_->agv_position &&
+                             last_state_->agv_position->position_initialized;
   const bool viz_has_pos =
-    last_visualization_ && last_visualization_->agv_position;
+    last_visualization_ && last_visualization_->agv_position &&
+    last_visualization_->agv_position->position_initialized;
 
   bool use_viz = viz_has_pos;
   if (state_has_pos && viz_has_pos)
@@ -820,14 +845,14 @@ PoseView AGV::get_pose_view() const
     view.source = PoseSource::Visualization;
     view.agv_position = last_visualization_->agv_position;
     view.velocity = last_visualization_->velocity;
-    view.data_age = age_since(*last_visualization_time_);
+    view.data_age = age_since(*last_visualization_steady_);
   }
   else if (state_has_pos)
   {
     view.source = PoseSource::State;
     view.agv_position = last_state_->agv_position;
     view.velocity = last_state_->velocity;
-    view.data_age = age_since(*last_state_time_);
+    view.data_age = age_since(*last_state_steady_);
   }
 
   return view;

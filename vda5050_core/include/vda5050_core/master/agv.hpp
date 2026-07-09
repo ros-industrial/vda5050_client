@@ -198,8 +198,8 @@ public:
   OrderStatusBundle get_order_status_bundle() const;
 
   /// \brief Fused pose snapshot from the freshest of cached State /
-  ///        Visualization carrying a position, under one data_mutex_.
-  /// \return PoseView; source == None when no position has been received.
+  ///        Visualization carrying an initialized position, under data_mutex_.
+  /// \return PoseView; source == None when no initialized position is cached.
   PoseView get_pose_view() const;
 
   // ===========================================================================
@@ -491,6 +491,8 @@ private:
 
   std::optional<vda5050_core::types::State> last_state_;
   std::optional<TimePoint> last_state_time_;
+  // Monotonic receive stamp for data_age (wall-clock steps must not skew it).
+  std::optional<std::chrono::steady_clock::time_point> last_state_steady_;
   // Stale-State gate (QoS 0): drop a State whose header_id is not strictly
   // newer than the last cached one, before the cache and mode-drain diff.
   // Reset on the reconnect edge so a restarted AGV isn't locked out.
@@ -502,6 +504,12 @@ private:
 
   std::optional<vda5050_core::types::Visualization> last_visualization_;
   std::optional<TimePoint> last_visualization_time_;
+  // Monotonic receive stamp for data_age (see last_state_steady_).
+  std::optional<std::chrono::steady_clock::time_point>
+    last_visualization_steady_;
+  // Stale-Visualization gate (QoS 0), same policy as State.
+  uint32_t last_visualization_header_id_ = 0;
+  bool have_visualization_baseline_ = false;
 
   // Outgoing message queues (protected by queue_mutex_)
   size_t max_queue_size_;

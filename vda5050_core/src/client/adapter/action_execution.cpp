@@ -35,7 +35,7 @@ std::shared_ptr<ActionExecution> ActionExecution::make(
 }
 
 //=============================================================================
-void ActionExecution::intializing()
+void ActionExecution::initializing()
 {
   if (status_update_callback_)
     status_update_callback_(types::ActionStatus::INITIALIZING, std::nullopt);

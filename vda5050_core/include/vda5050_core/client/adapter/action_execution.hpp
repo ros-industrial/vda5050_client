@@ -40,7 +40,7 @@ public:
     std::function<void(types::ActionStatus, std::optional<std::string>)>
       status_update_callback);
 
-  void intializing();
+  void initializing();
 
   void running();
 

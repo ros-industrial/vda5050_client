@@ -194,7 +194,7 @@ target_include_directories(vda5050_layout
 )
 
 # Master
-file(GLOB_RECURSE master_srcs "src/master/*.cpp")
+file(GLOB_RECURSE master_srcs CONFIGURE_DEPENDS "src/master/*.cpp")
 add_library(vda5050_master SHARED ${master_srcs})
 vda5050_configure_target_alias(
   TARGET vda5050_master
@@ -318,6 +318,11 @@ if(BUILD_TESTING)
     test/master/test_unit_agv.cpp
   )
   target_link_libraries(test_master vda5050_core::master)
+
+  ament_add_gmock(test_master_context
+    test/master/test_unit_master_context.cpp
+  )
+  target_link_libraries(test_master_context vda5050_core::master)
 
   ament_add_gmock(test_validation
     test/validation/test_unit_content_validator.cpp

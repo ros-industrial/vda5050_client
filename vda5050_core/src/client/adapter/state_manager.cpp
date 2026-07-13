@@ -310,7 +310,7 @@ void StateManager::set_order(const types::Order& order)
   {
     types::EdgeState es;
     es.edge_id = edge.edge_id;
-    es.sequence_id = es.sequence_id;
+    es.sequence_id = edge.sequence_id;
     es.released = edge.released;
     es.edge_description = edge.edge_description;
     es.trajectory = edge.trajectory;

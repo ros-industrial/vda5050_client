@@ -139,3 +139,23 @@ TEST(PahoMqttClientTest, FailedConnectionRemainsDisconnected)
   // connected() should return false after failed connection
   ASSERT_FALSE(client->connected());
 }
+
+TEST(PahoMqttClientTest, DisconnectReturnsPromptlyWithoutConnection)
+{
+  const std::string invalid_broker = "tcp://127.0.0.1:19999";
+
+  auto client = vda5050_core::transport::PahoMqttClient::make_unique(
+    invalid_broker, "prompt_disconnect_client");
+  client->set_operation_timeout(std::chrono::milliseconds(500));
+
+  const auto start = std::chrono::steady_clock::now();
+  ASSERT_NO_THROW(client->connect());
+  ASSERT_FALSE(client->connected());
+  ASSERT_NO_THROW(client->disconnect());
+  const auto elapsed = std::chrono::steady_clock::now() - start;
+
+  EXPECT_LT(
+    std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
+    2000)
+    << "connect/disconnect to unreachable broker should be bounded by timeout";
+}

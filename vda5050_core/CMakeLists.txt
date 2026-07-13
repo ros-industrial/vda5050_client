@@ -278,11 +278,18 @@ if(BUILD_EXAMPLES)
     ${PROJECT_NAME}::logger
   )
 
+  add_executable(mqtt_stay_connected examples/mqtt_stay_connected.cpp)
+  target_link_libraries(mqtt_stay_connected PUBLIC
+    ${PROJECT_NAME}::transport
+    ${PROJECT_NAME}::logger
+  )
+
   install(TARGETS
       custom_base
       provider_example
       engine_example
       handler_integration
+      mqtt_stay_connected
     DESTINATION lib/${PROJECT_NAME}
   )
 endif()

@@ -22,9 +22,11 @@
 #include <mqtt/async_client.h>
 #include <mqtt/callback.h>
 #include <mqtt/connect_options.h>
+#include <mqtt/disconnect_options.h>
 #include <mqtt/iaction_listener.h>
 #include <mqtt/will_options.h>
 
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -139,6 +141,9 @@ public:
   /// \return Mutable reference to Paho configuration options
   mqtt::connect_options& connect_options();
 
+  /// \brief Set the maximum time to wait for MQTT operations to complete
+  void set_operation_timeout(std::chrono::milliseconds timeout);
+
   friend class MqttCallback;
 
 private:
@@ -148,6 +153,13 @@ private:
   /// \param client_id ID of the MQTT client
   PahoMqttClient(
     const std::string& broker_address, const std::string& client_id);
+
+  /// Safer than token->wait(): bounds the block so a slow/unreachable broker
+  /// cannot hang the process indefinitely.
+  bool wait_for_token(mqtt::token_ptr token, const char* operation);
+
+  static constexpr std::chrono::milliseconds kDefaultOperationTimeout{
+    std::chrono::seconds(3)};
 
   /// \brief Unique pointer to Paho async client
   std::unique_ptr<mqtt::async_client> client_;
@@ -166,6 +178,9 @@ private:
 
   /// \brief MQTT connection options
   mqtt::connect_options conn_options_;
+
+  /// \brief Maximum time to wait for connect/publish/subscribe/disconnect
+  std::chrono::milliseconds operation_timeout_{kDefaultOperationTimeout};
 };
 
 }  // namespace transport

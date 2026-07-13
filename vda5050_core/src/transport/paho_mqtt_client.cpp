@@ -80,12 +80,17 @@ void MqttCallback::connection_lost(const std::string& /*cause*/)
 //=============================================================================
 void MqttCallback::message_arrived(mqtt::const_message_ptr msg)
 {
-  std::lock_guard<std::mutex> lock(parent_.handler_mutex_);
-  auto it = parent_.handlers_.find(msg->get_topic());
-  if (it != parent_.handlers_.end())
+  // Copy the handler out and release the lock before invoking it, so a handler
+  // that calls back into subscribe()/unsubscribe() cannot self-deadlock on
+  // handler_mutex_.
+  MqttClientInterface::MessageHandler handler;
   {
-    it->second(msg->get_topic(), msg->get_payload());
+    std::lock_guard<std::mutex> lock(parent_.handler_mutex_);
+    auto it = parent_.handlers_.find(msg->get_topic());
+    if (it == parent_.handlers_.end()) return;
+    handler = it->second;
   }
+  handler(msg->get_topic(), msg->get_payload());
 }
 
 //=============================================================================
@@ -116,13 +121,34 @@ std::unique_ptr<PahoMqttClient> PahoMqttClient::make_unique(
 PahoMqttClient::~PahoMqttClient() = default;
 
 //=============================================================================
+void PahoMqttClient::set_operation_timeout(std::chrono::milliseconds timeout)
+{
+  operation_timeout_ = timeout;
+}
+
+//=============================================================================
+bool PahoMqttClient::wait_for_token(
+  mqtt::token_ptr token, const char* operation)
+{
+  if (!token) return true;
+
+  if (token->wait_for(operation_timeout_)) return true;
+
+  VDA5050_WARN(
+    "MQTT {} timed out after {} ms for client [{}]", operation,
+    operation_timeout_.count(), client_->get_client_id());
+  return false;
+}
+
+//=============================================================================
 void PahoMqttClient::connect()
 {
   if (client_->is_connected()) return;
 
   try
   {
-    client_->connect(conn_options_, nullptr, action_listener_)->wait();
+    wait_for_token(
+      client_->connect(conn_options_, nullptr, action_listener_), "connect");
   }
   catch (const mqtt::exception& e)
   {
@@ -134,18 +160,27 @@ void PahoMqttClient::connect()
 //=============================================================================
 void PahoMqttClient::disconnect()
 {
-  if (client_->is_connected())
+  if (!client_->is_connected()) return;
+
+  try
   {
-    try
+    // Note: do not mutate conn_options_ here. Disabling automatic reconnect on
+    // the persistent member has no effect on the already-established session
+    // (Paho captured the options at connect time and stops reconnecting on an
+    // explicit disconnect anyway), but it would corrupt the options reused by
+    // the next connect(), permanently disabling reconnection.
+    const auto timeout_ms = static_cast<int>(operation_timeout_.count());
+    mqtt::disconnect_options options(timeout_ms);
+
+    if (wait_for_token(client_->disconnect(options), "disconnect"))
     {
-      client_->disconnect()->wait();
       VDA5050_INFO_STREAM(
         "MQTT client disconnected: " << client_->get_client_id());
     }
-    catch (const mqtt::exception& e)
-    {
-      VDA5050_ERROR_STREAM("MQTT disconnection failed: " << e.get_message());
-    }
+  }
+  catch (const mqtt::exception& e)
+  {
+    VDA5050_ERROR_STREAM("MQTT disconnection failed: " << e.get_message());
   }
 }
 
@@ -167,7 +202,7 @@ void PahoMqttClient::publish(
     msg->set_qos(qos);
     msg->set_retained(retain);
 
-    client_->publish(msg)->wait();
+    wait_for_token(client_->publish(msg), "publish");
   }
   catch (const mqtt::exception& e)
   {
@@ -179,14 +214,27 @@ void PahoMqttClient::publish(
 void PahoMqttClient::subscribe(
   const std::string& topic, MessageHandler handler, int qos)
 {
-  try
+  // Register the handler before subscribing so a message arriving between the
+  // broker's SUBACK and handler registration is not dropped.
   {
-    client_->subscribe(topic, qos)->wait();
     std::lock_guard<std::mutex> lock(handler_mutex_);
     handlers_[topic] = handler;
   }
+
+  try
+  {
+    if (!wait_for_token(client_->subscribe(topic, qos), "subscribe"))
+    {
+      // Subscription did not complete; roll back so local state stays
+      // consistent with the broker.
+      std::lock_guard<std::mutex> lock(handler_mutex_);
+      handlers_.erase(topic);
+    }
+  }
   catch (const mqtt::exception& e)
   {
+    std::lock_guard<std::mutex> lock(handler_mutex_);
+    handlers_.erase(topic);
     VDA5050_ERROR_STREAM("MQTT subscription failed: " << e.get_message());
   }
 }
@@ -196,9 +244,14 @@ void PahoMqttClient::unsubscribe(const std::string& topic)
 {
   try
   {
-    client_->unsubscribe(topic)->wait();
-    std::lock_guard<std::mutex> lock(handler_mutex_);
-    handlers_.erase(topic);
+    // Only drop the local handler once the broker confirms the unsubscribe;
+    // otherwise the broker keeps delivering and we would have no handler for
+    // incoming messages.
+    if (wait_for_token(client_->unsubscribe(topic), "unsubscribe"))
+    {
+      std::lock_guard<std::mutex> lock(handler_mutex_);
+      handlers_.erase(topic);
+    }
   }
   catch (const mqtt::exception& e)
   {

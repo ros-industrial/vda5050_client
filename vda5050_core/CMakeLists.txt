@@ -278,11 +278,19 @@ if(BUILD_EXAMPLES)
     ${PROJECT_NAME}::logger
   )
 
+  add_executable(master_example examples/master/master_example.cpp)
+  target_link_libraries(master_example PUBLIC
+    ${PROJECT_NAME}::master
+    ${PROJECT_NAME}::transport
+    ${PROJECT_NAME}::logger
+  )
+
   install(TARGETS
       custom_base
       provider_example
       engine_example
       handler_integration
+      master_example
     DESTINATION lib/${PROJECT_NAME}
   )
 endif()

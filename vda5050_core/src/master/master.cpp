@@ -1164,9 +1164,11 @@ void VDA5050Master::dispatch_visualization(
   const vda5050_core::types::Visualization& visualization)
 {
   if (on_visualization_cb_)
+  {
     fire_hook(agv_id, "on_visualization", [&] {
       on_visualization_cb_(agv_id, visualization);
     });
+  }
 }
 
 void VDA5050Master::dispatch_state_timeout(const std::string& agv_id)
@@ -1187,9 +1189,11 @@ void VDA5050Master::dispatch_order_complete(
   const std::string& agv_id, const std::string& order_id)
 {
   if (on_order_complete_cb_)
+  {
     fire_hook(agv_id, "on_order_complete", [&] {
       on_order_complete_cb_(agv_id, order_id);
     });
+  }
 }
 
 // ============================================================================

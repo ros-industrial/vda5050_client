@@ -47,7 +47,7 @@ constexpr int kMaxOrders = 0;
 
 std::atomic_bool running{true};
 
-void signal_handler(int /*signal*/)
+void signal_handler([[maybe_unused]] int signal)
 {
   running = false;
 }

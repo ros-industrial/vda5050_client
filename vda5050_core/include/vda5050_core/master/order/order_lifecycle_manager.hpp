@@ -90,9 +90,12 @@ public:
     const std::optional<vda5050_core::types::Order>& merged = {});
 
   /// \brief Apply an incoming State (tracking, mismatch, completion, drain).
+  /// \param just_completed_order_id  Set to the order_id on the false→true
+  ///        completion edge; left untouched otherwise.
   /// \return Pending updates now eligible to publish.
   std::vector<vda5050_core::types::Order> on_state_update(
-    const vda5050_core::types::State& state);
+    const vda5050_core::types::State& state,
+    std::optional<std::string>* just_completed_order_id = nullptr);
 
   /// \brief Queue an order update (used by OrderStitcher on QUEUE_PENDING).
   /// \return false if the queue is at capacity.

@@ -45,6 +45,21 @@
 
 namespace vda5050_core::master {
 
+namespace {
+
+// Fill unset header fields from the routing args; the transport re-stamps
+// identity at publish, so this only satisfies pre-send validation.
+void stamp_outbound_header(
+  vda5050_core::types::Header& header, const std::string& manufacturer,
+  const std::string& serial_number)
+{
+  if (header.version.empty()) header.version = SupportedSchemaVersions.front();
+  if (header.manufacturer.empty()) header.manufacturer = manufacturer;
+  if (header.serial_number.empty()) header.serial_number = serial_number;
+}
+
+}  // namespace
+
 // ============================================================================
 // Constructor / Destructor
 // ============================================================================
@@ -153,7 +168,7 @@ std::shared_ptr<AGV> VDA5050Master::create_agv_locked(
   const std::string& serial_number, std::size_t max_queue_size,
   bool drop_oldest)
 {
-  // weak_from_this() back-ref lets the AGV dispatch into our virtuals and
+  // weak_from_this() back-ref lets the AGV dispatch into our callbacks and
   // detect master destruction. Caller wires subscriptions outside agv_mutex_.
   return std::make_shared<AGV>(
     vda5050_core::execution::ProtocolAdapter::make(
@@ -479,47 +494,53 @@ void VDA5050Master::register_event_dispatch()
 
   provider->on<NodeReachedUpdate>([this](std::shared_ptr<NodeReachedUpdate> u) {
     fire_hook(u->agv_id, "on_node_reached", [&] {
-      on_node_reached(u->agv_id, u->node_id);
+      if (on_node_reached_cb_) on_node_reached_cb_(u->agv_id, u->node_id);
     });
   });
 
   provider->on<ErrorsChangedUpdate>(
     [this](std::shared_ptr<ErrorsChangedUpdate> u) {
       fire_hook(u->agv_id, "on_errors", [&] {
-        if (!u->appeared.empty()) on_errors_appeared(u->agv_id, u->appeared);
-        if (!u->resolved.empty()) on_errors_resolved(u->agv_id, u->resolved);
+        if (on_errors_appeared_cb_ && !u->appeared.empty())
+          on_errors_appeared_cb_(u->agv_id, u->appeared);
+        if (on_errors_resolved_cb_ && !u->resolved.empty())
+          on_errors_resolved_cb_(u->agv_id, u->resolved);
       });
     });
 
   provider->on<NewBaseRequestUpdate>(
     [this](std::shared_ptr<NewBaseRequestUpdate> u) {
       fire_hook(u->agv_id, "on_new_base_requested", [&] {
-        on_new_base_requested(u->agv_id);
+        if (on_new_base_requested_cb_) on_new_base_requested_cb_(u->agv_id);
       });
     });
 
   provider->on<OperatingModeChangedUpdate>(
     [this](std::shared_ptr<OperatingModeChangedUpdate> u) {
       fire_hook(u->agv_id, "on_mode_changed", [&] {
-        on_mode_changed(u->agv_id, u->mode, u->prev_mode);
+        if (on_mode_changed_cb_)
+          on_mode_changed_cb_(u->agv_id, u->mode, u->prev_mode);
       });
     });
 
-  provider->on<PausedChangedUpdate>([this](
-                                      std::shared_ptr<PausedChangedUpdate> u) {
-    fire_hook(u->agv_id, "on_paused", [&] { on_paused(u->agv_id, u->paused); });
-  });
+  provider->on<PausedChangedUpdate>(
+    [this](std::shared_ptr<PausedChangedUpdate> u) {
+      fire_hook(u->agv_id, "on_paused", [&] {
+        if (on_paused_cb_) on_paused_cb_(u->agv_id, u->paused);
+      });
+    });
 
   provider->on<DrivingChangedUpdate>(
     [this](std::shared_ptr<DrivingChangedUpdate> u) {
-      fire_hook(
-        u->agv_id, "on_driving", [&] { on_driving(u->agv_id, u->driving); });
+      fire_hook(u->agv_id, "on_driving", [&] {
+        if (on_driving_cb_) on_driving_cb_(u->agv_id, u->driving);
+      });
     });
 
   provider->on<LoadsChangedUpdate>(
     [this](std::shared_ptr<LoadsChangedUpdate> u) {
       fire_hook(u->agv_id, "on_loads_changed", [&] {
-        on_loads_changed(u->agv_id, u->loads);
+        if (on_loads_changed_cb_) on_loads_changed_cb_(u->agv_id, u->loads);
       });
     });
 
@@ -529,13 +550,13 @@ void VDA5050Master::register_event_dispatch()
         switch (u->kind)
         {
           case ConnectionTransition::CONNECTED:
-            on_connect(u->agv_id);
+            if (on_connect_cb_) on_connect_cb_(u->agv_id);
             break;
           case ConnectionTransition::OFFLINE:
-            on_offline(u->agv_id);
+            if (on_offline_cb_) on_offline_cb_(u->agv_id);
             break;
           case ConnectionTransition::CONNECTIONBROKEN:
-            on_connection_broken(u->agv_id);
+            if (on_connection_broken_cb_) on_connection_broken_cb_(u->agv_id);
             break;
           case ConnectionTransition::NONE:
             break;
@@ -572,8 +593,11 @@ bool VDA5050Master::publish_order(
 
 AssignmentResult VDA5050Master::assign_order(
   const std::string& manufacturer, const std::string& serial_number,
-  const vda5050_core::types::Order& order, const std::string& assignment_id)
+  const vda5050_core::types::Order& order_in, const std::string& assignment_id)
 {
+  vda5050_core::types::Order order = order_in;
+  stamp_outbound_header(order.header, manufacturer, serial_number);
+
   AssignmentResult res;
   auto add_error = [&](const std::string& description) {
     res.errors.push_back(vda5050_core::errors::create_error(
@@ -761,8 +785,11 @@ std::optional<std::string> VDA5050Master::first_instant_action_id_conflict(
 
 InstantActionAssignmentResult VDA5050Master::assign_instant_actions(
   const std::string& manufacturer, const std::string& serial_number,
-  const vda5050_core::types::InstantActions& actions)
+  const vda5050_core::types::InstantActions& actions_in)
 {
+  vda5050_core::types::InstantActions actions = actions_in;
+  stamp_outbound_header(actions.header, manufacturer, serial_number);
+
   InstantActionAssignmentResult res;
   auto add_error = [&](const std::string& description) {
     res.errors.push_back(vda5050_core::errors::create_error(
@@ -863,26 +890,29 @@ InstantActionAssignmentResult VDA5050Master::assign_instant_actions(
 }
 
 // ============================================================================
-// User-Extension Callbacks — default empty implementations
+// Reaction callbacks — registration setters
 // ============================================================================
-//
-// Override in a subclass to react to AGV messages; defaults are empty.
 
 void VDA5050Master::on_state(
-  const std::string& /*agv_id*/, const vda5050_core::types::State& /*state*/)
+  std::function<void(const std::string&, const vda5050_core::types::State&)>
+    callback)
 {
+  on_state_cb_ = std::move(callback);
 }
 
 void VDA5050Master::on_connection(
-  const std::string& /*agv_id*/,
-  const vda5050_core::types::Connection& /*connection*/)
+  std::function<
+    void(const std::string&, const vda5050_core::types::Connection&)>
+    callback)
 {
+  on_connection_cb_ = std::move(callback);
 }
 
 void VDA5050Master::on_factsheet(
-  const std::string& /*agv_id*/,
-  const vda5050_core::types::Factsheet& /*factsheet*/)
+  std::function<void(const std::string&, const vda5050_core::types::Factsheet&)>
+    callback)
 {
+  on_factsheet_cb_ = std::move(callback);
 }
 
 // ============================================================================
@@ -990,66 +1020,177 @@ void VDA5050Master::refresh_alignment_for_agv(
 }
 
 void VDA5050Master::on_visualization(
-  const std::string& /*agv_id*/,
-  const vda5050_core::types::Visualization& /*visualization*/)
+  std::function<
+    void(const std::string&, const vda5050_core::types::Visualization&)>
+    callback)
 {
+  on_visualization_cb_ = std::move(callback);
 }
 
 // ============================================================================
-// Event triggers — empty default impls
+// Event triggers — registration setters
 // ============================================================================
 
 void VDA5050Master::on_node_reached(
-  const std::string& /*agv_id*/, const std::string& /*node_id*/)
+  std::function<void(const std::string&, const std::string&)> callback)
 {
+  on_node_reached_cb_ = std::move(callback);
+}
+
+void VDA5050Master::on_order_complete(
+  std::function<void(const std::string&, const std::string&)> callback)
+{
+  on_order_complete_cb_ = std::move(callback);
 }
 
 void VDA5050Master::on_errors_appeared(
-  const std::string& /*agv_id*/,
-  const std::vector<vda5050_core::types::Error>& /*new_errors*/)
+  std::function<
+    void(const std::string&, const std::vector<vda5050_core::types::Error>&)>
+    callback)
 {
+  on_errors_appeared_cb_ = std::move(callback);
 }
 
 void VDA5050Master::on_errors_resolved(
-  const std::string& /*agv_id*/,
-  const std::vector<vda5050_core::types::Error>& /*resolved_errors*/)
+  std::function<
+    void(const std::string&, const std::vector<vda5050_core::types::Error>&)>
+    callback)
 {
+  on_errors_resolved_cb_ = std::move(callback);
 }
 
-void VDA5050Master::on_new_base_requested(const std::string& /*agv_id*/) {}
+void VDA5050Master::on_new_base_requested(
+  std::function<void(const std::string&)> callback)
+{
+  on_new_base_requested_cb_ = std::move(callback);
+}
 
 void VDA5050Master::on_mode_changed(
-  const std::string& /*agv_id*/,
-  vda5050_core::types::OperatingMode /*new_mode*/,
-  vda5050_core::types::OperatingMode /*prev_mode*/)
+  std::function<void(
+    const std::string&, vda5050_core::types::OperatingMode,
+    vda5050_core::types::OperatingMode)>
+    callback)
 {
+  on_mode_changed_cb_ = std::move(callback);
 }
 
-void VDA5050Master::on_paused(const std::string& /*agv_id*/, bool /*paused*/) {}
-
-void VDA5050Master::on_driving(const std::string& /*agv_id*/, bool /*driving*/)
+void VDA5050Master::on_paused(
+  std::function<void(const std::string&, bool)> callback)
 {
+  on_paused_cb_ = std::move(callback);
+}
+
+void VDA5050Master::on_driving(
+  std::function<void(const std::string&, bool)> callback)
+{
+  on_driving_cb_ = std::move(callback);
 }
 
 void VDA5050Master::on_loads_changed(
-  const std::string& /*agv_id*/,
-  const std::vector<vda5050_core::types::Load>& /*loads*/)
+  std::function<
+    void(const std::string&, const std::vector<vda5050_core::types::Load>&)>
+    callback)
 {
+  on_loads_changed_cb_ = std::move(callback);
 }
 
-void VDA5050Master::on_connect(const std::string& /*agv_id*/) {}
+void VDA5050Master::on_connect(std::function<void(const std::string&)> callback)
+{
+  on_connect_cb_ = std::move(callback);
+}
 
-void VDA5050Master::on_offline(const std::string& /*agv_id*/) {}
+void VDA5050Master::on_offline(std::function<void(const std::string&)> callback)
+{
+  on_offline_cb_ = std::move(callback);
+}
 
-void VDA5050Master::on_connection_broken(const std::string& /*agv_id*/) {}
+void VDA5050Master::on_connection_broken(
+  std::function<void(const std::string&)> callback)
+{
+  on_connection_broken_cb_ = std::move(callback);
+}
 
-void VDA5050Master::on_state_timeout(const std::string& /*agv_id*/) {}
+void VDA5050Master::on_state_timeout(
+  std::function<void(const std::string&)> callback)
+{
+  on_state_timeout_cb_ = std::move(callback);
+}
 
-void VDA5050Master::on_state_resumed(const std::string& /*agv_id*/) {}
+void VDA5050Master::on_state_resumed(
+  std::function<void(const std::string&)> callback)
+{
+  on_state_resumed_cb_ = std::move(callback);
+}
 
-void VDA5050Master::on_broker_disconnected() {}
+void VDA5050Master::on_broker_disconnected(std::function<void()> callback)
+{
+  on_broker_disconnected_cb_ = std::move(callback);
+}
 
-void VDA5050Master::on_broker_reconnected() {}
+void VDA5050Master::on_broker_reconnected(std::function<void()> callback)
+{
+  on_broker_reconnected_cb_ = std::move(callback);
+}
+
+// ============================================================================
+// AGV-called dispatch — invoke the registered raw-message handler (guarded)
+// ============================================================================
+
+void VDA5050Master::dispatch_state(
+  const std::string& agv_id, const vda5050_core::types::State& state)
+{
+  if (on_state_cb_)
+    fire_hook(agv_id, "on_state", [&] { on_state_cb_(agv_id, state); });
+}
+
+void VDA5050Master::dispatch_connection(
+  const std::string& agv_id, const vda5050_core::types::Connection& connection)
+{
+  if (on_connection_cb_)
+    fire_hook(
+      agv_id, "on_connection", [&] { on_connection_cb_(agv_id, connection); });
+}
+
+void VDA5050Master::dispatch_factsheet(
+  const std::string& agv_id, const vda5050_core::types::Factsheet& factsheet)
+{
+  if (on_factsheet_cb_)
+    fire_hook(
+      agv_id, "on_factsheet", [&] { on_factsheet_cb_(agv_id, factsheet); });
+}
+
+void VDA5050Master::dispatch_visualization(
+  const std::string& agv_id,
+  const vda5050_core::types::Visualization& visualization)
+{
+  if (on_visualization_cb_)
+    fire_hook(agv_id, "on_visualization", [&] {
+      on_visualization_cb_(agv_id, visualization);
+    });
+}
+
+void VDA5050Master::dispatch_state_timeout(const std::string& agv_id)
+{
+  if (on_state_timeout_cb_)
+    fire_hook(
+      agv_id, "on_state_timeout", [&] { on_state_timeout_cb_(agv_id); });
+}
+
+void VDA5050Master::dispatch_state_resumed(const std::string& agv_id)
+{
+  if (on_state_resumed_cb_)
+    fire_hook(
+      agv_id, "on_state_resumed", [&] { on_state_resumed_cb_(agv_id); });
+}
+
+void VDA5050Master::dispatch_order_complete(
+  const std::string& agv_id, const std::string& order_id)
+{
+  if (on_order_complete_cb_)
+    fire_hook(agv_id, "on_order_complete", [&] {
+      on_order_complete_cb_(agv_id, order_id);
+    });
+}
 
 // ============================================================================
 // Master-broker connection state
@@ -1075,10 +1216,10 @@ void VDA5050Master::handle_broker_connection_lost(const std::string& cause)
   VDA5050_WARN(
     "[VDA5050Master] Broker connection lost: {}",
     cause.empty() ? "(no cause reported)" : cause.c_str());
-  // Guard the user override so a throw can't unwind onto the transport thread.
+  // Guard the callback so a throw can't unwind onto the transport thread.
   try
   {
-    on_broker_disconnected();
+    if (on_broker_disconnected_cb_) on_broker_disconnected_cb_();
   }
   catch (const std::exception& e)
   {
@@ -1103,10 +1244,10 @@ void VDA5050Master::handle_broker_connected(const std::string& cause)
   VDA5050_INFO(
     "[VDA5050Master] Broker connection established (count={}, cause={})", count,
     cause.empty() ? "initial" : cause.c_str());
-  // Guard the user override so a throw can't unwind onto the transport thread.
+  // Guard the callback so a throw can't unwind onto the transport thread.
   try
   {
-    on_broker_reconnected();
+    if (on_broker_reconnected_cb_) on_broker_reconnected_cb_();
   }
   catch (const std::exception& e)
   {

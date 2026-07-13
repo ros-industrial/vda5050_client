@@ -124,35 +124,18 @@ vda5050_core::types::Connection make_online_connection()
   return c;
 }
 
-class CallbackTrackingMaster : public VDA5050Master
+class ModeHandlingTest : public ::testing::Test
 {
-public:
-  using VDA5050Master::VDA5050Master;
-
-  void on_mode_changed(
-    const std::string& agv_id, vda5050_core::types::OperatingMode new_mode,
-    vda5050_core::types::OperatingMode prev_mode) override
-  {
-    mode_changed_calls.fetch_add(1);
-    last_new_mode = new_mode;
-    last_prev_mode = prev_mode;
-    last_mode_changed_agv = agv_id;
-  }
-
+protected:
+  std::shared_ptr<MockMqttClient> mock_;
+  std::shared_ptr<VDA5050Master> master_;
+  std::unique_ptr<AGV> agv_;
   std::atomic<int> mode_changed_calls{0};
   vda5050_core::types::OperatingMode last_new_mode{
     vda5050_core::types::OperatingMode::AUTOMATIC};
   vda5050_core::types::OperatingMode last_prev_mode{
     vda5050_core::types::OperatingMode::AUTOMATIC};
   std::string last_mode_changed_agv;
-};
-
-class ModeHandlingTest : public ::testing::Test
-{
-protected:
-  std::shared_ptr<MockMqttClient> mock_;
-  std::shared_ptr<CallbackTrackingMaster> master_;
-  std::unique_ptr<AGV> agv_;
 
   void SetUp() override
   {
@@ -172,7 +155,16 @@ protected:
     EXPECT_CALL(
       *mock_, publish(::testing::_, ::testing::_, ::testing::_, ::testing::_))
       .Times(::testing::AnyNumber());
-    master_ = std::make_shared<CallbackTrackingMaster>(mock_);
+    master_ = std::make_shared<VDA5050Master>(mock_);
+    master_->on_mode_changed([this](
+                               const std::string& agv_id,
+                               vda5050_core::types::OperatingMode new_mode,
+                               vda5050_core::types::OperatingMode prev_mode) {
+      mode_changed_calls.fetch_add(1);
+      last_new_mode = new_mode;
+      last_prev_mode = prev_mode;
+      last_mode_changed_agv = agv_id;
+    });
 
     // Long heartbeat interval — we don't want the timer to fire during tests.
     agv_ = std::make_unique<AGV>(
@@ -307,14 +299,13 @@ TEST_F(ModeHandlingTest, DiscardClearsBufferWithoutReEnqueue)
 TEST_F(ModeHandlingTest, OnModeChangedFiresWithCorrectModes)
 {
   agv_->handle_state(make_state(vda5050_core::types::OperatingMode::AUTOMATIC));
-  EXPECT_EQ(master_->mode_changed_calls.load(), 0);
+  EXPECT_EQ(mode_changed_calls.load(), 0);
 
   agv_->handle_state(make_state(vda5050_core::types::OperatingMode::MANUAL));
 
-  EXPECT_GE(master_->mode_changed_calls.load(), 1);
-  EXPECT_EQ(master_->last_new_mode, vda5050_core::types::OperatingMode::MANUAL);
-  EXPECT_EQ(
-    master_->last_prev_mode, vda5050_core::types::OperatingMode::AUTOMATIC);
+  EXPECT_EQ(mode_changed_calls.load(), 1);
+  EXPECT_EQ(last_new_mode, vda5050_core::types::OperatingMode::MANUAL);
+  EXPECT_EQ(last_prev_mode, vda5050_core::types::OperatingMode::AUTOMATIC);
 }
 
 // ============================================================================

@@ -103,35 +103,21 @@ private:
   bool connected_ = false;
 };
 
-class CallbackTrackingMaster : public VDA5050Master
-{
-public:
-  using VDA5050Master::VDA5050Master;
-
-  void on_broker_disconnected() override
-  {
-    disconnected_calls.fetch_add(1);
-  }
-
-  void on_broker_reconnected() override
-  {
-    reconnected_calls.fetch_add(1);
-  }
-
-  std::atomic<int> disconnected_calls{0};
-  std::atomic<int> reconnected_calls{0};
-};
-
 class BrokerStatusTest : public ::testing::Test
 {
 protected:
   std::shared_ptr<FakeMqttClient> fake_;
-  std::shared_ptr<CallbackTrackingMaster> master_;
+  std::shared_ptr<VDA5050Master> master_;
+  std::atomic<int> disconnected_calls{0};
+  std::atomic<int> reconnected_calls{0};
 
   void SetUp() override
   {
     fake_ = std::make_shared<FakeMqttClient>();
-    master_ = std::make_shared<CallbackTrackingMaster>(fake_);
+    master_ = std::make_shared<VDA5050Master>(fake_);
+    master_->on_broker_disconnected(
+      [this] { disconnected_calls.fetch_add(1); });
+    master_->on_broker_reconnected([this] { reconnected_calls.fetch_add(1); });
     // Broker callbacks register in connect() (weak_from_this() is not valid
     // during construction).
     master_->connect();
@@ -173,11 +159,11 @@ TEST_F(BrokerStatusTest, IntentionalDisconnectClearsConnectedFlag)
   EXPECT_FALSE(master_->get_broker_status().connected);
 }
 
-TEST_F(BrokerStatusTest, ConnectedEventDispatchesVirtualAndIncrementsCount)
+TEST_F(BrokerStatusTest, ConnectedEventDispatchesCallbackAndIncrementsCount)
 {
   fake_->fire_connected("initial");
-  EXPECT_EQ(master_->reconnected_calls.load(), 1);
-  EXPECT_EQ(master_->disconnected_calls.load(), 0);
+  EXPECT_EQ(reconnected_calls.load(), 1);
+  EXPECT_EQ(disconnected_calls.load(), 0);
 
   const auto snap = master_->get_broker_status();
   EXPECT_TRUE(snap.connected);
@@ -190,8 +176,8 @@ TEST_F(BrokerStatusTest, DisconnectThenReconnectCountsTwoConnects)
   fake_->fire_connection_lost("network drop");
   fake_->fire_connected("recover");
 
-  EXPECT_EQ(master_->reconnected_calls.load(), 2);
-  EXPECT_EQ(master_->disconnected_calls.load(), 1);
+  EXPECT_EQ(reconnected_calls.load(), 2);
+  EXPECT_EQ(disconnected_calls.load(), 1);
 
   const auto snap = master_->get_broker_status();
   EXPECT_TRUE(snap.connected);

@@ -22,6 +22,7 @@
 
 #include <gmock/gmock.h>
 
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <functional>
@@ -368,6 +369,61 @@ TEST_F(MasterAssignOrderTest, EndToEnd_DrainPublishRecord_Cycle)
 
   EXPECT_EQ(agv->active_order_id().value_or(""), kOrderId);
   EXPECT_EQ(agv->active_order_update_id().value_or(99), 0u);
+}
+
+TEST_F(MasterAssignOrderTest, OrderComplete_FiresOnceWhenAgvParksAtLastNode)
+{
+  std::atomic<int> complete_calls{0};
+  std::string completed_id;
+  master_->on_order_complete(
+    [&](const std::string&, const std::string& order_id) {
+      complete_calls.fetch_add(1);
+      completed_id = order_id;
+    });
+
+  make_agv_ready();
+  auto agv = master_->get_agv(kManufacturer, kSerial);
+  ASSERT_NE(agv, nullptr);
+
+  ASSERT_EQ(
+    master_->assign_order(kManufacturer, kSerial, make_minimal_order(0))
+      .decision,
+    AssignmentDecision::ASSIGNED);
+  ASSERT_TRUE(wait_for(
+    [&] { return agv->has_active_order(); }, std::chrono::milliseconds(500)));
+
+  // AGV parks at the order's last released node with nothing left to do.
+  auto done = make_ready_state(
+    vda5050_core::types::OperatingMode::AUTOMATIC, true, "N0", 0, kOrderId, 0);
+  done.header.header_id = 2;
+  agv->handle_state(done);
+
+  EXPECT_EQ(complete_calls.load(), 1);
+  EXPECT_EQ(completed_id, kOrderId);
+
+  // A later State still parked at the end must not re-fire the edge.
+  done.header.header_id = 3;
+  agv->handle_state(done);
+  EXPECT_EQ(complete_calls.load(), 1);
+}
+
+TEST_F(MasterAssignOrderTest, AssignOrder_FilledHeaderEnablesPublish)
+{
+  make_agv_ready();
+  auto agv = master_->get_agv(kManufacturer, kSerial);
+  ASSERT_NE(agv, nullptr);
+
+  auto order = make_minimal_order(0);
+  order.header =
+    vda5050_core::types::Header{};  // caller leaves the header unset
+  ASSERT_EQ(
+    master_->assign_order(kManufacturer, kSerial, order).decision,
+    AssignmentDecision::ASSIGNED);
+
+  // The async publish validates the order header, so active only advances
+  // because assign_order filled the blank header from the args.
+  EXPECT_TRUE(wait_for(
+    [&] { return agv->has_active_order(); }, std::chrono::milliseconds(500)));
 }
 
 TEST_F(MasterAssignOrderTest, AssignOrder_StitchedUpdate_SentAhead)

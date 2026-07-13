@@ -62,23 +62,18 @@ public:
     (override));
 };
 
-// Subclass that records every state-heartbeat edge dispatch. Counters use
-// atomics
-// because on_state_timeout fires from the HeartbeatListener's monitor
-// thread.
-class CallbackTrackingMaster : public VDA5050Master
+// Records every state-heartbeat edge dispatch. Counters are atomic because
+// on_state_timeout fires from the HeartbeatListener's monitor thread.
+struct CallbackTracker
 {
-public:
-  using VDA5050Master::VDA5050Master;
-
-  void on_state_timeout(const std::string& agv_id) override
+  void on_state_timeout(const std::string& agv_id)
   {
     timeout_calls.fetch_add(1);
     std::lock_guard<std::mutex> lock(str_mu_);
     last_timeout_agv_ = agv_id;
   }
 
-  void on_state_resumed(const std::string& agv_id) override
+  void on_state_resumed(const std::string& agv_id)
   {
     resumed_calls.fetch_add(1);
     {
@@ -94,8 +89,7 @@ public:
   }
 
   void on_state(
-    const std::string& agv_id,
-    const vda5050_core::types::State& /*state*/) override
+    const std::string& agv_id, const vda5050_core::types::State& /*state*/)
   {
     state_calls.fetch_add(1);
     std::lock_guard<std::mutex> lock(str_mu_);
@@ -104,7 +98,7 @@ public:
 
   void on_mode_changed(
     const std::string& /*agv_id*/, vda5050_core::types::OperatingMode,
-    vda5050_core::types::OperatingMode) override
+    vda5050_core::types::OperatingMode)
   {
     mode_change_calls.fetch_add(1);
   }
@@ -165,7 +159,8 @@ class StateTimeoutCallbackTest : public ::testing::Test
 {
 protected:
   std::shared_ptr<MockMqttClient> mock_;
-  std::shared_ptr<CallbackTrackingMaster> master_;
+  std::shared_ptr<VDA5050Master> master_;
+  CallbackTracker tracker_;
   std::unique_ptr<AGV> agv_;
 
   void SetUp() override
@@ -186,7 +181,21 @@ protected:
     EXPECT_CALL(
       *mock_, publish(::testing::_, ::testing::_, ::testing::_, ::testing::_))
       .Times(::testing::AnyNumber());
-    master_ = std::make_shared<CallbackTrackingMaster>(mock_);
+    master_ = std::make_shared<VDA5050Master>(mock_);
+    master_->on_state_timeout(
+      [this](const std::string& id) { tracker_.on_state_timeout(id); });
+    master_->on_state_resumed(
+      [this](const std::string& id) { tracker_.on_state_resumed(id); });
+    master_->on_state(
+      [this](const std::string& id, const vda5050_core::types::State& s) {
+        tracker_.on_state(id, s);
+      });
+    master_->on_mode_changed([this](
+                               const std::string& id,
+                               vda5050_core::types::OperatingMode a,
+                               vda5050_core::types::OperatingMode b) {
+      tracker_.on_mode_changed(id, a, b);
+    });
   }
 
   void TearDown() override
@@ -249,19 +258,19 @@ TEST_F(StateTimeoutCallbackTest, OnStateTimeoutFiresWhenHeartbeatExceeded)
   // First state arrival flips operational_state to AVAILABLE.
   agv_->handle_state(make_state_msg());
   EXPECT_EQ(agv_->get_operational_state(), AGVState::AVAILABLE);
-  EXPECT_EQ(master_->timeout_calls.load(), 0);
+  EXPECT_EQ(tracker_.timeout_calls.load(), 0);
 
   // Wait past the heartbeat interval — timer fires on its monitor thread.
   // Poll rather than fixed-sleep so the test stays robust under sanitizer
   // slowdown (TSan can stretch a 1s timer well beyond 2.5s wall time).
   ASSERT_TRUE(wait_for(
-    [&] { return master_->timeout_calls.load() >= 1; },
+    [&] { return tracker_.timeout_calls.load() >= 1; },
     std::chrono::milliseconds(8000)));
 
   EXPECT_EQ(agv_->get_operational_state(), AGVState::STATE_UNKNOWN);
-  EXPECT_GE(master_->timeout_calls.load(), 1);
+  EXPECT_GE(tracker_.timeout_calls.load(), 1);
   EXPECT_EQ(
-    master_->last_timeout_agv(), std::string(kManufacturer) + "/" + kSerial);
+    tracker_.last_timeout_agv(), std::string(kManufacturer) + "/" + kSerial);
 }
 
 TEST_F(StateTimeoutCallbackTest, OnStateTimeoutFiresOncePerSilenceEpisode)
@@ -275,11 +284,11 @@ TEST_F(StateTimeoutCallbackTest, OnStateTimeoutFiresOncePerSilenceEpisode)
   // re-fire while silent. Polling for the first fire is robust to
   // sanitizer slowdown; the trailing sleep is the actual no-re-fire test.
   ASSERT_TRUE(wait_for(
-    [&] { return master_->timeout_calls.load() >= 1; },
+    [&] { return tracker_.timeout_calls.load() >= 1; },
     std::chrono::milliseconds(8000)));
   std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 
-  EXPECT_EQ(master_->timeout_calls.load(), 1)
+  EXPECT_EQ(tracker_.timeout_calls.load(), 1)
     << "timeout dispatch should fire exactly once per silence episode";
 }
 
@@ -295,19 +304,19 @@ TEST_F(StateTimeoutCallbackTest, OnStateResumedFiresOnRecoveryAfterTimeout)
 
   // First state already fired one resumed (initial UNKNOWN→AVAILABLE).
   // Snapshot counter, then drive a timeout + recovery cycle.
-  const int resumed_after_first = master_->resumed_calls.load();
+  const int resumed_after_first = tracker_.resumed_calls.load();
   EXPECT_GE(resumed_after_first, 1);
 
   ASSERT_TRUE(wait_for(
-    [&] { return master_->timeout_calls.load() >= 1; },
+    [&] { return tracker_.timeout_calls.load() >= 1; },
     std::chrono::milliseconds(8000)));
   EXPECT_EQ(agv_->get_operational_state(), AGVState::STATE_UNKNOWN);
-  EXPECT_GE(master_->timeout_calls.load(), 1);
+  EXPECT_GE(tracker_.timeout_calls.load(), 1);
 
   // Recovery: next state arrival
   agv_->handle_state(make_state_msg());
   EXPECT_EQ(agv_->get_operational_state(), AGVState::AVAILABLE);
-  EXPECT_EQ(master_->resumed_calls.load(), resumed_after_first + 1);
+  EXPECT_EQ(tracker_.resumed_calls.load(), resumed_after_first + 1);
 }
 
 TEST_F(StateTimeoutCallbackTest, OnStateResumedFiresOnFirstStateFromUnknown)
@@ -319,14 +328,14 @@ TEST_F(StateTimeoutCallbackTest, OnStateResumedFiresOnFirstStateFromUnknown)
   inject_online_connection();
 
   EXPECT_EQ(agv_->get_operational_state(), AGVState::STATE_UNKNOWN);
-  EXPECT_EQ(master_->resumed_calls.load(), 0);
+  EXPECT_EQ(tracker_.resumed_calls.load(), 0);
 
   agv_->handle_state(make_state_msg());
 
   EXPECT_EQ(agv_->get_operational_state(), AGVState::AVAILABLE);
-  EXPECT_EQ(master_->resumed_calls.load(), 1);
+  EXPECT_EQ(tracker_.resumed_calls.load(), 1);
   EXPECT_EQ(
-    master_->last_resumed_agv(), std::string(kManufacturer) + "/" + kSerial);
+    tracker_.last_resumed_agv(), std::string(kManufacturer) + "/" + kSerial);
 }
 
 TEST_F(StateTimeoutCallbackTest, OnStateResumedDoesNotFireWhenAlreadyAvailable)
@@ -337,12 +346,12 @@ TEST_F(StateTimeoutCallbackTest, OnStateResumedDoesNotFireWhenAlreadyAvailable)
   inject_online_connection();
 
   agv_->handle_state(make_state_msg());  // resumed_calls = 1 (initial)
-  EXPECT_EQ(master_->resumed_calls.load(), 1);
+  EXPECT_EQ(tracker_.resumed_calls.load(), 1);
 
   agv_->handle_state(make_state_msg());
   agv_->handle_state(make_state_msg());
 
-  EXPECT_EQ(master_->resumed_calls.load(), 1)
+  EXPECT_EQ(tracker_.resumed_calls.load(), 1)
     << "recovery should fire only on the unknown→available edge";
 }
 
@@ -354,7 +363,7 @@ TEST_F(StateTimeoutCallbackTest, OnStateResumedFiresBeforeOnState)
   inject_online_connection();
   agv_->handle_state(make_state_msg());  // first state — counters bump
 
-  EXPECT_TRUE(master_->resumed_before_first_state.load());
+  EXPECT_TRUE(tracker_.resumed_before_first_state.load());
 }
 
 TEST_F(StateTimeoutCallbackTest, ReonboardClearsStaleEventBaseline)
@@ -372,7 +381,7 @@ TEST_F(StateTimeoutCallbackTest, ReonboardClearsStaleEventBaseline)
   ASSERT_NE(old, nullptr);
   old->handle_state(mode_state(OM::AUTOMATIC, 1));
   old->handle_state(mode_state(OM::MANUAL, 2));
-  ASSERT_EQ(master_->mode_change_calls.load(), 1);
+  ASSERT_EQ(tracker_.mode_change_calls.load(), 1);
 
   master_->offboard_agv(kManufacturer, kSerial);
   // A State in flight when the AGV offboarded re-seeds the event baseline.
@@ -383,7 +392,7 @@ TEST_F(StateTimeoutCallbackTest, ReonboardClearsStaleEventBaseline)
   ASSERT_NE(re, nullptr);
   // First State after re-onboard must seed fresh, not diff the stale mode.
   re->handle_state(mode_state(OM::AUTOMATIC, 4));
-  EXPECT_EQ(master_->mode_change_calls.load(), 1);
+  EXPECT_EQ(tracker_.mode_change_calls.load(), 1);
 }
 
 }  // namespace vda5050_core::master::test

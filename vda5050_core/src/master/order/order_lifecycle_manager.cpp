@@ -332,7 +332,8 @@ void OrderLifecycleManager::record_published(
 }
 
 std::vector<vda5050_core::types::Order> OrderLifecycleManager::on_state_update(
-  const vda5050_core::types::State& state)
+  const vda5050_core::types::State& state,
+  std::optional<std::string>* just_completed_order_id)
 {
   std::lock_guard<std::mutex> lock(lifecycle_mutex_);
 
@@ -372,6 +373,8 @@ std::vector<vda5050_core::types::Order> OrderLifecycleManager::on_state_update(
         VDA5050_INFO(
           "[OrderLifecycle] {} order {} (update {}) complete", agv_id_,
           active_order_id_, active_order_update_id_);
+        if (just_completed_order_id)
+          *just_completed_order_id = active_order_id_;
       }
       order_complete_ = true;
     }

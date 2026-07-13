@@ -45,8 +45,9 @@
 namespace vda5050_core {
 namespace master {
 
-/// \brief Abstract base for VDA5050 multi-AGV fleet control (override the on_*
-///        virtuals). Must be make_shared-constructed; overrides thread-safe.
+/// \brief VDA5050 multi-AGV fleet control. Register on_* reaction callbacks,
+///        then connect and onboard. Must be make_shared-constructed; callbacks
+///        run on the transport thread and must be thread-safe.
 class VDA5050Master : public std::enable_shared_from_this<VDA5050Master>
 {
 public:
@@ -108,14 +109,15 @@ public:
   // --- Outgoing Messages ---
 
   /// \brief Queue an order to an AGV (lower-level; skips assign_order's
-  ///        pre-flight).
+  ///        pre-flight and header fill — the caller owns the header).
   /// \return false if the AGV is not onboarded or the queue is full.
   bool publish_order(
     const std::string& manufacturer, const std::string& serial_number,
     const vda5050_core::types::Order& order);
 
   /// \brief Pre-flight and queue an order. Returns an AssignmentResult: the
-  ///        failed check, or ASSIGNED/STITCH_QUEUED.
+  ///        failed check, or ASSIGNED/STITCH_QUEUED. The header's
+  ///        version/manufacturer/serial are filled from the args when unset.
   /// \param assignment_id  Correlation token; empty skips it. Read via
   ///                       get_active_assignment_id.
   AssignmentResult assign_order(
@@ -170,7 +172,7 @@ public:
     const std::string& manufacturer, const std::string& serial_number);
 
   /// \brief Queue instant actions to an AGV (lower-level; skips the
-  ///        assign_instant_actions pre-flight).
+  ///        assign_instant_actions pre-flight and header fill).
   /// \return false if the AGV is not onboarded or the queue is full.
   bool publish_instant_actions(
     const std::string& manufacturer, const std::string& serial_number,
@@ -178,6 +180,8 @@ public:
 
   /// \brief Pre-flight and queue instant actions. Lighter than assign_order:
   ///        not mode/position/availability-gated, so they run when degraded.
+  ///        The header's version/manufacturer/serial are filled from the args
+  ///        when unset.
   InstantActionAssignmentResult assign_instant_actions(
     const std::string& manufacturer, const std::string& serial_number,
     const vda5050_core::types::InstantActions& actions);
@@ -204,110 +208,155 @@ public:
   void refresh_alignment_for_agv(
     const std::string& agv_id, const vda5050_core::types::Factsheet& factsheet);
 
-  // --- User-Extension Callbacks (override in subclass) ---
-  // Fire on the MQTT thread after the AGV caches; defaults empty, keep them
-  // thread-safe.
+  // --- Reaction callbacks (register handlers to react to AGV messages) ---
+  // Registered handlers fire on the MQTT thread after the AGV caches. Register
+  // before connect(); keep them prompt and thread-safe.
 
-  virtual void on_state(
-    const std::string& agv_id, const vda5050_core::types::State& state);
+  /// \brief Register the handler invoked on every State message.
+  void on_state(
+    std::function<
+      void(const std::string& agv_id, const vda5050_core::types::State& state)>
+      callback);
 
-  virtual void on_connection(
-    const std::string& agv_id,
-    const vda5050_core::types::Connection& connection);
+  /// \brief Register the handler invoked on every Connection message.
+  void on_connection(std::function<void(
+                       const std::string& agv_id,
+                       const vda5050_core::types::Connection& connection)>
+                       callback);
 
-  /// \brief Feed a State into the fleet event detector (AGV-called, not an
-  ///        override point).
-  void ingest_state(
-    const std::string& agv_id, const vda5050_core::types::State& state);
+  /// \brief Register the handler invoked on every Factsheet message.
+  void on_factsheet(std::function<void(
+                      const std::string& agv_id,
+                      const vda5050_core::types::Factsheet& factsheet)>
+                      callback);
 
-  /// \brief Feed a Connection into the fleet event detector (AGV-called).
-  void ingest_connection(
-    const std::string& agv_id,
-    const vda5050_core::types::Connection& connection);
-
-  virtual void on_factsheet(
-    const std::string& agv_id, const vda5050_core::types::Factsheet& factsheet);
-
-  virtual void on_visualization(
-    const std::string& agv_id,
-    const vda5050_core::types::Visualization& visualization);
+  /// \brief Register the handler invoked on every Visualization message.
+  void on_visualization(
+    std::function<void(
+      const std::string& agv_id,
+      const vda5050_core::types::Visualization& visualization)>
+      callback);
 
   // --- Event triggers ---
-  // Edge-detected hooks layered on on_state / on_connection; defaults empty.
+  // Edge-detected callbacks layered on on_state / on_connection.
 
-  /// \brief Fired when the AGV reports a previously-unreached node as released.
-  virtual void on_node_reached(
-    const std::string& agv_id, const std::string& node_id);
+  /// \brief Register the handler invoked when the AGV reports a
+  ///        previously-unreached node as released.
+  void on_node_reached(
+    std::function<void(const std::string& agv_id, const std::string& node_id)>
+      callback);
 
-  /// \brief Fired when curr.errors contains entries not present in prev.errors.
-  /// \param new_errors only the newly-appeared errors (not the full curr list).
-  virtual void on_errors_appeared(
-    const std::string& agv_id,
-    const std::vector<vda5050_core::types::Error>& new_errors);
+  /// \brief Register the handler invoked when the AGV completes its active
+  ///        order (parked at the last released node, all actions terminal).
+  void on_order_complete(
+    std::function<void(const std::string& agv_id, const std::string& order_id)>
+      callback);
 
-  /// \brief Fired when prev.errors contains entries no longer in curr.errors.
-  /// \param resolved_errors only the entries that disappeared.
-  virtual void on_errors_resolved(
-    const std::string& agv_id,
-    const std::vector<vda5050_core::types::Error>& resolved_errors);
+  /// \brief Register the handler invoked when the error list gains entries.
+  /// \param callback receives only the newly-appeared errors.
+  void on_errors_appeared(
+    std::function<void(
+      const std::string& agv_id,
+      const std::vector<vda5050_core::types::Error>& new_errors)>
+      callback);
 
-  /// \brief Fired when new_base_request goes false to true (rising edge).
-  virtual void on_new_base_requested(const std::string& agv_id);
+  /// \brief Register the handler invoked when the error list loses entries.
+  /// \param callback receives only the entries that disappeared.
+  void on_errors_resolved(
+    std::function<void(
+      const std::string& agv_id,
+      const std::vector<vda5050_core::types::Error>& resolved_errors)>
+      callback);
 
-  /// \brief Fired on operating_mode change. Leaving master control drains the
-  ///        un-sent queues to a resumable buffer; call resume_/discard.
-  virtual void on_mode_changed(
-    const std::string& agv_id, vda5050_core::types::OperatingMode new_mode,
-    vda5050_core::types::OperatingMode prev_mode);
+  /// \brief Register the handler invoked when new_base_request rises
+  ///        false→true.
+  void on_new_base_requested(
+    std::function<void(const std::string& agv_id)> callback);
 
-  /// \brief Fired when the AGV's `paused` field flips.
-  virtual void on_paused(const std::string& agv_id, bool paused);
+  /// \brief Register the handler invoked on operating_mode change. Leaving
+  ///        master control drains un-sent queues to a resumable buffer.
+  void on_mode_changed(
+    std::function<void(
+      const std::string& agv_id, vda5050_core::types::OperatingMode new_mode,
+      vda5050_core::types::OperatingMode prev_mode)>
+      callback);
 
-  /// \brief Fired when the AGV's `driving` field flips.
-  virtual void on_driving(const std::string& agv_id, bool driving);
+  /// \brief Register the handler invoked when the AGV's `paused` field flips.
+  void on_paused(
+    std::function<void(const std::string& agv_id, bool paused)> callback);
 
-  /// \brief Fired when the AGV's loads vector changes.
-  /// \param loads the full new vector (empty if none).
-  virtual void on_loads_changed(
-    const std::string& agv_id,
-    const std::vector<vda5050_core::types::Load>& loads);
+  /// \brief Register the handler invoked when the AGV's `driving` field flips.
+  void on_driving(
+    std::function<void(const std::string& agv_id, bool driving)> callback);
+
+  /// \brief Register the handler invoked when the AGV's loads vector changes.
+  /// \param callback receives the full new vector (empty if none).
+  void on_loads_changed(std::function<void(
+                          const std::string& agv_id,
+                          const std::vector<vda5050_core::types::Load>& loads)>
+                          callback);
 
   // --- Connection event triggers ---
-  // One named hook per connectionState transition; additive to on_connection.
+  // One named callback per connectionState transition; adds to on_connection.
 
-  /// \brief Fired when the AGV's connection_state transitions to ONLINE.
-  virtual void on_connect(const std::string& agv_id);
+  /// \brief Register the handler invoked when connection_state becomes ONLINE.
+  void on_connect(std::function<void(const std::string& agv_id)> callback);
 
-  /// \brief Fired when the AGV publishes OFFLINE (graceful shutdown).
-  virtual void on_offline(const std::string& agv_id);
+  /// \brief Register the handler invoked when the AGV publishes OFFLINE.
+  void on_offline(std::function<void(const std::string& agv_id)> callback);
 
-  /// \brief Last-will handler (CONNECTIONBROKEN): the AGV dropped unexpectedly;
-  ///        the triggering Connection has a stale timestamp/headerId.
-  virtual void on_connection_broken(const std::string& agv_id);
+  /// \brief Register the last-will (CONNECTIONBROKEN) handler: the AGV dropped
+  ///        unexpectedly; the triggering Connection has a stale timestamp.
+  void on_connection_broken(
+    std::function<void(const std::string& agv_id)> callback);
 
   // --- State-heartbeat event triggers ---
   // State-heartbeat timeout + recovery edge; additive to on_state.
 
-  /// \brief Fired when the state heartbeat exceeds 30s; operational_state
-  ///        becomes STATE_UNKNOWN (pre-send rejects); no auto-cancel.
-  virtual void on_state_timeout(const std::string& agv_id);
+  /// \brief Register the handler invoked when the state heartbeat exceeds 30s;
+  ///        operational_state becomes STATE_UNKNOWN (pre-send rejects).
+  void on_state_timeout(
+    std::function<void(const std::string& agv_id)> callback);
 
-  /// \brief Fired on the first State after a timeout, and on the AGV's
-  ///        first-ever State (STATE_UNKNOWN to AVAILABLE).
-  virtual void on_state_resumed(const std::string& agv_id);
+  /// \brief Register the handler invoked on the first State after a timeout,
+  ///        and on the AGV's first-ever State (STATE_UNKNOWN → AVAILABLE).
+  void on_state_resumed(
+    std::function<void(const std::string& agv_id)> callback);
 
   // --- Master-broker connection event triggers ---
-  // Invoked on the transport thread — overrides must be thread-safe and prompt.
+  // Invoked on the transport thread — handlers must be thread-safe and prompt.
 
-  /// \brief Fired when the master's broker connection drops; queued orders stay
-  ///        queued until Paho auto-reconnects.
-  virtual void on_broker_disconnected();
+  /// \brief Register the handler invoked when the master's broker connection
+  ///        drops; queued orders stay queued until Paho auto-reconnects.
+  void on_broker_disconnected(std::function<void()> callback);
 
-  /// \brief Fired on initial connect and every reconnect. No resubscribe; if
-  ///        the broker lost its session, resubscribe off the transport thread.
-  virtual void on_broker_reconnected();
+  /// \brief Register the handler invoked on initial connect and each reconnect.
+  void on_broker_reconnected(std::function<void()> callback);
 
 private:
+  // The owned AGV calls these on the MQTT thread to feed the event detector
+  // and run the registered raw-message handlers; not user-facing.
+  friend class AGV;
+  void ingest_state(
+    const std::string& agv_id, const vda5050_core::types::State& state);
+  void ingest_connection(
+    const std::string& agv_id,
+    const vda5050_core::types::Connection& connection);
+  void dispatch_state(
+    const std::string& agv_id, const vda5050_core::types::State& state);
+  void dispatch_connection(
+    const std::string& agv_id,
+    const vda5050_core::types::Connection& connection);
+  void dispatch_factsheet(
+    const std::string& agv_id, const vda5050_core::types::Factsheet& factsheet);
+  void dispatch_visualization(
+    const std::string& agv_id,
+    const vda5050_core::types::Visualization& visualization);
+  void dispatch_state_timeout(const std::string& agv_id);
+  void dispatch_state_resumed(const std::string& agv_id);
+  void dispatch_order_complete(
+    const std::string& agv_id, const std::string& order_id);
+
   // --- Internal AGV lookup ---
 
   std::shared_ptr<AGV> get_agv_by_id(const std::string& agv_id) const;
@@ -323,7 +372,7 @@ private:
   // each agv_id-tagged update routes to its observer hook via fire_hook.
   void register_event_dispatch();
 
-  // Run one observer hook, swallowing any exception so one bad override can't
+  // Run one observer hook, swallowing any exception so one bad callback can't
   // stall the shared inbound thread.
   void fire_hook(
     const std::string& agv_id, const char* hook_name,
@@ -373,8 +422,48 @@ private:
   mutable std::mutex assignments_mutex_;
   std::unordered_map<std::string, ActiveAssignment> active_assignments_;
 
+  // Registered reaction callbacks. Set before connect() (the single inbound
+  // thread reads them), so no mutex; an unset slot is a no-op.
+  std::function<void(const std::string&, const vda5050_core::types::State&)>
+    on_state_cb_;
+  std::function<void(
+    const std::string&, const vda5050_core::types::Connection&)>
+    on_connection_cb_;
+  std::function<void(const std::string&, const vda5050_core::types::Factsheet&)>
+    on_factsheet_cb_;
+  std::function<void(
+    const std::string&, const vda5050_core::types::Visualization&)>
+    on_visualization_cb_;
+  std::function<void(const std::string&, const std::string&)>
+    on_node_reached_cb_;
+  std::function<void(const std::string&, const std::string&)>
+    on_order_complete_cb_;
+  std::function<void(
+    const std::string&, const std::vector<vda5050_core::types::Error>&)>
+    on_errors_appeared_cb_;
+  std::function<void(
+    const std::string&, const std::vector<vda5050_core::types::Error>&)>
+    on_errors_resolved_cb_;
+  std::function<void(const std::string&)> on_new_base_requested_cb_;
+  std::function<void(
+    const std::string&, vda5050_core::types::OperatingMode,
+    vda5050_core::types::OperatingMode)>
+    on_mode_changed_cb_;
+  std::function<void(const std::string&, bool)> on_paused_cb_;
+  std::function<void(const std::string&, bool)> on_driving_cb_;
+  std::function<void(
+    const std::string&, const std::vector<vda5050_core::types::Load>&)>
+    on_loads_changed_cb_;
+  std::function<void(const std::string&)> on_connect_cb_;
+  std::function<void(const std::string&)> on_offline_cb_;
+  std::function<void(const std::string&)> on_connection_broken_cb_;
+  std::function<void(const std::string&)> on_state_timeout_cb_;
+  std::function<void(const std::string&)> on_state_resumed_cb_;
+  std::function<void()> on_broker_disconnected_cb_;
+  std::function<void()> on_broker_reconnected_cb_;
+
   // Transport connection-state handlers: update broker_* under the mutex, then
-  // dispatch the on_broker_* virtuals outside the lock.
+  // invoke the on_broker_* callbacks outside the lock.
   void handle_broker_connection_lost(const std::string& cause);
   void handle_broker_connected(const std::string& cause);
 };

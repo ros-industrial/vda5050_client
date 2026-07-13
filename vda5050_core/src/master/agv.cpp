@@ -331,7 +331,7 @@ void AGV::on_state_heartbeat_timeout()
   // rejects orders for STATE_UNKNOWN AGVs anyway.
   if (auto p = parent_.lock())
   {
-    p->on_state_timeout(agv_id_);
+    p->dispatch_state_timeout(agv_id_);
   }
 }
 
@@ -428,11 +428,11 @@ void AGV::handle_connection(const vda5050_core::types::Connection& msg)
     order_lifecycle_.clear_pending();
   }
 
-  // Dispatch to the user override, then feed the fleet event detector, which
+  // Dispatch to the user callback, then feed the fleet event detector, which
   // diffs the connection and fans the transition out to the named hooks.
   if (auto p = parent_.lock())
   {
-    p->on_connection(agv_id_, msg);
+    p->dispatch_connection(agv_id_, msg);
     p->ingest_connection(agv_id_, msg);
   }
 }
@@ -612,7 +612,10 @@ void AGV::handle_state(const vda5050_core::types::State& msg)
 
   // Runs before the user callback so observers see current lifecycle state.
   // Drained updates are enqueued pre_stitched (they already cleared the guard).
-  auto ready_updates = order_lifecycle_.on_state_update(msg);
+  // just_completed_order_id is set on the order's false→true completion edge.
+  std::optional<std::string> just_completed_order_id;
+  auto ready_updates =
+    order_lifecycle_.on_state_update(msg, &just_completed_order_id);
   for (std::size_t i = 0; i < ready_updates.size(); ++i)
   {
     if (enqueue_order(ready_updates[i], true)) continue;
@@ -632,12 +635,12 @@ void AGV::handle_state(const vda5050_core::types::State& msg)
   {
     if (auto p = parent_.lock())
     {
-      p->on_state_resumed(agv_id_);
+      p->dispatch_state_resumed(agv_id_);
     }
   }
 
   // Capture+drain the outbound queues before on_mode_changed fires (so an
-  // override sees the buffer), when the AGV leaves master control.
+  // callback sees the buffer), when the AGV leaves master control.
   if (
     prev_mode.has_value() &&
     vda5050_core::validation::is_master_in_control(*prev_mode) &&
@@ -650,8 +653,10 @@ void AGV::handle_state(const vda5050_core::types::State& msg)
   // named hooks; the first State only seeds).
   if (auto p = parent_.lock())
   {
-    p->on_state(agv_id_, msg);
+    p->dispatch_state(agv_id_, msg);
     p->ingest_state(agv_id_, msg);
+    if (just_completed_order_id)
+      p->dispatch_order_complete(agv_id_, *just_completed_order_id);
   }
 }
 
@@ -675,11 +680,11 @@ void AGV::handle_factsheet(const vda5050_core::types::Factsheet& msg)
   }
 
   // Dispatch to master: first refresh alignment cache (
-  // symmetric trigger), then invoke user override.
+  // symmetric trigger), then invoke user callback.
   if (auto p = parent_.lock())
   {
     p->refresh_alignment_for_agv(agv_id_, msg);
-    p->on_factsheet(agv_id_, msg);
+    p->dispatch_factsheet(agv_id_, msg);
   }
 }
 
@@ -718,7 +723,7 @@ void AGV::handle_visualization(const vda5050_core::types::Visualization& msg)
 
   if (auto p = parent_.lock())
   {
-    p->on_visualization(agv_id_, msg);
+    p->dispatch_visualization(agv_id_, msg);
   }
 }
 

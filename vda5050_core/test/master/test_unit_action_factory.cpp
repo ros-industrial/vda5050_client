@@ -18,6 +18,8 @@
 
 #include <gtest/gtest.h>
 
+#include <fmt/format.h>
+
 #include <set>
 #include <string>
 #include <vector>
@@ -128,6 +130,27 @@ TEST(ActionFactory, BuildFactsheetRequest_HasCanonicalActionType)
   auto a = ActionFactory::build_factsheet_request("fs-1");
   EXPECT_EQ(a.action_type, "factsheetRequest");
   EXPECT_EQ(a.action_id, "fs-1");
+}
+
+TEST(ActionFactory, BuildInitPosition_HasTypeAndPoseParameters)
+{
+  auto a = ActionFactory::build_init_position(
+    "init-1", 1.5, -2.0, 0.25, "map_a", "N3");
+  EXPECT_EQ(a.action_type, "initPosition");
+  EXPECT_EQ(a.action_id, "init-1");
+  EXPECT_EQ(a.blocking_type, vda5050_core::types::BlockingType::NONE);
+  ASSERT_TRUE(a.action_parameters.has_value());
+  ASSERT_EQ(a.action_parameters->size(), 5u);
+  auto value_for = [&](const std::string& key) {
+    for (const auto& p : *a.action_parameters)
+      if (p.key == key) return p.value;
+    return std::string{"<missing>"};
+  };
+  EXPECT_EQ(value_for("x"), fmt::format("{}", 1.5));
+  EXPECT_EQ(value_for("y"), fmt::format("{}", -2.0));
+  EXPECT_EQ(value_for("theta"), fmt::format("{}", 0.25));
+  EXPECT_EQ(value_for("mapId"), "map_a");
+  EXPECT_EQ(value_for("lastNodeId"), "N3");
 }
 
 }  // namespace test

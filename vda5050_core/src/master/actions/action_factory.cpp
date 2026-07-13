@@ -18,6 +18,8 @@
 
 #include "vda5050_core/master/actions/action_factory.hpp"
 
+#include <fmt/format.h>
+
 #include <array>
 #include <cstdint>
 #include <random>
@@ -80,6 +82,21 @@ vda5050_core::types::Action ActionFactory::build_factsheet_request(
   return build_custom(
     "factsheetRequest", action_id, vda5050_core::types::BlockingType::NONE,
     description, {});
+}
+
+vda5050_core::types::Action ActionFactory::build_init_position(
+  const std::string& action_id, double x, double y, double theta,
+  const std::string& map_id, const std::string& last_node_id,
+  const std::string& description)
+{
+  return build_custom(
+    "initPosition", action_id, vda5050_core::types::BlockingType::NONE,
+    description,
+    {{"x", fmt::format("{}", x)},
+     {"y", fmt::format("{}", y)},
+     {"theta", fmt::format("{}", theta)},
+     {"mapId", map_id},
+     {"lastNodeId", last_node_id}});
 }
 
 std::string ActionFactory::generate_action_id()

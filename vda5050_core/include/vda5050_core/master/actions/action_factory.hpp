@@ -29,7 +29,8 @@
 namespace vda5050_core {
 namespace master {
 
-/// \brief Builds Action structs (custom + predefined state/factsheet requests).
+/// \brief Builds Action structs (custom + predefined state/factsheet/init
+///        requests).
 ///
 /// Set the wrapping InstantActions header (version/manufacturer/serial) before
 /// assign/publish; validation checks it.
@@ -54,6 +55,12 @@ public:
   /// \brief Build a factsheetRequest instantAction; AGV replies on factsheet.
   static vda5050_core::types::Action build_factsheet_request(
     const std::string& action_id, const std::string& description = "");
+
+  /// \brief Build an initPosition instantAction that sets the AGV's pose.
+  static vda5050_core::types::Action build_init_position(
+    const std::string& action_id, double x, double y, double theta,
+    const std::string& map_id, const std::string& last_node_id,
+    const std::string& description = "");
 };
 
 }  // namespace master

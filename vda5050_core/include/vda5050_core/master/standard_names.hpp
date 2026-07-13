@@ -36,7 +36,8 @@ enum class QosLevel : int
   ExactlyOnce = 2,  ///< Two-phase handshake; rarely needed.
 };
 
-const std::string Version = "v2";                          // NOLINT
+// Semantic protocol version; the transport derives the topic segment (v2).
+const std::string Version = "2.0.0";                       // NOLINT
 const std::string DefaultInterfaceName = "uagv";           // NOLINT
 const std::string ConnectionTopic = "connection";          // NOLINT
 const std::string FactsheetTopic = "factsheet";            // NOLINT

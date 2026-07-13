@@ -329,8 +329,6 @@ private:
   void publish_instant_actions(
     const vda5050_core::types::InstantActions& actions);
 
-  std::string build_topic(const std::string& topic_name) const;
-
   // --- Member Variables ---
 
   std::string interface_name_;

@@ -92,7 +92,7 @@ protected:
   void SetUp()
   {
     interface_ = "uagv";
-    version_ = "v2";
+    version_ = "2.0.0";
     manufacturer_ = "ROS-I";
     serial_number_ = "S001";
 
@@ -102,7 +102,8 @@ protected:
       mock_, interface_, version_, manufacturer_, serial_number_);
 
     topic_prefix_ = fmt::format(
-      "{}/{}/{}/{}/", interface_, version_, manufacturer_, serial_number_);
+      "{}/{}/{}/{}/", interface_, ProtocolAdapter::get_topic_version(version_),
+      manufacturer_, serial_number_);
 
     qos_ = 0;
     retained_ = false;

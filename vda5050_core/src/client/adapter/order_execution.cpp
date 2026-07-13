@@ -49,11 +49,33 @@ uint32_t OrderExecution::order_update_id() const
 }
 
 //=============================================================================
+void OrderExecution::finished()
+{
+  if (is_finished()) return;
+
+  if (finish_callback_) finish_callback_();
+
+  Execution::finished();
+}
+
+//=============================================================================
+void OrderExecution::failed(const std::string& reason)
+{
+  if (is_finished()) return;
+
+  if (fail_callback_) fail_callback_(reason);
+
+  Execution::failed(reason);
+}
+
+//=============================================================================
 OrderExecution::OrderExecution(
   const std::string& order_id, uint32_t order_update_id,
   std::function<void()> finish_callback,
   std::function<void(std::string)> fail_callback)
-: Execution(std::move(finish_callback), std::move(fail_callback)),
+: Execution(),
+  finish_callback_(std::move(finish_callback)),
+  fail_callback_(std::move(fail_callback)),
   order_id_(order_id),
   order_update_id_(order_update_id)
 {

@@ -57,36 +57,33 @@ void ActionExecution::paused(std::optional<std::string> result_description)
 }
 
 //=============================================================================
-void ActionExecution::finished()
-{
-  Execution::finished();
-}
-
-//=============================================================================
-void ActionExecution::finished(const std::string& result_description)
+void ActionExecution::finished(std::optional<std::string> result_description)
 {
   if (is_finished()) return;
 
   if (status_update_callback_)
-    status_update_callback_(types::ActionStatus::FINISHED, result_description);
-
-  status_update_callback_ = nullptr;
+    status_update_callback_(
+      types::ActionStatus::FINISHED, std::move(result_description));
 
   Execution::finished();
+}
+
+//=============================================================================
+void ActionExecution::failed(const std::string& reason)
+{
+  if (is_finished()) return;
+
+  if (status_update_callback_)
+    status_update_callback_(types::ActionStatus::FAILED, reason);
+
+  Execution::failed(reason);
 }
 
 //=============================================================================
 ActionExecution::ActionExecution(
   std::function<void(types::ActionStatus, std::optional<std::string>)>
     status_update_callback)
-: Execution(
-    [cb = status_update_callback]() {
-      if (cb) cb(types::ActionStatus::FINISHED, std::nullopt);
-    },
-    [cb = status_update_callback](std::string reason) {
-      if (cb) cb(types::ActionStatus::FAILED, std::move(reason));
-    }),
-  status_update_callback_(std::move(status_update_callback))
+: Execution(), status_update_callback_(std::move(status_update_callback))
 {
   // Nothing to do here ...
 }

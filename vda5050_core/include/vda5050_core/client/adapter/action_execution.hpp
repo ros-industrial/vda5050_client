@@ -46,9 +46,9 @@ public:
 
   void paused(std::optional<std::string> result_description = std::nullopt);
 
-  void finished();
+  void finished(std::optional<std::string> result_description = std::nullopt);
 
-  void finished(const std::string& result_description);
+  void failed(const std::string& reason);
 
 private:
   ActionExecution(

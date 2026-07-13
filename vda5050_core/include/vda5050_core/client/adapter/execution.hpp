@@ -20,7 +20,6 @@
 #define VDA5050_CORE__CLIENT__ADAPTER__EXECUTION_HPP_
 
 #include <atomic>
-#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -47,17 +46,12 @@ public:
   const std::optional<std::string>& failure_reason() const;
 
 protected:
-  Execution(
-    std::function<void()> finish_callback,
-    std::function<void(std::string)> fail_callback);
+  Execution();
 
 private:
   friend class Adapter;
 
   void deactivate();
-
-  std::function<void()> finish_callback_;
-  std::function<void(std::string)> fail_callback_;
 
   std::optional<std::string> failure_reason_;
 

@@ -39,17 +39,15 @@ Execution::~Execution()
 void Execution::finished()
 {
   if (completed_.exchange(true)) return;
-
-  if (finish_callback_) finish_callback_();
+  deactivate();
 }
 
 //=============================================================================
 void Execution::failed(const std::string& reason)
 {
   if (completed_.exchange(true)) return;
-
   failure_reason_ = reason;
-  if (fail_callback_) fail_callback_(reason);
+  deactivate();
 }
 
 //=============================================================================
@@ -71,13 +69,7 @@ const std::optional<std::string>& Execution::failure_reason() const
 }
 
 //=============================================================================
-Execution::Execution(
-  std::function<void()> finish_callback,
-  std::function<void(std::string)> fail_callback)
-: finish_callback_(std::move(finish_callback)),
-  fail_callback_(std::move(fail_callback)),
-  completed_(false),
-  active_(false)
+Execution::Execution() : completed_(false), active_(true)
 {
   // Nothing to do here ...
 }

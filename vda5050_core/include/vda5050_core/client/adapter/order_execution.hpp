@@ -43,11 +43,18 @@ public:
 
   uint32_t order_update_id() const;
 
+  void finished();
+
+  void failed(const std::string& reason);
+
 private:
   OrderExecution(
     const std::string& order_id, uint32_t order_update_id,
     std::function<void()> finish_callback,
     std::function<void(std::string)> fail_callback);
+
+  std::function<void()> finish_callback_;
+  std::function<void(std::string)> fail_callback_;
 
   std::string order_id_;
   uint32_t order_update_id_;

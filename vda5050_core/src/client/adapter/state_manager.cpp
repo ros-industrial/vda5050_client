@@ -187,7 +187,7 @@ void StateManager::add_load(const types::Load& load)
 
   if (!state_.loads.has_value())
   {
-    state_.loads = {};
+    state_.loads = std::vector<types::Load>{};
   }
   state_.loads->push_back(load);
 }
@@ -203,7 +203,7 @@ void StateManager::set_loads(const std::vector<types::Load>& loads)
 void StateManager::clear_loads()
 {
   std::lock_guard<std::mutex> lock(mutex_);
-  state_.loads = {};
+  state_.loads = std::vector<types::Load>{};
 }
 
 //=============================================================================
@@ -219,7 +219,7 @@ void StateManager::add_information(const types::Info& information)
   std::lock_guard<std::mutex> lock(mutex_);
   if (!state_.information.has_value())
   {
-    state_.information = {};
+    state_.information = std::vector<types::Info>{};
   }
   state_.information->push_back(information);
 }

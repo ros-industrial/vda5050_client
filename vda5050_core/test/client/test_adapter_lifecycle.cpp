@@ -18,33 +18,19 @@
 
 #include <gmock/gmock.h>
 
-#include "vda5050_core/client/adapter/adapter.hpp"
+#include <chrono>
+#include <thread>
 
-#include "mock_mqtt_client.hpp"
+#include "vda5050_core/types/state.hpp"
+
+#include "adapter_test_fixture.hpp"
 
 using namespace vda5050_core::client::adapter;  // NOLINT
 using namespace vda5050_core::types;            // NOLINT
 using namespace testing;                        // NOLINT
 
-class AdapterLifecycleTest : public testing::Test
-{
-public:
-  void SetUp() override
-  {
-    mqtt = std::make_shared<NiceMock<MockMqttClient>>();
-
-    protocol_adapter = vda5050_core::execution::ProtocolAdapter::make(
-      mqtt, "uagv", "2.0.0", "Robot", "001");
-
-    adapter = Adapter::make(protocol_adapter);
-
-    ON_CALL(*mqtt, connected()).WillByDefault(Return(true));
-  }
-
-  std::shared_ptr<NiceMock<MockMqttClient>> mqtt;
-  std::shared_ptr<vda5050_core::execution::ProtocolAdapter> protocol_adapter;
-  std::shared_ptr<Adapter> adapter;
-};
+class AdapterLifecycleTest : public AdapterTest
+{};
 
 TEST_F(AdapterLifecycleTest, StateManagerIsCreated)
 {
@@ -139,6 +125,23 @@ TEST_F(AdapterLifecycleTest, StartTwiceDoesNothing)
 TEST_F(AdapterLifecycleTest, StopBeforeStartDoesNothing)
 {
   EXPECT_CALL(*mqtt, disconnect()).Times(0);
+
+  adapter->stop();
+}
+
+TEST_F(AdapterLifecycleTest, PublishThreadPublishesState)
+{
+  adapter->start();
+
+  adapter->state_manager()->set_driving(true);
+
+  ASSERT_TRUE(wait_publish(2));
+  ASSERT_EQ(published.size(), 2);
+  ASSERT_NE(published[1].topic.find("/state"), std::string::npos);
+
+  auto state = nlohmann::json::parse(published[1].message).get<State>();
+
+  EXPECT_TRUE(state.driving);
 
   adapter->stop();
 }

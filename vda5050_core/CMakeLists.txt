@@ -297,6 +297,7 @@ if(BUILD_TESTING)
     test/client/test_order_acceptance.cpp
     test/client/test_execution.cpp
     test/client/test_state_manager.cpp
+    test/client/test_adapter_lifecycle.cpp
   )
 
   target_link_libraries(test_client

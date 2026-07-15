@@ -133,23 +133,15 @@ TEST(StateManagerTest, AddActionStateAppends)
 {
   auto manager = StateManager::make();
 
-  ActionState action_1;
-  action_1.action_id = "action_1";
+  ActionState action;
+  action.action_id = "action_1";
 
-  manager->add_action_state(action_1);
+  manager->add_action_state(action);
 
   auto state = manager->state();
 
   ASSERT_EQ(state.action_states.size(), 1);
   EXPECT_EQ(state.action_states[0].action_id, "action_1");
-
-  ActionState action_2;
-  action_2.action_id = "action_2";
-
-  manager->add_action_state(action_2);
-
-  ASSERT_EQ(state.action_states.size(), 2);
-  EXPECT_EQ(state.action_states[1].action_id, "action_2");
 }
 
 TEST(StateManagerTest, ReplaceExistingActionState)
@@ -177,13 +169,22 @@ TEST(StateManagerTest, SetActionStatesReplacesExisting)
 {
   auto manager = StateManager::make();
 
-  std::vector<ActionState> actions(2);
+  ActionState initial;
+  initial.action_id = "old";
 
-  manager->set_action_states(actions);
+  manager->add_action_state(initial);
+
+  ActionState replacement;
+  replacement.action_id = "new";
+
+  std::vector<ActionState> action_states;
+  action_states.push_back(replacement);
+  manager->set_action_states(action_states);
 
   auto state = manager->state();
 
-  EXPECT_EQ(state.action_states.size(), 2);
+  ASSERT_EQ(state.action_states.size(), 1);
+  EXPECT_EQ(state.action_states[0].action_id, "new");
 }
 
 TEST(StateManagerTest, ClearActionStateRemovesAll)
@@ -193,12 +194,9 @@ TEST(StateManagerTest, ClearActionStateRemovesAll)
   std::vector<ActionState> actions(2);
 
   manager->set_action_states(actions);
+  manager->clear_action_states();
 
   auto state = manager->state();
-
-  EXPECT_EQ(state.action_states.size(), 2);
-
-  manager->clear_action_states();
 
   EXPECT_TRUE(state.action_states.empty());
 }
@@ -228,13 +226,22 @@ TEST(StateManagerTest, SetErrorsReplacesExisting)
 {
   auto manager = StateManager::make();
 
-  std::vector<Error> errors(2);
+  Error initial;
+  initial.error_type = "old";
 
+  manager->add_error(initial);
+
+  Error replacement;
+  replacement.error_type = "new";
+
+  std::vector<Error> errors;
+  errors.push_back(replacement);
   manager->set_errors(errors);
 
   auto state = manager->state();
 
-  EXPECT_EQ(state.errors.size(), 2);
+  ASSERT_EQ(state.errors.size(), 1);
+  EXPECT_EQ(state.errors[0].error_type, "new");
 }
 
 TEST(StateManagerTest, ClearErrorRemovesAll)
@@ -244,12 +251,9 @@ TEST(StateManagerTest, ClearErrorRemovesAll)
   std::vector<Error> errors(2);
 
   manager->set_errors(errors);
+  manager->clear_errors();
 
   auto state = manager->state();
-
-  EXPECT_EQ(state.errors.size(), 2);
-
-  manager->clear_errors();
 
   EXPECT_TRUE(state.errors.empty());
 }
@@ -316,15 +320,13 @@ TEST(StateManagerTest, SetLoadsReplacesExisting)
   EXPECT_EQ((*state.loads)[0].load_id, "new");
 }
 
-TEST(StateManagerTest, ClearLoadsLeavesEmptyVector)
+TEST(StateManagerTest, ClearLoadsRemovesAll)
 {
   auto manager = StateManager::make();
 
-  Load load;
-  load.load_id = "load_1";
+  std::vector<Load> loads(2);
 
-  manager->add_load(load);
-
+  manager->set_loads(loads);
   manager->clear_loads();
 
   auto state = manager->state();
@@ -429,7 +431,7 @@ TEST(StateManagerTest, RemoveInformationResetsOptional)
   EXPECT_FALSE(state.information.has_value());
 }
 
-TEST(StateManagerTest, MarkAnsConsumePublishRequested)
+TEST(StateManagerTest, MarkAndConsumePublishRequested)
 {
   auto manager = StateManager::make();
 

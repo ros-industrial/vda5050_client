@@ -106,6 +106,12 @@ void ProtocolAdapter::unsubscribe_all()
 }
 
 //=============================================================================
+std::string ProtocolAdapter::get_topic_prefix()
+{
+  return topic_prefix_;
+}
+
+//=============================================================================
 std::string ProtocolAdapter::get_topic_version(const std::string& version)
 {
   // TODO(sauk2): Enforce stricter version checking before parsing string
@@ -125,23 +131,23 @@ ProtocolAdapter::ProtocolAdapter(
   manufacturer_(manufacturer),
   serial_number_(serial_number)
 {
-  std::string topic_prefix = fmt::format(
+  topic_prefix_ = fmt::format(
     "{}/{}/{}/{}", interface_, get_topic_version(version_), manufacturer_,
     serial_number_);
 
   topic_names_ = {
     {std::type_index(typeid(vda5050_core::types::Connection)),
-     fmt::format("{}/connection", topic_prefix)},
+     fmt::format("{}/connection", topic_prefix_)},
     {std::type_index(typeid(vda5050_core::types::State)),
-     fmt::format("{}/state", topic_prefix)},
+     fmt::format("{}/state", topic_prefix_)},
     {std::type_index(typeid(vda5050_core::types::Order)),
-     fmt::format("{}/order", topic_prefix)},
+     fmt::format("{}/order", topic_prefix_)},
     {std::type_index(typeid(vda5050_core::types::InstantActions)),
-     fmt::format("{}/instantActions", topic_prefix)},
+     fmt::format("{}/instantActions", topic_prefix_)},
     {std::type_index(typeid(vda5050_core::types::Factsheet)),
-     fmt::format("{}/factsheet", topic_prefix)},
+     fmt::format("{}/factsheet", topic_prefix_)},
     {std::type_index(typeid(vda5050_core::types::Visualization)),
-     fmt::format("{}/visualization", topic_prefix)}};
+     fmt::format("{}/visualization", topic_prefix_)}};
 
   header_ids_ = {
     {std::type_index(typeid(vda5050_core::types::Connection)), 0},

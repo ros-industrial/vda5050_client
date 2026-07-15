@@ -256,6 +256,8 @@ public:
 
   void unsubscribe_all();
 
+  std::string get_topic_prefix();
+
   static std::string get_topic_version(const std::string& version);
 
 private:
@@ -283,6 +285,8 @@ private:
   std::string version_;
   std::string manufacturer_;
   std::string serial_number_;
+
+  std::string topic_prefix_;
 };
 
 }  // namespace execution

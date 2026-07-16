@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#ifndef VDA5050_CORE__MASTER__ASSIGNMENT_RESULT_HPP_
-#define VDA5050_CORE__MASTER__ASSIGNMENT_RESULT_HPP_
+#ifndef VDA5050_CORE__MASTER__ORDER__ORDER_ASSIGNMENT_RESULT_HPP_
+#define VDA5050_CORE__MASTER__ORDER__ORDER_ASSIGNMENT_RESULT_HPP_
 
 #include <vector>
 
@@ -29,7 +29,7 @@ namespace master {
 // Synchronous outcome of assign_order; the queue thread re-checks as defense.
 
 /// \brief Outcome category returned by `VDA5050Master::assign_order`.
-enum class AssignmentDecision
+enum class OrderAssignmentDecision
 {
   /// Pre-flight checks passed; order queued for publish.
   ASSIGNED,
@@ -57,9 +57,9 @@ enum class AssignmentDecision
 };
 
 /// \brief Structured outcome of `VDA5050Master::assign_order`.
-struct AssignmentResult
+struct OrderAssignmentResult
 {
-  AssignmentDecision decision = AssignmentDecision::ASSIGNED;
+  OrderAssignmentDecision decision = OrderAssignmentDecision::ASSIGNED;
 
   /// Diagnostics for failure outcomes; empty on ASSIGNED / STITCH_QUEUED.
   std::vector<vda5050_core::types::Error> errors;
@@ -67,11 +67,11 @@ struct AssignmentResult
   /// True iff ASSIGNED (STITCH_QUEUED is not yet published).
   explicit operator bool() const
   {
-    return decision == AssignmentDecision::ASSIGNED;
+    return decision == OrderAssignmentDecision::ASSIGNED;
   }
 };
 
 }  // namespace master
 }  // namespace vda5050_core
 
-#endif  // VDA5050_CORE__MASTER__ASSIGNMENT_RESULT_HPP_
+#endif  // VDA5050_CORE__MASTER__ORDER__ORDER_ASSIGNMENT_RESULT_HPP_

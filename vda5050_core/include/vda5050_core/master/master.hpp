@@ -36,10 +36,10 @@
 #include "vda5050_core/layout/layout_loader.hpp"
 #include "vda5050_core/master/actions/instant_action_assignment_result.hpp"
 #include "vda5050_core/master/agv.hpp"
-#include "vda5050_core/master/assignment_result.hpp"
 #include "vda5050_core/master/contexts/master_context.hpp"
 #include "vda5050_core/master/loaded_graph_holder.hpp"
 #include "vda5050_core/master/master_types.hpp"
+#include "vda5050_core/master/order/order_assignment_result.hpp"
 #include "vda5050_core/transport/mqtt_client_interface.hpp"
 #include "vda5050_core/types/operating_mode.hpp"
 
@@ -132,10 +132,10 @@ public:
     const std::string& manufacturer, const std::string& serial_number,
     const vda5050_core::types::Order& order);
 
-  /// \brief Pre-flight and queue an order. Returns an AssignmentResult: the
-  ///        failed check, or ASSIGNED/STITCH_QUEUED. The header's
+  /// \brief Pre-flight and queue an order. Returns an OrderAssignmentResult:
+  ///        the failed check, or ASSIGNED/STITCH_QUEUED. The header's
   ///        version/manufacturer/serial are filled from the args when unset.
-  AssignmentResult assign_order(
+  OrderAssignmentResult assign_order(
     const std::string& manufacturer, const std::string& serial_number,
     const vda5050_core::types::Order& order);
 

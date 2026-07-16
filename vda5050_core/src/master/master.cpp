@@ -93,8 +93,8 @@ VDA5050Master::~VDA5050Master()
   }
   disconnect();
 
-  // Stop AGV worker threads before members destruct, so no queue thread is
-  // still running against shared state (MQTT client, graph holder) mid-teardown.
+  // Stop AGV worker threads before members destruct, so no queue thread runs
+  // against shared state (MQTT client, graph holder) mid-teardown.
   {
     std::lock_guard<std::mutex> lock(agv_mutex_);
     for (auto& kv : agvs_)
@@ -582,14 +582,14 @@ bool VDA5050Master::publish_order(
   return agv->send_order(order);
 }
 
-AssignmentResult VDA5050Master::assign_order(
+OrderAssignmentResult VDA5050Master::assign_order(
   const std::string& manufacturer, const std::string& serial_number,
   const vda5050_core::types::Order& order_in)
 {
   vda5050_core::types::Order order = order_in;
   stamp_outbound_header(order.header, manufacturer, serial_number);
 
-  AssignmentResult res;
+  OrderAssignmentResult res;
   auto add_error = [&](const std::string& description) {
     res.errors.push_back(vda5050_core::errors::create_error(
       vda5050_core::errors::PreSendValidationError, description, {}));
@@ -603,7 +603,7 @@ AssignmentResult VDA5050Master::assign_order(
   }
   if (!agv)
   {
-    res.decision = AssignmentDecision::AGV_NOT_ONBOARDED;
+    res.decision = OrderAssignmentDecision::AGV_NOT_ONBOARDED;
     add_error("AGV not onboarded: " + agv_id);
     return res;
   }
@@ -612,14 +612,14 @@ AssignmentResult VDA5050Master::assign_order(
     agv->get_connection_status() !=
     vda5050_core::types::ConnectionState::ONLINE)
   {
-    res.decision = AssignmentDecision::AGV_OFFLINE;
+    res.decision = OrderAssignmentDecision::AGV_OFFLINE;
     add_error("AGV connection_status is not ONLINE");
     return res;
   }
 
   if (agv->get_operational_state() != AGVState::AVAILABLE)
   {
-    res.decision = AssignmentDecision::AGV_NOT_READY;
+    res.decision = OrderAssignmentDecision::AGV_NOT_READY;
     add_error("AGV operational_state is not AVAILABLE");
     return res;
   }
@@ -627,14 +627,14 @@ AssignmentResult VDA5050Master::assign_order(
   auto last_state = agv->get_last_state();
   if (!last_state.has_value())
   {
-    res.decision = AssignmentDecision::AGV_NO_STATE_YET;
+    res.decision = OrderAssignmentDecision::AGV_NO_STATE_YET;
     add_error("AGV has not yet reported any State");
     return res;
   }
   if (!vda5050_core::validation::is_master_in_control(
         last_state->operating_mode))
   {
-    res.decision = AssignmentDecision::AGV_MODE_NOT_AUTO;
+    res.decision = OrderAssignmentDecision::AGV_MODE_NOT_AUTO;
     add_error("AGV operating_mode is not AUTOMATIC or SEMIAUTOMATIC");
     return res;
   }
@@ -642,7 +642,7 @@ AssignmentResult VDA5050Master::assign_order(
     !last_state->agv_position.has_value() ||
     !last_state->agv_position->position_initialized)
   {
-    res.decision = AssignmentDecision::AGV_POSITION_NOT_INITIALIZED;
+    res.decision = OrderAssignmentDecision::AGV_POSITION_NOT_INITIALIZED;
     add_error("AGV position is not initialized");
     return res;
   }
@@ -657,14 +657,14 @@ AssignmentResult VDA5050Master::assign_order(
     auto stitch = stitcher.decide(order, snap);
     if (stitch.decision == StitchDecision::REJECT)
     {
-      res.decision = AssignmentDecision::STITCH_REJECTED;
+      res.decision = OrderAssignmentDecision::STITCH_REJECTED;
       res.errors = std::move(stitch.errors);
       return res;
     }
     if (stitch.decision == StitchDecision::IGNORE)
     {
       // Duplicate already applied — don't re-publish.
-      res.decision = AssignmentDecision::DUPLICATE_IGNORED;
+      res.decision = OrderAssignmentDecision::DUPLICATE_IGNORED;
       return res;
     }
     stitch_will_queue = (stitch.decision == StitchDecision::QUEUE_PENDING);
@@ -673,13 +673,13 @@ AssignmentResult VDA5050Master::assign_order(
   // send_order returns false only when the outbound queue is full.
   if (!agv->send_order(order))
   {
-    res.decision = AssignmentDecision::AGV_QUEUE_FULL;
+    res.decision = OrderAssignmentDecision::AGV_QUEUE_FULL;
     add_error("AGV outbound queue full or unable to accept order");
     return res;
   }
 
-  res.decision = stitch_will_queue ? AssignmentDecision::STITCH_QUEUED
-                                   : AssignmentDecision::ASSIGNED;
+  res.decision = stitch_will_queue ? OrderAssignmentDecision::STITCH_QUEUED
+                                   : OrderAssignmentDecision::ASSIGNED;
   return res;
 }
 

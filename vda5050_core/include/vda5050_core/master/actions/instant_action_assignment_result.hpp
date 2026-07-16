@@ -27,7 +27,8 @@ namespace vda5050_core {
 namespace master {
 
 // Synchronous, caller-visible outcome of dispatching instantActions to an AGV.
-// Separate from AssignmentResult because each API grows distinct decisions.
+// Separate from OrderAssignmentResult because each API grows distinct
+// decisions.
 
 /// \brief Outcome category returned by
 ///        `VDA5050Master::assign_instant_actions`.

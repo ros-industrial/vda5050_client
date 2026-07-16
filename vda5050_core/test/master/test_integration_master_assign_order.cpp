@@ -17,8 +17,8 @@
  */
 
 // Integration tests for VDA5050Master::assign_order pre-flight checks and their
-// AssignmentDecision / error feedback (gmock, no broker; AGV state injected via
-// handle_connection / handle_state).
+// OrderAssignmentDecision / error feedback (gmock, no broker; AGV state
+// injected via handle_connection / handle_state).
 
 #include <gmock/gmock.h>
 
@@ -272,7 +272,7 @@ TEST_F(MasterAssignOrderTest, AgvNotOnboarded_Returns_AgvNotOnboarded)
 {
   auto res =
     master_->assign_order("OTHER_MFG", "OTHER_SN", make_minimal_order());
-  EXPECT_EQ(res.decision, AssignmentDecision::AGV_NOT_ONBOARDED);
+  EXPECT_EQ(res.decision, OrderAssignmentDecision::AGV_NOT_ONBOARDED);
   EXPECT_FALSE(static_cast<bool>(res));
   EXPECT_FALSE(res.errors.empty());
 }
@@ -285,7 +285,7 @@ TEST_F(MasterAssignOrderTest, AgvOffline_Returns_AgvOffline)
   // No connection injected — connection_status defaults to OFFLINE.
   auto res =
     master_->assign_order(kManufacturer, kSerial, make_minimal_order());
-  EXPECT_EQ(res.decision, AssignmentDecision::AGV_OFFLINE);
+  EXPECT_EQ(res.decision, OrderAssignmentDecision::AGV_OFFLINE);
 }
 
 TEST_F(MasterAssignOrderTest, NoStateYet_Returns_AgvNoStateYet)
@@ -300,7 +300,7 @@ TEST_F(MasterAssignOrderTest, NoStateYet_Returns_AgvNoStateYet)
     master_->assign_order(kManufacturer, kSerial, make_minimal_order());
   // Operational state is still STATE_UNKNOWN until a State arrives, so
   // this surfaces as AGV_NOT_READY (operational state check fires first).
-  EXPECT_EQ(res.decision, AssignmentDecision::AGV_NOT_READY);
+  EXPECT_EQ(res.decision, OrderAssignmentDecision::AGV_NOT_READY);
 }
 
 // =============================================================================
@@ -317,7 +317,7 @@ TEST_F(MasterAssignOrderTest, ManualMode_Returns_AgvModeNotAuto)
 
   auto res =
     master_->assign_order(kManufacturer, kSerial, make_minimal_order());
-  EXPECT_EQ(res.decision, AssignmentDecision::AGV_MODE_NOT_AUTO);
+  EXPECT_EQ(res.decision, OrderAssignmentDecision::AGV_MODE_NOT_AUTO);
 }
 
 TEST_F(MasterAssignOrderTest, SemiAutomaticMode_Returns_Assigned)
@@ -332,7 +332,7 @@ TEST_F(MasterAssignOrderTest, SemiAutomaticMode_Returns_Assigned)
   // SEMIAUTOMATIC is master-controlled — orders must be accepted, not rejected.
   auto res =
     master_->assign_order(kManufacturer, kSerial, make_minimal_order());
-  EXPECT_EQ(res.decision, AssignmentDecision::ASSIGNED);
+  EXPECT_EQ(res.decision, OrderAssignmentDecision::ASSIGNED);
 }
 
 TEST_F(MasterAssignOrderTest, PositionNotInitialized_Returns_PosNotInit)
@@ -347,7 +347,8 @@ TEST_F(MasterAssignOrderTest, PositionNotInitialized_Returns_PosNotInit)
 
   auto res =
     master_->assign_order(kManufacturer, kSerial, make_minimal_order());
-  EXPECT_EQ(res.decision, AssignmentDecision::AGV_POSITION_NOT_INITIALIZED);
+  EXPECT_EQ(
+    res.decision, OrderAssignmentDecision::AGV_POSITION_NOT_INITIALIZED);
 }
 
 // =============================================================================
@@ -365,7 +366,7 @@ TEST_F(MasterAssignOrderTest, EndToEnd_DrainPublishRecord_Cycle)
 
   auto v0 = make_minimal_order(0);
   auto res = master_->assign_order(kManufacturer, kSerial, v0);
-  ASSERT_EQ(res.decision, AssignmentDecision::ASSIGNED);
+  ASSERT_EQ(res.decision, OrderAssignmentDecision::ASSIGNED);
 
   // Wait for queue thread to publish + record. has_active_order() flips
   // true only after AGV::publish_order completes record_published.
@@ -395,7 +396,7 @@ TEST_F(MasterAssignOrderTest, OrderComplete_FiresOnceWhenAgvParksAtLastNode)
   ASSERT_EQ(
     master_->assign_order(kManufacturer, kSerial, make_minimal_order(0))
       .decision,
-    AssignmentDecision::ASSIGNED);
+    OrderAssignmentDecision::ASSIGNED);
   ASSERT_TRUE(wait_for(
     [&] { return agv->has_active_order(); }, std::chrono::milliseconds(500)));
 
@@ -426,7 +427,7 @@ TEST_F(MasterAssignOrderTest, AssignOrder_FilledHeaderEnablesPublish)
     vda5050_core::types::Header{};  // caller leaves the header unset
   ASSERT_EQ(
     master_->assign_order(kManufacturer, kSerial, order).decision,
-    AssignmentDecision::ASSIGNED);
+    OrderAssignmentDecision::ASSIGNED);
 
   // The async publish validates the order header, so active only advances
   // because assign_order filled the blank header from the args.
@@ -450,7 +451,7 @@ TEST_F(MasterAssignOrderTest, AssignOrder_StitchedUpdate_SentAhead)
   // Publish V0 and wait for adoption.
   auto res0 =
     master_->assign_order(kManufacturer, kSerial, make_multi_node_v0());
-  ASSERT_EQ(res0.decision, AssignmentDecision::ASSIGNED);
+  ASSERT_EQ(res0.decision, OrderAssignmentDecision::ASSIGNED);
   ASSERT_TRUE(wait_for(
     [&] { return agv->has_active_order(); }, std::chrono::milliseconds(500)));
 
@@ -473,7 +474,7 @@ TEST_F(MasterAssignOrderTest, AssignOrder_StitchedUpdate_SentAhead)
 
   // AGV still at N0 but on the order and caught up — sent immediately.
   auto res = master_->assign_order(kManufacturer, kSerial, u1);
-  EXPECT_EQ(res.decision, AssignmentDecision::ASSIGNED)
+  EXPECT_EQ(res.decision, OrderAssignmentDecision::ASSIGNED)
     << "expected send-ahead (ASSIGNED) even though AGV is at N0";
 }
 
@@ -492,7 +493,7 @@ TEST_F(MasterAssignOrderTest, AssignOrder_StitchedUpdate_QueuedWhenNotOnOrder)
   ASSERT_EQ(
     master_->assign_order(kManufacturer, kSerial, make_multi_node_v0())
       .decision,
-    AssignmentDecision::ASSIGNED);
+    OrderAssignmentDecision::ASSIGNED);
   ASSERT_TRUE(wait_for(
     [&] { return agv->has_active_order(); }, std::chrono::milliseconds(500)));
 
@@ -507,7 +508,7 @@ TEST_F(MasterAssignOrderTest, AssignOrder_StitchedUpdate_QueuedWhenNotOnOrder)
   u1.nodes = {mk_node("N1", 2, true), mk_node("N3", 6, true)};
   u1.edges = {mk_edge("E2", 5, "N1", "N3", true)};
   auto res = master_->assign_order(kManufacturer, kSerial, u1);
-  EXPECT_EQ(res.decision, AssignmentDecision::STITCH_QUEUED)
+  EXPECT_EQ(res.decision, OrderAssignmentDecision::STITCH_QUEUED)
     << "expected STITCH_QUEUED while AGV is not yet on the order";
 }
 
@@ -526,7 +527,7 @@ TEST_F(MasterAssignOrderTest, AssignOrder_StitchedUpdate_Rejected)
   auto v0 = make_multi_node_v0();
   v0.order_update_id = 5;  // simulate an already-active update
   auto res0 = master_->assign_order(kManufacturer, kSerial, v0);
-  ASSERT_EQ(res0.decision, AssignmentDecision::ASSIGNED);
+  ASSERT_EQ(res0.decision, OrderAssignmentDecision::ASSIGNED);
   ASSERT_TRUE(wait_for(
     [&] {
       auto u = agv->active_order_update_id();
@@ -538,7 +539,7 @@ TEST_F(MasterAssignOrderTest, AssignOrder_StitchedUpdate_Rejected)
   auto bad = make_multi_node_v0();
   bad.order_update_id = 3;
   auto res = master_->assign_order(kManufacturer, kSerial, bad);
-  EXPECT_EQ(res.decision, AssignmentDecision::STITCH_REJECTED);
+  EXPECT_EQ(res.decision, OrderAssignmentDecision::STITCH_REJECTED);
   EXPECT_FALSE(res.errors.empty());
 }
 
@@ -557,7 +558,7 @@ TEST_F(MasterAssignOrderTest, AssignOrder_DifferentOrderWhileBusy_Rejected)
   ASSERT_EQ(
     master_->assign_order(kManufacturer, kSerial, make_multi_node_v0())
       .decision,
-    AssignmentDecision::ASSIGNED);
+    OrderAssignmentDecision::ASSIGNED);
   ASSERT_TRUE(wait_for(
     [&] { return agv->has_active_order(); }, std::chrono::milliseconds(500)));
 
@@ -566,7 +567,7 @@ TEST_F(MasterAssignOrderTest, AssignOrder_DifferentOrderWhileBusy_Rejected)
   other.order_update_id = 0;
   other.nodes = {mk_node("M0", 0, true)};
   auto res = master_->assign_order(kManufacturer, kSerial, other);
-  EXPECT_EQ(res.decision, AssignmentDecision::STITCH_REJECTED)
+  EXPECT_EQ(res.decision, OrderAssignmentDecision::STITCH_REJECTED)
     << "a different order while busy must be rejected, not ASSIGNED";
   EXPECT_FALSE(res.errors.empty());
 }
@@ -579,7 +580,7 @@ TEST_F(MasterAssignOrderTest, RejectionErrorsAreDescriptive)
   // Drive AGV into a rejection (no connection injected → OFFLINE).
   auto res =
     master_->assign_order(kManufacturer, kSerial, make_minimal_order());
-  ASSERT_EQ(res.decision, AssignmentDecision::AGV_OFFLINE);
+  ASSERT_EQ(res.decision, OrderAssignmentDecision::AGV_OFFLINE);
   ASSERT_FALSE(res.errors.empty());
   bool found_online = false;
   for (const auto& e : res.errors)

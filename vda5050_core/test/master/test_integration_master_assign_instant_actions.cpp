@@ -496,7 +496,7 @@ TEST_F(
 
   auto order = make_order_with_node_action("ORDER-N0-A");
   auto order_res = master_->assign_order(kManufacturer, kSerial, order);
-  ASSERT_EQ(order_res.decision, AssignmentDecision::ASSIGNED);
+  ASSERT_EQ(order_res.decision, OrderAssignmentDecision::ASSIGNED);
 
   // Wait for the queue thread to publish + record_published to populate
   // active_order_snapshot.

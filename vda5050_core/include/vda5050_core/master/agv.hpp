@@ -37,6 +37,7 @@
 #include "vda5050_core/logger/logger.hpp"
 #include "vda5050_core/master/actions/instant_actions_publisher.hpp"
 #include "vda5050_core/master/heartbeat.hpp"
+#include "vda5050_core/master/loaded_graph_holder.hpp"
 #include "vda5050_core/master/master_types.hpp"
 #include "vda5050_core/master/order/active_order_snapshot.hpp"
 #include "vda5050_core/master/order/order_lifecycle_manager.hpp"
@@ -77,7 +78,8 @@ public:
     const std::string& serial_number, size_t max_queue_size = 10,
     bool drop_oldest = true,
     int state_heartbeat_interval = StateHeartbeatInterval,
-    std::weak_ptr<VDA5050Master> parent = {});
+    std::weak_ptr<VDA5050Master> parent = {},
+    std::shared_ptr<LoadedGraphHolder> graph_holder = {});
 
   /// \brief Stop the queue processor and heartbeat; join the worker thread.
   ~AGV();
@@ -353,9 +355,9 @@ private:
   // weak_ptr so dispatch detects master destruction via lock().
   std::weak_ptr<VDA5050Master> parent_;
 
-  // Used ONLY by the queue-processor thread (parent_.lock() there could
-  // self-join ~master->~AGV); master joins AGV threads first, stays valid.
-  VDA5050Master* parent_raw_{nullptr};
+  // Loaded graph shared with the master; read by the queue thread without
+  // referencing the master. Set once at construction, never reassigned.
+  std::shared_ptr<LoadedGraphHolder> graph_holder_;
 
   // Heartbeat listener for state timeout (guarded by heartbeat_mutex_)
   mutable std::mutex heartbeat_mutex_;

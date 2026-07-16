@@ -70,7 +70,8 @@ AGV::AGV(
   std::shared_ptr<vda5050_core::execution::ProtocolAdapter> protocol_adapter,
   const std::string& interface_name, const std::string& manufacturer,
   const std::string& serial_number, size_t max_queue_size, bool drop_oldest,
-  int state_heartbeat_interval, std::weak_ptr<VDA5050Master> parent)
+  int state_heartbeat_interval, std::weak_ptr<VDA5050Master> parent,
+  std::shared_ptr<LoadedGraphHolder> graph_holder)
 : interface_name_(interface_name),
   manufacturer_(manufacturer),
   serial_number_(serial_number),
@@ -78,7 +79,7 @@ AGV::AGV(
   protocol_adapter_(protocol_adapter),
   order_lifecycle_(agv_id_),
   parent_(parent),
-  parent_raw_(parent.lock().get()),
+  graph_holder_(std::move(graph_holder)),
   state_heartbeat_interval_(state_heartbeat_interval),
   created_time_(Clock::now()),
   max_queue_size_(max_queue_size),
@@ -1137,12 +1138,11 @@ void AGV::publish_order(
     active_order = std::move(ao);
   }
 
-  // Capture the loaded graph so it outlives a mid-flight layout swap. Use
-  // parent_raw_, not parent_.lock() (see parent_raw_ doc-comment).
+  // Capture the loaded graph so it outlives a mid-flight layout swap.
   vda5050_core::layout::Graph::ConstPtr loaded_graph;
-  if (parent_raw_)
+  if (graph_holder_)
   {
-    loaded_graph = parent_raw_->get_loaded_graph();
+    loaded_graph = graph_holder_->get();
   }
 
   vda5050_core::validation::PreSendContext ctx{
@@ -1191,12 +1191,11 @@ void AGV::publish_instant_actions(
     return;
   }
 
-  // Loaded-graph snapshot for traversability. Use parent_raw_ (not
-  // parent_.lock()) to avoid extending master lifetime in the queue thread.
+  // Loaded-graph snapshot for traversability.
   vda5050_core::layout::Graph::ConstPtr loaded_graph;
-  if (parent_raw_)
+  if (graph_holder_)
   {
-    loaded_graph = parent_raw_->get_loaded_graph();
+    loaded_graph = graph_holder_->get();
   }
 
   vda5050_core::validation::PreSendContext ctx{

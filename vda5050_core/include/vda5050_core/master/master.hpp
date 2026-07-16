@@ -38,6 +38,7 @@
 #include "vda5050_core/master/agv.hpp"
 #include "vda5050_core/master/assignment_result.hpp"
 #include "vda5050_core/master/contexts/master_context.hpp"
+#include "vda5050_core/master/loaded_graph_holder.hpp"
 #include "vda5050_core/master/master_types.hpp"
 #include "vda5050_core/transport/mqtt_client_interface.hpp"
 #include "vda5050_core/types/operating_mode.hpp"
@@ -397,10 +398,14 @@ private:
   mutable std::mutex agv_mutex_;
   std::unordered_map<std::string, std::shared_ptr<AGV>> agvs_;
 
-  // Loaded topology map + per-AGV factsheet-alignment cache.
+  // Loaded graph, shared with each AGV's queue thread (self-guarded holder,
+  // so the queue thread reads it without referencing the master).
+  std::shared_ptr<LoadedGraphHolder> graph_holder_ =
+    std::make_shared<LoadedGraphHolder>();
+
+  // Per-AGV factsheet-alignment cache.
   // Lock order: agv_mutex_ → map_mutex_. Never the reverse.
   mutable std::mutex map_mutex_;
-  vda5050_core::layout::Graph::ConstPtr active_graph_;
   std::unordered_map<std::string, vda5050_core::errors::ValidationResult>
     alignment_cache_;
 

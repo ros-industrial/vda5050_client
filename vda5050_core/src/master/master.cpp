@@ -93,8 +93,8 @@ VDA5050Master::~VDA5050Master()
   }
   disconnect();
 
-  // Join AGV worker threads before any member destructs: a queue thread can
-  // call back via parent_raw_, so *this must stay alive until they join.
+  // Stop AGV worker threads before members destruct, so no queue thread is
+  // still running against shared state (MQTT client, graph holder) mid-teardown.
   {
     std::lock_guard<std::mutex> lock(agv_mutex_);
     for (auto& kv : agvs_)
@@ -181,7 +181,7 @@ std::shared_ptr<AGV> VDA5050Master::create_agv_locked(
     vda5050_core::execution::ProtocolAdapter::make(
       mqtt_client_, interface_name, Version, manufacturer, serial_number),
     interface_name, manufacturer, serial_number, max_queue_size, drop_oldest,
-    StateHeartbeatInterval, weak_from_this());
+    StateHeartbeatInterval, weak_from_this(), graph_holder_);
 }
 
 void VDA5050Master::onboard_agv(
@@ -949,18 +949,17 @@ void VDA5050Master::set_graph(vda5050_core::layout::Graph::ConstPtr graph)
     new_cache.emplace(kv.first, std::move(alignment));
   }
 
-  // Atomically install graph + replace alignment cache.
+  // Install the graph (shared holder) + replace the alignment cache atomically.
   {
     std::lock_guard<std::mutex> lock(map_mutex_);
-    active_graph_ = std::move(graph);
+    graph_holder_->set(std::move(graph));
     alignment_cache_ = std::move(new_cache);
   }
 }
 
 vda5050_core::layout::Graph::ConstPtr VDA5050Master::get_loaded_graph() const
 {
-  std::lock_guard<std::mutex> lock(map_mutex_);
-  return active_graph_;
+  return graph_holder_->get();
 }
 
 std::unordered_map<std::string, vda5050_core::errors::ValidationResult>
@@ -973,11 +972,7 @@ VDA5050Master::get_alignment_cache_snapshot() const
 void VDA5050Master::refresh_alignment_for_agv(
   const std::string& agv_id, const vda5050_core::types::Factsheet& factsheet)
 {
-  vda5050_core::layout::Graph::ConstPtr snap;
-  {
-    std::lock_guard<std::mutex> lock(map_mutex_);
-    snap = active_graph_;
-  }
+  vda5050_core::layout::Graph::ConstPtr snap = graph_holder_->get();
   if (snap == nullptr) return;  // no layout loaded yet — nothing to align
 
   auto alignment =
@@ -994,7 +989,7 @@ void VDA5050Master::refresh_alignment_for_agv(
   std::lock_guard<std::mutex> lock(map_mutex_);
   // Drop the write if the graph was swapped while we computed off-lock — that
   // swap already recomputed this AGV against the new graph.
-  if (active_graph_ == snap)
+  if (graph_holder_->get() == snap)
   {
     alignment_cache_[agv_id] = std::move(alignment);
   }

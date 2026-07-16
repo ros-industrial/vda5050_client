@@ -287,15 +287,6 @@ std::size_t VDA5050Master::offboard_agv_batch(
   }
 
   {
-    std::lock_guard<std::mutex> lock(assignments_mutex_);
-    for (const auto& key : keys)
-    {
-      if (key.first.empty() || key.second.empty()) continue;
-      active_assignments_.erase(key.first + "/" + key.second);
-    }
-  }
-
-  {
     std::lock_guard<std::mutex> lock(map_mutex_);
     for (const auto& key : keys)
     {
@@ -381,53 +372,11 @@ void VDA5050Master::offboard_agv(
   master_context_.forget_agv(agv_id);
 
   {
-    std::lock_guard<std::mutex> lock(assignments_mutex_);
-    active_assignments_.erase(agv_id);
-  }
-
-  {
     std::lock_guard<std::mutex> lock(map_mutex_);
     alignment_cache_.erase(agv_id);
   }
 
   VDA5050_INFO("[VDA5050Master] Offboarded AGV: {}", agv_id);
-}
-
-void VDA5050Master::record_assignment(
-  const std::string& manufacturer, const std::string& serial_number,
-  const std::string& assignment_id, const std::string& order_id,
-  std::uint32_t order_update_id)
-{
-  const std::string agv_id = manufacturer + "/" + serial_number;
-  std::lock_guard<std::mutex> lock(assignments_mutex_);
-  if (assignment_id.empty())
-  {
-    active_assignments_.erase(agv_id);
-    return;
-  }
-  active_assignments_[agv_id] =
-    ActiveAssignment{assignment_id, order_id, order_update_id};
-}
-
-std::string VDA5050Master::get_active_assignment_id(
-  const std::string& manufacturer, const std::string& serial_number) const
-{
-  // A non-onboarded AGV has no assignment (an entry can linger if it was
-  // offboarded mid-assign). Checked before assignments_mutex_ (lock order).
-  if (!is_agv_onboarded(manufacturer, serial_number)) return {};
-  const std::string agv_id = manufacturer + "/" + serial_number;
-  std::lock_guard<std::mutex> lock(assignments_mutex_);
-  auto it = active_assignments_.find(agv_id);
-  if (it == active_assignments_.end()) return {};
-  return it->second.assignment_id;
-}
-
-void VDA5050Master::clear_assignment(
-  const std::string& manufacturer, const std::string& serial_number)
-{
-  const std::string agv_id = manufacturer + "/" + serial_number;
-  std::lock_guard<std::mutex> lock(assignments_mutex_);
-  active_assignments_.erase(agv_id);
 }
 
 bool VDA5050Master::is_agv_onboarded(
@@ -635,7 +584,7 @@ bool VDA5050Master::publish_order(
 
 AssignmentResult VDA5050Master::assign_order(
   const std::string& manufacturer, const std::string& serial_number,
-  const vda5050_core::types::Order& order_in, const std::string& assignment_id)
+  const vda5050_core::types::Order& order_in)
 {
   vda5050_core::types::Order order = order_in;
   stamp_outbound_header(order.header, manufacturer, serial_number);
@@ -727,16 +676,6 @@ AssignmentResult VDA5050Master::assign_order(
     res.decision = AssignmentDecision::AGV_NOT_READY;
     add_error("AGV outbound queue full or unable to accept order");
     return res;
-  }
-
-  // Record the correlation. Re-check onboarding first (sequential, honoring
-  // the assignments_mutex_/agv_mutex_ lock order) to skip a stale entry if the
-  // AGV was offboarded meanwhile.
-  if (!assignment_id.empty() && is_agv_onboarded(manufacturer, serial_number))
-  {
-    record_assignment(
-      manufacturer, serial_number, assignment_id, order.order_id,
-      order.order_update_id);
   }
 
   res.decision = stitch_will_queue ? AssignmentDecision::STITCH_QUEUED

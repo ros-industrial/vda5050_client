@@ -134,12 +134,9 @@ public:
   /// \brief Pre-flight and queue an order. Returns an AssignmentResult: the
   ///        failed check, or ASSIGNED/STITCH_QUEUED. The header's
   ///        version/manufacturer/serial are filled from the args when unset.
-  /// \param assignment_id  Correlation token; empty skips it. Read via
-  ///                       get_active_assignment_id.
   AssignmentResult assign_order(
     const std::string& manufacturer, const std::string& serial_number,
-    const vda5050_core::types::Order& order,
-    const std::string& assignment_id = "");
+    const vda5050_core::types::Order& order);
 
   // --- Batch onboarding — Device Manager integration ---
 
@@ -170,22 +167,6 @@ public:
     const std::vector<std::pair<std::string, std::string>>& keys);
 
   std::vector<std::pair<std::string, std::string>> get_onboarded_agvs() const;
-
-  // --- Assignment correlation ---
-  // One active assignment per AGV; `assignments_mutex_` is never held with
-  // `agv_mutex_`.
-
-  /// Record an assignment_id for an AGV. Empty assignment_id clears.
-  void record_assignment(
-    const std::string& manufacturer, const std::string& serial_number,
-    const std::string& assignment_id, const std::string& order_id,
-    std::uint32_t order_update_id);
-
-  std::string get_active_assignment_id(
-    const std::string& manufacturer, const std::string& serial_number) const;
-
-  void clear_assignment(
-    const std::string& manufacturer, const std::string& serial_number);
 
   /// \brief Queue instant actions to an AGV (lower-level; skips the
   ///        assign_instant_actions pre-flight and header fill).
@@ -430,16 +411,6 @@ private:
   std::optional<std::chrono::system_clock::time_point>
     broker_last_disconnect_at_;
   std::uint64_t broker_reconnect_count_ = 0;
-
-  // Async dispatch correlation, one entry per AGV.
-  struct ActiveAssignment
-  {
-    std::string assignment_id;
-    std::string order_id;
-    std::uint32_t order_update_id = 0;
-  };
-  mutable std::mutex assignments_mutex_;
-  std::unordered_map<std::string, ActiveAssignment> active_assignments_;
 
   // Registered reaction callbacks. Set before connect() (the single inbound
   // thread reads them), so no mutex; an unset slot is a no-op.

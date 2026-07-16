@@ -45,6 +45,8 @@ enum class AssignmentDecision
   AGV_POSITION_NOT_INITIALIZED,
   /// AGV has not yet reported any State message.
   AGV_NO_STATE_YET,
+  /// The AGV's outbound queue is full (connection is up, unlike AGV_OFFLINE).
+  AGV_QUEUE_FULL,
   /// Update rejected by the stitcher (backward id, stitch mismatch, etc.).
   STITCH_REJECTED,
   /// Update queued (AGV not yet on the order, or prior update unconfirmed);

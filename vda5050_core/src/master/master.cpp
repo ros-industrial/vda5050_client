@@ -673,7 +673,7 @@ AssignmentResult VDA5050Master::assign_order(
   // send_order returns false only when the outbound queue is full.
   if (!agv->send_order(order))
   {
-    res.decision = AssignmentDecision::AGV_NOT_READY;
+    res.decision = AssignmentDecision::AGV_QUEUE_FULL;
     add_error("AGV outbound queue full or unable to accept order");
     return res;
   }

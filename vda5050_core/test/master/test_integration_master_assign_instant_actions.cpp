@@ -219,7 +219,8 @@ protected:
       vda5050_core::types::OperatingMode::AUTOMATIC,
     bool position_initialized = true)
   {
-    auto agv = master_->get_agv(kManufacturer, kSerial);
+    auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+      master_->get_agv(kManufacturer, kSerial));
     ASSERT_NE(agv, nullptr);
     agv->handle_connection(make_online_connection());
     agv->handle_state(make_ready_state(mode, position_initialized));
@@ -317,7 +318,8 @@ TEST_F(MasterAssignInstantActionsTest, NoStateYet_StillAssigns)
 {
   // factsheetRequest is run against AGVs the master knows nothing about
   // yet. Assigning before the AGV has reported any state must be allowed.
-  auto agv = master_->get_agv(kManufacturer, kSerial);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(agv, nullptr);
   agv->handle_connection(make_online_connection());
   // Note: NO handle_state injection.
@@ -384,7 +386,8 @@ TEST_F(
 {
   // Inject a state with an in-flight action_state[].action_id that the
   // candidate is about to reuse — must be rejected as duplicate.
-  auto agv = master_->get_agv(kManufacturer, kSerial);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(agv, nullptr);
   agv->handle_connection(make_online_connection());
 
@@ -418,7 +421,8 @@ TEST_F(
 {
   // Inject a state that has a RUNNING action; candidate is HARD.
   // HARD blocking actions must not run in parallel — sync path should reject.
-  auto agv = master_->get_agv(kManufacturer, kSerial);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(agv, nullptr);
   agv->handle_connection(make_online_connection());
   auto state = make_ready_state();
@@ -443,7 +447,8 @@ TEST_F(
 {
   // Inject a state with driving=true; candidate is SOFT.
   // SOFT blocking actions must not run while driving — sync path rejects.
-  auto agv = master_->get_agv(kManufacturer, kSerial);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(agv, nullptr);
   agv->handle_connection(make_online_connection());
   auto state = make_ready_state();
@@ -465,7 +470,8 @@ TEST_F(
   // Driving rule fires before the active-action rule when both apply
   // (HARD candidate with driving=true should classify as
   // ACTION_BLOCKED_BY_DRIVING, not HARD_ACTION_BLOCKED).
-  auto agv = master_->get_agv(kManufacturer, kSerial);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(agv, nullptr);
   agv->handle_connection(make_online_connection());
   auto state = make_ready_state();
@@ -494,7 +500,8 @@ TEST_F(
 
   // Wait for the queue thread to publish + record_published to populate
   // active_order_snapshot.
-  auto agv = master_->get_agv(kManufacturer, kSerial);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(agv, nullptr);
   ASSERT_TRUE(wait_for(
     [&] { return agv->has_active_order(); }, std::chrono::milliseconds(500)))
@@ -584,7 +591,8 @@ TEST_F(
 {
   // In MANUAL, assign_instant_actions returns ASSIGNED and the async chain must
   // still publish.
-  auto agv = master_->get_agv(kManufacturer, kSerial);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(agv, nullptr);
   agv->handle_connection(make_online_connection());
   agv->handle_state(
@@ -607,7 +615,8 @@ TEST_F(
 {
   // Asserts the position-init skip only; predefined-action parameter
   // validation is a deferred gap, so the param-less action isn't rejected.
-  auto agv = master_->get_agv(kManufacturer, kSerial);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(agv, nullptr);
   agv->handle_connection(make_online_connection());
   agv->handle_state(make_ready_state(
@@ -631,7 +640,8 @@ TEST_F(
   MasterInstantActionsPublishesInDegradedTest,
   NoStateYet_InstantActionStillReachesWire)
 {
-  auto agv = master_->get_agv(kManufacturer, kSerial);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(agv, nullptr);
   agv->handle_connection(make_online_connection());
   // No handle_state — factsheetRequest valid use case.

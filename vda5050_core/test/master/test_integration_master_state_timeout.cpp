@@ -377,7 +377,8 @@ TEST_F(StateTimeoutCallbackTest, ReonboardClearsStaleEventBaseline)
   };
 
   master_->onboard_agv(kManufacturer, kSerial);
-  auto old = master_->get_agv(kManufacturer, kSerial);
+  auto old = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(old, nullptr);
   old->handle_state(mode_state(OM::AUTOMATIC, 1));
   old->handle_state(mode_state(OM::MANUAL, 2));
@@ -388,7 +389,8 @@ TEST_F(StateTimeoutCallbackTest, ReonboardClearsStaleEventBaseline)
   old->handle_state(mode_state(OM::SERVICE, 3));
 
   master_->onboard_agv(kManufacturer, kSerial);
-  auto re = master_->get_agv(kManufacturer, kSerial);
+  auto re = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(re, nullptr);
   // First State after re-onboard must seed fresh, not diff the stale mode.
   re->handle_state(mode_state(OM::AUTOMATIC, 4));

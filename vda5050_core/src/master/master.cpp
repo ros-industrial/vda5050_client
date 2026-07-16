@@ -442,12 +442,47 @@ bool VDA5050Master::is_agv_onboarded(
 // AGV Access
 // ============================================================================
 
-std::shared_ptr<AGV> VDA5050Master::get_agv(
+std::shared_ptr<const AGV> VDA5050Master::get_agv(
   const std::string& manufacturer, const std::string& serial_number) const
 {
   std::lock_guard<std::mutex> lock(agv_mutex_);
   std::string agv_id = manufacturer + "/" + serial_number;
   return get_agv_by_id(agv_id);
+}
+
+void VDA5050Master::cancel_pending_orders(
+  const std::string& manufacturer, const std::string& serial_number)
+{
+  std::shared_ptr<AGV> agv;
+  {
+    std::lock_guard<std::mutex> lock(agv_mutex_);
+    agv = get_agv_by_id(manufacturer + "/" + serial_number);
+  }
+  if (agv) agv->cancel_pending_orders();
+}
+
+std::pair<std::size_t, std::size_t> VDA5050Master::resume_mode_cancelled_queue(
+  const std::string& manufacturer, const std::string& serial_number)
+{
+  std::shared_ptr<AGV> agv;
+  {
+    std::lock_guard<std::mutex> lock(agv_mutex_);
+    agv = get_agv_by_id(manufacturer + "/" + serial_number);
+  }
+  return agv ? agv->resume_mode_cancelled_queue()
+             : std::pair<std::size_t, std::size_t>{0, 0};
+}
+
+std::pair<std::size_t, std::size_t> VDA5050Master::discard_mode_cancelled_queue(
+  const std::string& manufacturer, const std::string& serial_number)
+{
+  std::shared_ptr<AGV> agv;
+  {
+    std::lock_guard<std::mutex> lock(agv_mutex_);
+    agv = get_agv_by_id(manufacturer + "/" + serial_number);
+  }
+  return agv ? agv->discard_mode_cancelled_queue()
+             : std::pair<std::size_t, std::size_t>{0, 0};
 }
 
 std::shared_ptr<AGV> VDA5050Master::get_agv_by_id(

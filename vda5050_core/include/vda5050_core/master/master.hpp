@@ -103,9 +103,24 @@ public:
 
   // --- AGV Access ---
 
-  /// \brief The onboarded AGV, or nullptr if not onboarded.
-  std::shared_ptr<AGV> get_agv(
+  /// \brief Read-only view of the onboarded AGV, or nullptr if not onboarded.
+  std::shared_ptr<const AGV> get_agv(
     const std::string& manufacturer, const std::string& serial_number) const;
+
+  /// \brief Drop the AGV's queued outbound orders and instant actions; does
+  ///        not send a cancelOrder to the AGV.
+  void cancel_pending_orders(
+    const std::string& manufacturer, const std::string& serial_number);
+
+  /// \brief Re-queue the buffer captured when the AGV left master control.
+  /// \return {orders_resumed, actions_resumed}; {0, 0} if not onboarded.
+  std::pair<std::size_t, std::size_t> resume_mode_cancelled_queue(
+    const std::string& manufacturer, const std::string& serial_number);
+
+  /// \brief Drop the mode-cancelled buffer without re-queueing.
+  /// \return {orders_discarded, actions_discarded}; {0, 0} if not onboarded.
+  std::pair<std::size_t, std::size_t> discard_mode_cancelled_queue(
+    const std::string& manufacturer, const std::string& serial_number);
 
   // --- Outgoing Messages ---
 

@@ -255,7 +255,8 @@ protected:
   // initialized.
   void make_agv_ready()
   {
-    auto agv = master_->get_agv(kManufacturer, kSerial);
+    auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+      master_->get_agv(kManufacturer, kSerial));
     ASSERT_NE(agv, nullptr);
     agv->handle_connection(make_online_connection());
     agv->handle_state(make_ready_state());
@@ -290,7 +291,8 @@ TEST_F(MasterAssignOrderTest, AgvOffline_Returns_AgvOffline)
 TEST_F(MasterAssignOrderTest, NoStateYet_Returns_AgvNoStateYet)
 {
   // ONLINE connection but no State message yet.
-  auto agv = master_->get_agv(kManufacturer, kSerial);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(agv, nullptr);
   agv->handle_connection(make_online_connection());
 
@@ -306,7 +308,8 @@ TEST_F(MasterAssignOrderTest, NoStateYet_Returns_AgvNoStateYet)
 // =============================================================================
 TEST_F(MasterAssignOrderTest, ManualMode_Returns_AgvModeNotAuto)
 {
-  auto agv = master_->get_agv(kManufacturer, kSerial);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(agv, nullptr);
   agv->handle_connection(make_online_connection());
   agv->handle_state(
@@ -319,7 +322,8 @@ TEST_F(MasterAssignOrderTest, ManualMode_Returns_AgvModeNotAuto)
 
 TEST_F(MasterAssignOrderTest, SemiAutomaticMode_Returns_Assigned)
 {
-  auto agv = master_->get_agv(kManufacturer, kSerial);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(agv, nullptr);
   agv->handle_connection(make_online_connection());
   agv->handle_state(
@@ -333,7 +337,8 @@ TEST_F(MasterAssignOrderTest, SemiAutomaticMode_Returns_Assigned)
 
 TEST_F(MasterAssignOrderTest, PositionNotInitialized_Returns_PosNotInit)
 {
-  auto agv = master_->get_agv(kManufacturer, kSerial);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(agv, nullptr);
   agv->handle_connection(make_online_connection());
   agv->handle_state(make_ready_state(
@@ -353,7 +358,8 @@ TEST_F(MasterAssignOrderTest, EndToEnd_DrainPublishRecord_Cycle)
   // Verify the full async path: assign_order → queue thread → publisher
   // chain → adapter.publish → record_published advances active.
   make_agv_ready();
-  auto agv = master_->get_agv(kManufacturer, kSerial);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(agv, nullptr);
   ASSERT_FALSE(agv->has_active_order());
 
@@ -382,7 +388,8 @@ TEST_F(MasterAssignOrderTest, OrderComplete_FiresOnceWhenAgvParksAtLastNode)
     });
 
   make_agv_ready();
-  auto agv = master_->get_agv(kManufacturer, kSerial);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(agv, nullptr);
 
   ASSERT_EQ(
@@ -410,7 +417,8 @@ TEST_F(MasterAssignOrderTest, OrderComplete_FiresOnceWhenAgvParksAtLastNode)
 TEST_F(MasterAssignOrderTest, AssignOrder_FilledHeaderEnablesPublish)
 {
   make_agv_ready();
-  auto agv = master_->get_agv(kManufacturer, kSerial);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(agv, nullptr);
 
   auto order = make_minimal_order(0);
@@ -430,7 +438,8 @@ TEST_F(MasterAssignOrderTest, AssignOrder_StitchedUpdate_SentAhead)
 {
   // V0 is multi-node; AGV at N0 (not at stitch anchor N1@2). U1 is sent ahead
   // of the AGV — reaching the stitch is not required.
-  auto agv = master_->get_agv(kManufacturer, kSerial);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(agv, nullptr);
 
   // Drive AGV ready, parked at N0.
@@ -472,7 +481,8 @@ TEST_F(MasterAssignOrderTest, AssignOrder_StitchedUpdate_QueuedWhenNotOnOrder)
 {
   // V0 active, but the AGV still reports a different order_id (has not adopted
   // it on the wire) — an update to it queues until the AGV is on the order.
-  auto agv = master_->get_agv(kManufacturer, kSerial);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(agv, nullptr);
 
   agv->handle_connection(make_online_connection());
@@ -505,7 +515,8 @@ TEST_F(MasterAssignOrderTest, AssignOrder_StitchedUpdate_Rejected)
 {
   // V0 active. Send a candidate with backward order_update_id (same
   // order_id, lower id) → stitcher pre-flight returns REJECT.
-  auto agv = master_->get_agv(kManufacturer, kSerial);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(agv, nullptr);
 
   agv->handle_connection(make_online_connection());
@@ -535,7 +546,8 @@ TEST_F(MasterAssignOrderTest, AssignOrder_DifferentOrderWhileBusy_Rejected)
 {
   // Order A active and NOT complete; assigning a different order_id must be
   // rejected synchronously, not falsely reported ASSIGNED.
-  auto agv = master_->get_agv(kManufacturer, kSerial);
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
   ASSERT_NE(agv, nullptr);
 
   agv->handle_connection(make_online_connection());

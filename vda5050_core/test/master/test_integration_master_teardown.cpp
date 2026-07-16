@@ -70,7 +70,7 @@ protected:
 
 TEST_F(MasterTeardownTest, OffboardAgvUnsubscribesAllPerAgvTopics)
 {
-  auto master = std::make_shared<VDA5050Master>(mock_);
+  auto master = VDA5050Master::make(mock_);
   master->connect();
   master->onboard_agv("acme", "agv-001");
 
@@ -91,7 +91,7 @@ TEST_F(MasterTeardownTest, OffboardAgvUnsubscribesAllPerAgvTopics)
 
 TEST_F(MasterTeardownTest, OffboardAgvUnsubscribesAllPerAgvTopicsInterfaceName)
 {
-  auto master = std::make_shared<VDA5050Master>(mock_);
+  auto master = VDA5050Master::make(mock_);
   master->connect();
   {  // default interface name
     master->onboard_agv("acme", "agv-001");
@@ -154,7 +154,7 @@ TEST_F(MasterTeardownTest, MasterDestructionUnsubscribesAllPerAgvTopics)
     .Times(1);
 
   {
-    auto master = std::make_shared<VDA5050Master>(mock_);
+    auto master = VDA5050Master::make(mock_);
     master->connect();
     master->onboard_agv("acme", "agv-001");
     // master leaves scope → AGV destructor runs → unsubscribe chain
@@ -163,7 +163,7 @@ TEST_F(MasterTeardownTest, MasterDestructionUnsubscribesAllPerAgvTopics)
 
 TEST_F(MasterTeardownTest, MultipleAgvsAllUnsubscribeOnOffboard)
 {
-  auto master = std::make_shared<VDA5050Master>(mock_);
+  auto master = VDA5050Master::make(mock_);
   master->connect();
   master->onboard_agv("mfg1", "001");
   master->onboard_agv("mfg2", "002");

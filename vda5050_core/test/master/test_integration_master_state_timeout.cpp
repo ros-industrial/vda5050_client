@@ -181,7 +181,7 @@ protected:
     EXPECT_CALL(
       *mock_, publish(::testing::_, ::testing::_, ::testing::_, ::testing::_))
       .Times(::testing::AnyNumber());
-    master_ = std::make_shared<VDA5050Master>(mock_);
+    master_ = VDA5050Master::make(mock_);
     master_->on_state_timeout(
       [this](const std::string& id) { tracker_.on_state_timeout(id); });
     master_->on_state_resumed(

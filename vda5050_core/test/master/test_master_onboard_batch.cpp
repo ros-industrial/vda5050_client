@@ -77,7 +77,7 @@ protected:
       *mock_, publish(::testing::_, ::testing::_, ::testing::_, ::testing::_))
       .Times(::testing::AnyNumber());
 
-    master_ = std::make_shared<VDA5050Master>(mock_);
+    master_ = VDA5050Master::make(mock_);
   }
 
   static VDA5050Master::OnboardSpec spec(

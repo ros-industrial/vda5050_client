@@ -209,7 +209,7 @@ protected:
       *mock_, publish(::testing::_, ::testing::_, ::testing::_, ::testing::_))
       .Times(::testing::AnyNumber());
 
-    master_ = std::make_shared<VDA5050Master>(mock_);
+    master_ = VDA5050Master::make(mock_);
     master_->set_graph(make_test_graph());
     master_->onboard_agv(kManufacturer, kSerial);
   }
@@ -572,7 +572,7 @@ protected:
           }
         });
 
-    master_ = std::make_shared<VDA5050Master>(mock_);
+    master_ = VDA5050Master::make(mock_);
     master_->set_graph(make_test_graph());
     master_->onboard_agv(kManufacturer, kSerial);
   }

@@ -64,6 +64,13 @@ void stamp_outbound_header(
 // Constructor / Destructor
 // ============================================================================
 
+std::shared_ptr<VDA5050Master> VDA5050Master::make(
+  std::shared_ptr<vda5050_core::transport::MqttClientInterface> mqtt_client)
+{
+  return std::shared_ptr<VDA5050Master>(
+    new VDA5050Master(std::move(mqtt_client)));
+}
+
 VDA5050Master::VDA5050Master(
   std::shared_ptr<vda5050_core::transport::MqttClientInterface> mqtt_client)
 : mqtt_client_(std::move(mqtt_client))

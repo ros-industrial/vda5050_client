@@ -45,16 +45,17 @@
 namespace vda5050_core {
 namespace master {
 
-/// \brief VDA5050 multi-AGV fleet control. Register on_* reaction callbacks,
-///        then connect and onboard. Must be make_shared-constructed; callbacks
-///        run on the transport thread and must be thread-safe.
+/// \brief VDA5050 multi-AGV fleet control: onboards AGVs, routes their
+///        messages, queues outbound. Thread-safe.
 class VDA5050Master : public std::enable_shared_from_this<VDA5050Master>
 {
 public:
-  VDA5050Master(
+  /// \brief Create a master. Shared ownership is required: the broker
+  ///        callbacks and the owned AGVs hold weak references back to it.
+  static std::shared_ptr<VDA5050Master> make(
     std::shared_ptr<vda5050_core::transport::MqttClientInterface> mqtt_client);
 
-  virtual ~VDA5050Master();
+  ~VDA5050Master();
 
   VDA5050Master(const VDA5050Master&) = delete;
   VDA5050Master& operator=(const VDA5050Master&) = delete;
@@ -334,6 +335,9 @@ public:
   void on_broker_reconnected(std::function<void()> callback);
 
 private:
+  VDA5050Master(
+    std::shared_ptr<vda5050_core::transport::MqttClientInterface> mqtt_client);
+
   // The owned AGV calls these on the MQTT thread to feed the event detector
   // and run the registered raw-message handlers; not user-facing.
   friend class AGV;

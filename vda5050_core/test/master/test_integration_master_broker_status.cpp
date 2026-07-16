@@ -114,7 +114,7 @@ protected:
   void SetUp() override
   {
     fake_ = std::make_shared<FakeMqttClient>();
-    master_ = std::make_shared<VDA5050Master>(fake_);
+    master_ = VDA5050Master::make(fake_);
     master_->on_broker_disconnected(
       [this] { disconnected_calls.fetch_add(1); });
     master_->on_broker_reconnected([this] { reconnected_calls.fetch_add(1); });

@@ -155,7 +155,7 @@ protected:
     EXPECT_CALL(
       *mock_, publish(::testing::_, ::testing::_, ::testing::_, ::testing::_))
       .Times(::testing::AnyNumber());
-    master_ = std::make_shared<VDA5050Master>(mock_);
+    master_ = VDA5050Master::make(mock_);
     master_->on_mode_changed([this](
                                const std::string& agv_id,
                                vda5050_core::types::OperatingMode new_mode,

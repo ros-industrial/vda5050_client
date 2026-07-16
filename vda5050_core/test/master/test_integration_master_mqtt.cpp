@@ -58,7 +58,7 @@ protected:
     std::string broker = "tcp://localhost:1883";
     auto client = vda5050_core::transport::create_default_client_shared(
       broker, "master_mqtt_test");
-    return std::make_shared<VDA5050Master>(client);
+    return VDA5050Master::make(client);
   }
 
   std::string interface_name_;

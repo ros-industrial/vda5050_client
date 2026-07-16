@@ -97,7 +97,7 @@ int main()
 
   auto mqtt = vda5050_core::transport::create_default_client_shared(
     kBroker, "master_example");
-  auto master = std::make_shared<VDA5050Master>(mqtt);
+  auto master = VDA5050Master::make(mqtt);
 
   // Touched only from callbacks (one inbound thread), so no synchronization.
   bool init_sent = false;

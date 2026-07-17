@@ -98,10 +98,8 @@ AGV::~AGV()
   cleanup_heartbeat();
 
   // Unsubscribe so the broker stops routing to captured lambdas, then drop the
-  // per-AGV adapter (the master keeps the underlying MqttClient). A closed
-  // connection has already stopped routing, and unsubscribing over it only
-  // raises a transport error.
-  if (protocol_adapter_ && protocol_adapter_->connected())
+  // per-AGV adapter (the master keeps the underlying MqttClient).
+  if (protocol_adapter_)
   {
     protocol_adapter_->unsubscribe<vda5050_core::types::Connection>();
     protocol_adapter_->unsubscribe<vda5050_core::types::State>();
@@ -245,8 +243,7 @@ void AGV::set_connection_status(vda5050_core::types::ConnectionState status)
     if (operational_state_ != AGVState::UNAVAILABLE)
     {
       operational_state_ = AGVState::UNAVAILABLE;
-      // The connection-status line below reports the same transition.
-      VDA5050_DEBUG(
+      VDA5050_INFO(
         "Operational state changed to UNAVAILABLE for [{}] (connection {})",
         agv_id_,
         status == vda5050_core::types::ConnectionState::OFFLINE

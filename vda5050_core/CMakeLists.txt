@@ -96,7 +96,7 @@ target_include_directories(vda5050_errors
 )
 
 # Validation
-file(GLOB_RECURSE validation_srcs CONFIGURE_DEPENDS "src/validation/*.cpp")
+file(GLOB_RECURSE validation_srcs "src/validation/*.cpp")
 add_library(vda5050_validation SHARED ${validation_srcs})
 vda5050_configure_target_alias(
   TARGET vda5050_validation
@@ -194,7 +194,7 @@ target_include_directories(vda5050_layout
 )
 
 # Master
-file(GLOB_RECURSE master_srcs CONFIGURE_DEPENDS "src/master/*.cpp")
+file(GLOB_RECURSE master_srcs "src/master/*.cpp")
 add_library(vda5050_master SHARED ${master_srcs})
 vda5050_configure_target_alias(
   TARGET vda5050_master

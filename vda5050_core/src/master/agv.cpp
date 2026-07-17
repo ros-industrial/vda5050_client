@@ -85,13 +85,13 @@ AGV::AGV(
   max_queue_size_(max_queue_size),
   drop_oldest_(drop_oldest)
 {
-  VDA5050_DEBUG("[AGV] Created AGV instance: {}", agv_id_);
+  VDA5050_DEBUG("Created AGV instance [{}]", agv_id_);
   // Caller wires subscriptions after make_shared (weak_from_this needs it).
 }
 
 AGV::~AGV()
 {
-  VDA5050_DEBUG("[AGV] Destroying AGV instance: {}", agv_id_);
+  VDA5050_DEBUG("Destroying AGV instance [{}]", agv_id_);
 
   // Teardown order: stop threads (they join inside), then release resources.
   stop_queue_processor();
@@ -110,7 +110,7 @@ AGV::~AGV()
   }
   protocol_adapter_.reset();
 
-  VDA5050_DEBUG("[AGV] AGV instance destroyed: {}", agv_id_);
+  VDA5050_DEBUG("AGV instance destroyed [{}]", agv_id_);
 }
 
 void AGV::setup_subscriptions()
@@ -132,7 +132,7 @@ void AGV::setup_subscriptions()
 
 void AGV::stop()
 {
-  VDA5050_DEBUG("[AGV] Stopping AGV: {}", agv_id_);
+  VDA5050_DEBUG("Stopping AGV [{}]", agv_id_);
 
   stop_queue_processor();
   cleanup_heartbeat();
@@ -149,12 +149,12 @@ void AGV::stop()
     instant_actions_queue_ = {};
   }
 
-  VDA5050_DEBUG("[AGV] AGV stopped: {}", agv_id_);
+  VDA5050_DEBUG("AGV stopped [{}]", agv_id_);
 }
 
 void AGV::restart()
 {
-  VDA5050_DEBUG("[AGV] Restarting AGV: {}", agv_id_);
+  VDA5050_DEBUG("Restarting AGV [{}]", agv_id_);
 
   stop();
 
@@ -183,12 +183,12 @@ void AGV::restart()
     mode_cancelled_queue_ = ModeCancelledQueue{};
   }
 
-  VDA5050_DEBUG("[AGV] AGV restarted, ready for connections: {}", agv_id_);
+  VDA5050_DEBUG("AGV restarted, ready for connections [{}]", agv_id_);
 }
 
 void AGV::pause()
 {
-  VDA5050_DEBUG("[AGV] Pausing AGV: {}", agv_id_);
+  VDA5050_DEBUG("Pausing AGV [{}]", agv_id_);
 
   stop_queue_processor();
   cleanup_heartbeat();
@@ -199,17 +199,17 @@ void AGV::pause()
     operational_state_ = AGVState::UNAVAILABLE;
   }
 
-  VDA5050_DEBUG("[AGV] AGV paused: {}", agv_id_);
+  VDA5050_DEBUG("AGV paused [{}]", agv_id_);
 }
 
 void AGV::resume()
 {
-  VDA5050_DEBUG("[AGV] Resuming AGV: {}", agv_id_);
+  VDA5050_DEBUG("Resuming AGV [{}]", agv_id_);
 
   setup_heartbeat();
   start_queue_processor();
 
-  VDA5050_DEBUG("[AGV] AGV resumed: {}", agv_id_);
+  VDA5050_DEBUG("AGV resumed [{}]", agv_id_);
 }
 
 // --- Connection and Operational State ---
@@ -245,8 +245,9 @@ void AGV::set_connection_status(vda5050_core::types::ConnectionState status)
     if (operational_state_ != AGVState::UNAVAILABLE)
     {
       operational_state_ = AGVState::UNAVAILABLE;
-      VDA5050_INFO(
-        "[AGV] Operational state changed to UNAVAILABLE for {} (connection {})",
+      // The connection-status line below reports the same transition.
+      VDA5050_DEBUG(
+        "Operational state changed to UNAVAILABLE for [{}] (connection {})",
         agv_id_,
         status == vda5050_core::types::ConnectionState::OFFLINE
           ? "OFFLINE"
@@ -271,7 +272,7 @@ void AGV::set_connection_status(vda5050_core::types::ConnectionState status)
         break;
     }
     VDA5050_INFO(
-      "[AGV] Connection status changed to {} for {}", status_str, agv_id_);
+      "Connection status changed to {} for [{}]", status_str, agv_id_);
   }
 }
 
@@ -312,8 +313,7 @@ AGVState AGV::set_operational_state(AGVState state)
       state_str = "ERROR";
       break;
   }
-  VDA5050_INFO(
-    "[AGV] Operational state changed to {} for {}", state_str, agv_id_);
+  VDA5050_INFO("Operational state changed to {} for [{}]", state_str, agv_id_);
   return operational_state_;
 }
 
@@ -333,7 +333,7 @@ void AGV::on_state_heartbeat_timeout()
   {
     return;
   }
-  VDA5050_WARN("[AGV] State heartbeat timeout for {}", agv_id_);
+  VDA5050_WARN("State heartbeat timeout for [{}]", agv_id_);
 
   // Pending orders are NOT auto-cancelled (silence may be transient); pre-send
   // rejects orders for STATE_UNKNOWN AGVs anyway.
@@ -354,7 +354,7 @@ void AGV::setup_heartbeat()
     return;  // Already set up
   }
 
-  VDA5050_DEBUG("[AGV] Setting up heartbeat for {}", agv_id_);
+  VDA5050_DEBUG("Setting up heartbeat for [{}]", agv_id_);
 
   state_heartbeat_ = std::make_unique<HeartbeatListener>(
     agv_id_ + "_state_heartbeat", state_heartbeat_interval_,
@@ -373,7 +373,7 @@ void AGV::cleanup_heartbeat()
       return;  // Nothing to clean up
     }
 
-    VDA5050_DEBUG("[AGV] Cleaning up heartbeat for {}", agv_id_);
+    VDA5050_DEBUG("Cleaning up heartbeat for [{}]", agv_id_);
 
     heartbeat_to_stop = std::move(state_heartbeat_);
   }
@@ -391,8 +391,8 @@ void AGV::handle_connection(const vda5050_core::types::Connection& msg)
   if (!schema_result)
   {
     VDA5050_WARN(
-      "[AGV] Dropping malformed connection from {}: {} schema error(s)",
-      agv_id_, schema_result.fatal_errors().size());
+      "Dropping malformed connection from [{}]: {} schema error(s)", agv_id_,
+      schema_result.fatal_errors().size());
     return;
   }
 
@@ -450,7 +450,7 @@ void AGV::cancel_pending_orders()
   std::lock_guard<std::mutex> lock(queue_mutex_);
   order_queue_ = {};
   instant_actions_queue_ = {};
-  VDA5050_INFO("[AGV] Cleared pending outbound queues for {}", agv_id_);
+  VDA5050_INFO("Cleared pending outbound queues for [{}]", agv_id_);
 }
 
 // --- Mode-cancelled queue ---
@@ -483,7 +483,7 @@ void AGV::capture_and_drain_on_leave_master_control(
     !mode_cancelled_queue_.instant_actions.empty())
   {
     VDA5050_WARN(
-      "[AGV] {} left master control — captured {} order(s) + {} instant "
+      "[{}] left master control — captured {} order(s) + {} instant "
       "action(s) into resumable buffer",
       agv_id_, mode_cancelled_queue_.orders.size(),
       mode_cancelled_queue_.instant_actions.size());
@@ -491,7 +491,7 @@ void AGV::capture_and_drain_on_leave_master_control(
   else
   {
     VDA5050_INFO(
-      "[AGV] {} left master control — outbound queues already empty", agv_id_);
+      "[{}] left master control — outbound queues already empty", agv_id_);
   }
 }
 
@@ -545,7 +545,7 @@ std::pair<std::size_t, std::size_t> AGV::resume_mode_cancelled_queue()
   if (orders_resumed > 0 || actions_resumed > 0)
   {
     VDA5050_INFO(
-      "[AGV] {} resumed {} order(s) + {} instant action(s) at front of "
+      "[{}] resumed {} order(s) + {} instant action(s) at front of "
       "live queue",
       agv_id_, orders_resumed, actions_resumed);
     queue_cv_.notify_all();
@@ -562,7 +562,7 @@ std::pair<std::size_t, std::size_t> AGV::discard_mode_cancelled_queue()
   if (orders_n > 0 || actions_n > 0)
   {
     VDA5050_INFO(
-      "[AGV] {} discarded {} order(s) + {} instant action(s) from "
+      "[{}] discarded {} order(s) + {} instant action(s) from "
       "mode-cancelled buffer",
       agv_id_, orders_n, actions_n);
   }
@@ -577,7 +577,7 @@ void AGV::handle_state(const vda5050_core::types::State& msg)
   if (!schema_result)
   {
     VDA5050_WARN(
-      "[AGV] Dropping malformed state from {}: {} schema error(s)", agv_id_,
+      "Dropping malformed state from [{}]: {} schema error(s)", agv_id_,
       schema_result.fatal_errors().size());
     return;
   }
@@ -600,7 +600,7 @@ void AGV::handle_state(const vda5050_core::types::State& msg)
     if (have_state_baseline_ && msg.header.header_id < last_state_header_id_)
     {
       VDA5050_DEBUG(
-        "[AGV] Dropping stale state from {} (header_id {} < {})", agv_id_,
+        "Dropping stale state from [{}] (header_id {} < {})", agv_id_,
         msg.header.header_id, last_state_header_id_);
       return;
     }
@@ -630,8 +630,8 @@ void AGV::handle_state(const vda5050_core::types::State& msg)
     // Outbound queue full — return the unsent updates to the front of pending,
     // in order, so a congested queue can't reorder the stitch chain.
     VDA5050_WARN(
-      "[AGV] Outbound queue full for {}; re-queuing {} order update(s)",
-      agv_id_, ready_updates.size() - i);
+      "Outbound queue full for [{}]; re-queuing {} order update(s)", agv_id_,
+      ready_updates.size() - i);
     order_lifecycle_.requeue_pending_front(
       {ready_updates.begin() + i, ready_updates.end()});
     break;
@@ -676,7 +676,7 @@ void AGV::handle_factsheet(const vda5050_core::types::Factsheet& msg)
   if (!schema_result)
   {
     VDA5050_WARN(
-      "[AGV] Dropping malformed factsheet from {}: {} schema error(s)", agv_id_,
+      "Dropping malformed factsheet from [{}]: {} schema error(s)", agv_id_,
       schema_result.fatal_errors().size());
     return;
   }
@@ -704,8 +704,8 @@ void AGV::handle_visualization(const vda5050_core::types::Visualization& msg)
   if (!schema_result)
   {
     VDA5050_WARN(
-      "[AGV] Dropping malformed visualization from {}: {} schema error(s)",
-      agv_id_, schema_result.fatal_errors().size());
+      "Dropping malformed visualization from [{}]: {} schema error(s)", agv_id_,
+      schema_result.fatal_errors().size());
     return;
   }
 
@@ -718,8 +718,8 @@ void AGV::handle_visualization(const vda5050_core::types::Visualization& msg)
       msg.header.header_id < last_visualization_header_id_)
     {
       VDA5050_DEBUG(
-        "[AGV] Dropping stale visualization from {} (header_id {} < {})",
-        agv_id_, msg.header.header_id, last_visualization_header_id_);
+        "Dropping stale visualization from [{}] (header_id {} < {})", agv_id_,
+        msg.header.header_id, last_visualization_header_id_);
       return;
     }
     last_visualization_ = msg;
@@ -906,21 +906,21 @@ bool AGV::enqueue_order(
     if (!drop_oldest_)
     {
       VDA5050_WARN(
-        "[AGV] Dropping new order: queue full ({}/{}) for {}",
-        order_queue_.size(), max_queue_size_, agv_id_);
+        "Dropping new order: queue full ({}/{}) for [{}]", order_queue_.size(),
+        max_queue_size_, agv_id_);
       return false;
     }
     // Drop oldest order to make room
     VDA5050_WARN(
-      "[AGV] Dropping oldest order: queue full ({}/{}) for {}",
-      order_queue_.size(), max_queue_size_, agv_id_);
+      "Dropping oldest order: queue full ({}/{}) for [{}]", order_queue_.size(),
+      max_queue_size_, agv_id_);
     order_queue_.pop();
   }
 
   order_queue_.push(QueuedOrder{order, pre_stitched});
   queue_cv_.notify_one();
 
-  VDA5050_DEBUG("[AGV] Queued order for AGV: {}", agv_id_);
+  VDA5050_DEBUG("Queued order for AGV [{}]", agv_id_);
   return true;
 }
 
@@ -934,13 +934,13 @@ bool AGV::send_instant_actions(
     if (!drop_oldest_)
     {
       VDA5050_WARN(
-        "[AGV] Dropping new instant actions: queue full ({}/{}) for {}",
+        "Dropping new instant actions: queue full ({}/{}) for [{}]",
         instant_actions_queue_.size(), max_queue_size_, agv_id_);
       return false;
     }
     // Drop oldest instant actions to make room
     VDA5050_WARN(
-      "[AGV] Dropping oldest instant actions: queue full ({}/{}) for {}",
+      "Dropping oldest instant actions: queue full ({}/{}) for [{}]",
       instant_actions_queue_.size(), max_queue_size_, agv_id_);
     instant_actions_queue_.pop();
   }
@@ -948,7 +948,7 @@ bool AGV::send_instant_actions(
   instant_actions_queue_.push(actions);
   queue_cv_.notify_one();
 
-  VDA5050_DEBUG("[AGV] Queued instant actions for AGV: {}", agv_id_);
+  VDA5050_DEBUG("Queued instant actions for AGV [{}]", agv_id_);
   return true;
 }
 
@@ -988,7 +988,7 @@ void AGV::start_queue_processor()
     return;  // Already running
   }
 
-  VDA5050_DEBUG("[AGV] Starting queue processor for {}", agv_id_);
+  VDA5050_DEBUG("Starting queue processor for [{}]", agv_id_);
 
   {
     std::lock_guard<std::mutex> queue_lock(queue_mutex_);
@@ -1015,7 +1015,7 @@ void AGV::stop_queue_processor()
 
     if (queue_processor_running_ || queue_thread_.joinable())
     {
-      VDA5050_DEBUG("[AGV] Stopping queue processor for {}", agv_id_);
+      VDA5050_DEBUG("Stopping queue processor for [{}]", agv_id_);
     }
 
     thread_to_join = std::move(queue_thread_);
@@ -1025,13 +1025,13 @@ void AGV::stop_queue_processor()
   if (thread_to_join.joinable())
   {
     thread_to_join.join();
-    VDA5050_DEBUG("[AGV] Queue processor stopped for {}", agv_id_);
+    VDA5050_DEBUG("Queue processor stopped for [{}]", agv_id_);
   }
 }
 
 void AGV::process_queues()
 {
-  VDA5050_DEBUG("[AGV] Queue processing thread started for {}", agv_id_);
+  VDA5050_DEBUG("Queue processing thread started for [{}]", agv_id_);
 
   while (true)
   {
@@ -1077,7 +1077,7 @@ void AGV::process_queues()
     }
   }
 
-  VDA5050_DEBUG("[AGV] Queue processing thread stopped for {}", agv_id_);
+  VDA5050_DEBUG("Queue processing thread stopped for [{}]", agv_id_);
 }
 
 // --- Publishing ---
@@ -1087,8 +1087,7 @@ void AGV::publish_order(
 {
   if (!protocol_adapter_)
   {
-    VDA5050_WARN(
-      "[AGV] Cannot publish order: no protocol adapter for {}", agv_id_);
+    VDA5050_WARN("Cannot publish order: no protocol adapter for [{}]", agv_id_);
     return;
   }
 
@@ -1105,7 +1104,7 @@ void AGV::publish_order(
         break;
       case StitchDecision::IGNORE:
         VDA5050_INFO(
-          "[AGV] Ignoring duplicate order {} (update {}) for {}: already "
+          "Ignoring duplicate order [{}] (update {}) for [{}]: already "
           "applied",
           order.order_id, order.order_update_id, agv_id_);
         return;
@@ -1113,20 +1112,20 @@ void AGV::publish_order(
         if (!order_lifecycle_.enqueue_pending_update(order))
         {
           VDA5050_WARN(
-            "[AGV] Pending queue full for {}; dropping order {} (update {})",
+            "Pending queue full for [{}]; dropping order [{}] (update {})",
             agv_id_, order.order_id, order.order_update_id);
         }
         else
         {
           VDA5050_INFO(
-            "[AGV] Queued order {} (update {}) for {}: {}", order.order_id,
+            "Queued order [{}] (update {}) for [{}]: {}", order.order_id,
             order.order_update_id, agv_id_,
             guard_failure_to_str(stitch.first_failed_guard));
         }
         return;
       case StitchDecision::REJECT:
         VDA5050_ERROR(
-          "[AGV] Stitch validation rejected order {} (update {}) for {}: "
+          "Stitch validation rejected order [{}] (update {}) for [{}]: "
           "{} error(s)",
           order.order_id, order.order_update_id, agv_id_, stitch.errors.size());
         return;
@@ -1158,8 +1157,8 @@ void AGV::publish_order(
 
   if (!ctx.last_factsheet.has_value())
   {
-    VDA5050_WARN(
-      "[AGV] No factsheet cached for {}; traversability capability and "
+    VDA5050_DEBUG(
+      "No factsheet cached for [{}]; traversability capability and "
       "limit checks will be skipped (reachability still runs).",
       agv_id_);
   }
@@ -1170,12 +1169,12 @@ void AGV::publish_order(
   if (!result)
   {
     VDA5050_ERROR(
-      "[AGV] Order validation failed for {}: {} error(s)", agv_id_,
+      "Order validation failed for [{}]: {} error(s)", agv_id_,
       result.fatal_errors().size());
     for (const auto& err : result.fatal_errors())
     {
       VDA5050_ERROR(
-        "[AGV]   - type={} level={} desc={}", err.error_type,
+        "  - type={} level={} desc={}", err.error_type,
         err.error_level == vda5050_core::types::ErrorLevel::FATAL ? "FATAL"
                                                                   : "WARNING",
         err.error_description.value_or(""));
@@ -1193,8 +1192,7 @@ void AGV::publish_instant_actions(
   if (!protocol_adapter_)
   {
     VDA5050_WARN(
-      "[AGV] Cannot publish instant actions: no protocol adapter for {}",
-      agv_id_);
+      "Cannot publish instant actions: no protocol adapter for [{}]", agv_id_);
     return;
   }
 
@@ -1211,8 +1209,8 @@ void AGV::publish_instant_actions(
 
   if (!ctx.last_factsheet.has_value())
   {
-    VDA5050_WARN(
-      "[AGV] No factsheet cached for {}; traversability capability check "
+    VDA5050_DEBUG(
+      "No factsheet cached for [{}]; traversability capability check "
       "will be skipped for this InstantActions publish.",
       agv_id_);
   }
@@ -1222,7 +1220,7 @@ void AGV::publish_instant_actions(
   if (!result)
   {
     VDA5050_ERROR(
-      "[AGV] Instant actions validation failed for {}: {} error(s)", agv_id_,
+      "Instant actions validation failed for [{}]: {} error(s)", agv_id_,
       result.fatal_errors().size());
   }
 }

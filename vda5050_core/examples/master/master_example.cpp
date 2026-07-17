@@ -107,18 +107,20 @@ int main()
   // Alternate N0->N1 / N1->N0 so each order starts where the AGV parked.
   auto next_order = [&]() -> bool {
     const bool forward = orders_sent % 2 == 0;
+    const std::string order_id = "order-" + std::to_string(orders_sent);
     auto res = master->assign_order(
       kManufacturer, kSerial,
-      make_order(
-        "order-" + std::to_string(orders_sent), forward ? "N0" : "N1",
-        forward ? "N1" : "N0"));
+      make_order(order_id, forward ? "N0" : "N1", forward ? "N1" : "N0"));
     if (res)
     {
       ++orders_sent;
+      VDA5050_INFO(
+        "Assigned new order [{}] to [{}/{}]", order_id, kManufacturer, kSerial);
       return true;
     }
     VDA5050_WARN(
-      "[master] order not assigned ({} error(s))", res.errors.size());
+      "Order [{}] not assigned to [{}/{}] ({} error(s))", order_id,
+      kManufacturer, kSerial, res.errors.size());
     return false;
   };
 
@@ -126,7 +128,7 @@ int main()
     // Re-run setup on every (re)connect in case the AGV restarted.
     init_sent = false;
     first_order_sent = false;
-    VDA5050_INFO("[master] {} online; requesting factsheet + state", agv_id);
+    VDA5050_INFO("[{}] online; requesting factsheet + state", agv_id);
     send_action(
       master, ActionFactory::build_factsheet_request(
                 ActionFactory::generate_action_id()));
@@ -136,7 +138,7 @@ int main()
   });
 
   master->on_factsheet([](const std::string& agv_id, const types::Factsheet&) {
-    VDA5050_INFO("[master] {} factsheet received", agv_id);
+    VDA5050_INFO("[{}] factsheet received", agv_id);
   });
 
   // Drive setup off State: initialize the pose, then send the first order.
@@ -145,7 +147,7 @@ int main()
                              state.agv_position->position_initialized;
     if (!initialized && !init_sent)
     {
-      VDA5050_INFO("[master] {} uninitialized; sending initPosition", agv_id);
+      VDA5050_INFO("[{}] uninitialized; sending initPosition", agv_id);
       send_action(
         master,
         ActionFactory::build_init_position(
@@ -154,39 +156,37 @@ int main()
     }
     else if (initialized && !first_order_sent)
     {
-      VDA5050_INFO("[master] {} ready; assigning first order", agv_id);
       first_order_sent = next_order();
     }
   });
 
   master->on_node_reached(
     [](const std::string& agv_id, const std::string& node_id) {
-      VDA5050_INFO("[master] {} reached node {}", agv_id, node_id);
+      VDA5050_INFO("[{}] reached node [{}]", agv_id, node_id);
     });
 
   // Completion drives the loop: assign the next order (forever by default).
   master->on_order_complete(
     [&](const std::string& agv_id, const std::string& order_id) {
-      VDA5050_INFO("[master] {} completed order {}", agv_id, order_id);
+      VDA5050_INFO("[{}] completed order [{}]", agv_id, order_id);
       if (kMaxOrders != 0 && orders_sent >= kMaxOrders)
       {
-        VDA5050_INFO("[master] demo complete after {} order(s)", orders_sent);
+        VDA5050_INFO("demo complete after {} order(s)", orders_sent);
         return;
       }
       next_order();
     });
 
   master->on_offline([](const std::string& agv_id) {
-    VDA5050_WARN("[master] {} went offline", agv_id);
+    VDA5050_WARN("[{}] went offline", agv_id);
   });
   master->on_connection_broken([](const std::string& agv_id) {
-    VDA5050_WARN("[master] {} connection lost", agv_id);
+    VDA5050_WARN("[{}] connection lost", agv_id);
   });
 
   master->connect();
   master->onboard_agv(kInterface, kManufacturer, kSerial);
-  VDA5050_INFO(
-    "[master] connected; waiting for {}/{} ...", kManufacturer, kSerial);
+  VDA5050_INFO("Connected; waiting for [{}/{}] ...", kManufacturer, kSerial);
 
   while (running)
   {

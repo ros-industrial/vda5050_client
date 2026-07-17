@@ -76,14 +76,14 @@ VDA5050Master::VDA5050Master(
 : mqtt_client_(std::move(mqtt_client))
 {
   register_event_dispatch();
-  VDA5050_INFO("[VDA5050Master] Created VDA5050Master instance");
+  VDA5050_DEBUG("[VDA5050Master] Created VDA5050Master instance");
   // Broker connection-state callbacks are wired in connect(), where
   // weak_from_this() is valid (it is not during construction).
 }
 
 VDA5050Master::~VDA5050Master()
 {
-  VDA5050_INFO("[VDA5050Master] Destroying VDA5050Master instance");
+  VDA5050_DEBUG("[VDA5050Master] Destroying VDA5050Master instance");
   // Clear the connection-state callbacks: the weak_ptr already no-ops in-flight
   // ones, and this stops a post-destruction auto-reconnect from firing.
   if (mqtt_client_)
@@ -105,7 +105,7 @@ VDA5050Master::~VDA5050Master()
       }
     }
   }
-  VDA5050_INFO("[VDA5050Master] VDA5050Master instance destroyed");
+  VDA5050_DEBUG("[VDA5050Master] VDA5050Master instance destroyed");
 }
 
 // ============================================================================
@@ -158,7 +158,7 @@ void VDA5050Master::disconnect()
     std::lock_guard<std::mutex> lock(broker_status_mutex_);
     broker_connected_ = false;
   }
-  VDA5050_INFO("[VDA5050Master] Disconnected");
+  VDA5050_DEBUG("[VDA5050Master] Disconnected");
 }
 
 bool VDA5050Master::is_connected() const

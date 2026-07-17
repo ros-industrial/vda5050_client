@@ -85,21 +85,23 @@ AGV::AGV(
   max_queue_size_(max_queue_size),
   drop_oldest_(drop_oldest)
 {
-  VDA5050_INFO("[AGV] Created AGV instance: {}", agv_id_);
+  VDA5050_DEBUG("[AGV] Created AGV instance: {}", agv_id_);
   // Caller wires subscriptions after make_shared (weak_from_this needs it).
 }
 
 AGV::~AGV()
 {
-  VDA5050_INFO("[AGV] Destroying AGV instance: {}", agv_id_);
+  VDA5050_DEBUG("[AGV] Destroying AGV instance: {}", agv_id_);
 
   // Teardown order: stop threads (they join inside), then release resources.
   stop_queue_processor();
   cleanup_heartbeat();
 
   // Unsubscribe so the broker stops routing to captured lambdas, then drop the
-  // per-AGV adapter (the master keeps the underlying MqttClient).
-  if (protocol_adapter_)
+  // per-AGV adapter (the master keeps the underlying MqttClient). A closed
+  // connection has already stopped routing, and unsubscribing over it only
+  // raises a transport error.
+  if (protocol_adapter_ && protocol_adapter_->connected())
   {
     protocol_adapter_->unsubscribe<vda5050_core::types::Connection>();
     protocol_adapter_->unsubscribe<vda5050_core::types::State>();
@@ -108,7 +110,7 @@ AGV::~AGV()
   }
   protocol_adapter_.reset();
 
-  VDA5050_INFO("[AGV] AGV instance destroyed: {}", agv_id_);
+  VDA5050_DEBUG("[AGV] AGV instance destroyed: {}", agv_id_);
 }
 
 void AGV::setup_subscriptions()
@@ -130,7 +132,7 @@ void AGV::setup_subscriptions()
 
 void AGV::stop()
 {
-  VDA5050_INFO("[AGV] Stopping AGV: {}", agv_id_);
+  VDA5050_DEBUG("[AGV] Stopping AGV: {}", agv_id_);
 
   stop_queue_processor();
   cleanup_heartbeat();
@@ -147,12 +149,12 @@ void AGV::stop()
     instant_actions_queue_ = {};
   }
 
-  VDA5050_INFO("[AGV] AGV stopped: {}", agv_id_);
+  VDA5050_DEBUG("[AGV] AGV stopped: {}", agv_id_);
 }
 
 void AGV::restart()
 {
-  VDA5050_INFO("[AGV] Restarting AGV: {}", agv_id_);
+  VDA5050_DEBUG("[AGV] Restarting AGV: {}", agv_id_);
 
   stop();
 
@@ -181,12 +183,12 @@ void AGV::restart()
     mode_cancelled_queue_ = ModeCancelledQueue{};
   }
 
-  VDA5050_INFO("[AGV] AGV restarted, ready for connections: {}", agv_id_);
+  VDA5050_DEBUG("[AGV] AGV restarted, ready for connections: {}", agv_id_);
 }
 
 void AGV::pause()
 {
-  VDA5050_INFO("[AGV] Pausing AGV: {}", agv_id_);
+  VDA5050_DEBUG("[AGV] Pausing AGV: {}", agv_id_);
 
   stop_queue_processor();
   cleanup_heartbeat();
@@ -197,17 +199,17 @@ void AGV::pause()
     operational_state_ = AGVState::UNAVAILABLE;
   }
 
-  VDA5050_INFO("[AGV] AGV paused: {}", agv_id_);
+  VDA5050_DEBUG("[AGV] AGV paused: {}", agv_id_);
 }
 
 void AGV::resume()
 {
-  VDA5050_INFO("[AGV] Resuming AGV: {}", agv_id_);
+  VDA5050_DEBUG("[AGV] Resuming AGV: {}", agv_id_);
 
   setup_heartbeat();
   start_queue_processor();
 
-  VDA5050_INFO("[AGV] AGV resumed: {}", agv_id_);
+  VDA5050_DEBUG("[AGV] AGV resumed: {}", agv_id_);
 }
 
 // --- Connection and Operational State ---
@@ -287,6 +289,11 @@ AGVState AGV::set_operational_state(AGVState state)
     return operational_state_;
   }
 
+  if (operational_state_ == state)
+  {
+    return operational_state_;
+  }
+
   operational_state_ = state;
 
   const char* state_str = "UNKNOWN";
@@ -347,7 +354,7 @@ void AGV::setup_heartbeat()
     return;  // Already set up
   }
 
-  VDA5050_INFO("[AGV] Setting up heartbeat for {}", agv_id_);
+  VDA5050_DEBUG("[AGV] Setting up heartbeat for {}", agv_id_);
 
   state_heartbeat_ = std::make_unique<HeartbeatListener>(
     agv_id_ + "_state_heartbeat", state_heartbeat_interval_,
@@ -366,7 +373,7 @@ void AGV::cleanup_heartbeat()
       return;  // Nothing to clean up
     }
 
-    VDA5050_INFO("[AGV] Cleaning up heartbeat for {}", agv_id_);
+    VDA5050_DEBUG("[AGV] Cleaning up heartbeat for {}", agv_id_);
 
     heartbeat_to_stop = std::move(state_heartbeat_);
   }
@@ -913,7 +920,7 @@ bool AGV::enqueue_order(
   order_queue_.push(QueuedOrder{order, pre_stitched});
   queue_cv_.notify_one();
 
-  VDA5050_INFO("[AGV] Queued order for AGV: {}", agv_id_);
+  VDA5050_DEBUG("[AGV] Queued order for AGV: {}", agv_id_);
   return true;
 }
 
@@ -941,7 +948,7 @@ bool AGV::send_instant_actions(
   instant_actions_queue_.push(actions);
   queue_cv_.notify_one();
 
-  VDA5050_INFO("[AGV] Queued instant actions for AGV: {}", agv_id_);
+  VDA5050_DEBUG("[AGV] Queued instant actions for AGV: {}", agv_id_);
   return true;
 }
 
@@ -981,7 +988,7 @@ void AGV::start_queue_processor()
     return;  // Already running
   }
 
-  VDA5050_INFO("[AGV] Starting queue processor for {}", agv_id_);
+  VDA5050_DEBUG("[AGV] Starting queue processor for {}", agv_id_);
 
   {
     std::lock_guard<std::mutex> queue_lock(queue_mutex_);
@@ -1008,7 +1015,7 @@ void AGV::stop_queue_processor()
 
     if (queue_processor_running_ || queue_thread_.joinable())
     {
-      VDA5050_INFO("[AGV] Stopping queue processor for {}", agv_id_);
+      VDA5050_DEBUG("[AGV] Stopping queue processor for {}", agv_id_);
     }
 
     thread_to_join = std::move(queue_thread_);
@@ -1018,13 +1025,13 @@ void AGV::stop_queue_processor()
   if (thread_to_join.joinable())
   {
     thread_to_join.join();
-    VDA5050_INFO("[AGV] Queue processor stopped for {}", agv_id_);
+    VDA5050_DEBUG("[AGV] Queue processor stopped for {}", agv_id_);
   }
 }
 
 void AGV::process_queues()
 {
-  VDA5050_INFO("[AGV] Queue processing thread started for {}", agv_id_);
+  VDA5050_DEBUG("[AGV] Queue processing thread started for {}", agv_id_);
 
   while (true)
   {
@@ -1070,7 +1077,7 @@ void AGV::process_queues()
     }
   }
 
-  VDA5050_INFO("[AGV] Queue processing thread stopped for {}", agv_id_);
+  VDA5050_DEBUG("[AGV] Queue processing thread stopped for {}", agv_id_);
 }
 
 // --- Publishing ---

@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <mutex>
 #include <optional>
 #include <set>
 #include <sstream>
@@ -58,6 +59,17 @@ void stamp_outbound_header(
   if (header.serial_number.empty()) header.serial_number = serial_number;
 }
 
+// Warn once per process, not per master, so repeated construction stays quiet.
+void warn_experimental_once()
+{
+  static std::once_flag flag;
+  std::call_once(flag, [] {
+    VDA5050_WARN(
+      "VDA5050Master is experimental: the API is still taking shape and will "
+      "change in future releases.");
+  });
+}
+
 }  // namespace
 
 // ============================================================================
@@ -67,6 +79,7 @@ void stamp_outbound_header(
 std::shared_ptr<VDA5050Master> VDA5050Master::make(
   std::shared_ptr<vda5050_core::transport::MqttClientInterface> mqtt_client)
 {
+  warn_experimental_once();
   return std::shared_ptr<VDA5050Master>(
     new VDA5050Master(std::move(mqtt_client)));
 }

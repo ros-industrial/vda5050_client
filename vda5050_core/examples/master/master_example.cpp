@@ -41,8 +41,12 @@ constexpr auto kManufacturer = "Manufacturer";
 constexpr auto kSerial = "S001";
 constexpr auto kMapId = "map_1";
 
+// true  = drive the demo loop, assigning orders automatically.
+// false = connect, onboard, and localize only; assign orders yourself.
+constexpr bool kAutoDispatch = true;
+
 // 0 = assign the next order on every completion indefinitely; set > 0 to stop
-// after N orders instead.
+// after N orders instead. Ignored when kAutoDispatch is false.
 constexpr int kMaxOrders = 0;
 
 std::atomic_bool running{true};
@@ -99,7 +103,8 @@ int main()
     kBroker, "master_example");
   auto master = VDA5050Master::make(mqtt);
 
-  // Touched only from callbacks (one inbound thread), so no synchronization.
+  // Owned by the callback thread. Do not touch these, or next_order(), from
+  // main; call master->assign_order directly instead.
   bool init_sent = false;
   bool first_order_sent = false;
   int orders_sent = 0;
@@ -141,7 +146,7 @@ int main()
     VDA5050_INFO("[{}] factsheet received", agv_id);
   });
 
-  // Drive setup off State: initialize the pose, then send the first order.
+  // Drive setup off State: localize first, then dispatch if the demo is on.
   master->on_state([&](const std::string& agv_id, const types::State& state) {
     const bool initialized = state.agv_position.has_value() &&
                              state.agv_position->position_initialized;
@@ -153,8 +158,13 @@ int main()
         ActionFactory::build_init_position(
           ActionFactory::generate_action_id(), 0.0, 0.0, 0.0, kMapId, "N0"));
       init_sent = true;
+      return;
     }
-    else if (initialized && !first_order_sent)
+    if (!kAutoDispatch)
+    {
+      return;
+    }
+    if (initialized && !first_order_sent)
     {
       first_order_sent = next_order();
     }
@@ -165,10 +175,14 @@ int main()
       VDA5050_INFO("[{}] reached node [{}]", agv_id, node_id);
     });
 
-  // Completion drives the loop: assign the next order (forever by default).
+  // Completion drives the demo loop; a no-op when kAutoDispatch is false.
   master->on_order_complete(
     [&](const std::string& agv_id, const std::string& order_id) {
       VDA5050_INFO("[{}] completed order [{}]", agv_id, order_id);
+      if (!kAutoDispatch)
+      {
+        return;
+      }
       if (kMaxOrders != 0 && orders_sent >= kMaxOrders)
       {
         VDA5050_INFO("demo complete after {} order(s)", orders_sent);
@@ -190,6 +204,7 @@ int main()
 
   while (running)
   {
+    // With kAutoDispatch = false, assign orders here via master->assign_order.
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 

@@ -28,6 +28,7 @@
 #include "vda5050_core/validation/content_validator.hpp"
 #include "vda5050_core/validation/instant_action_mode_validator.hpp"
 #include "vda5050_core/validation/pre_send_validator.hpp"
+#include "vda5050_core/validation/protocol_limits_validator.hpp"
 
 namespace vda5050_core::master {
 
@@ -60,6 +61,15 @@ ActionGateResult InstantActionsPublisher::validate_gate(
   {
     gate.result = std::move(conflict);
     gate.failed = ActionGateStep::CONFLICT;
+    return gate;
+  }
+
+  auto limits =
+    vda5050_core::validation::validate_protocol_limits(ctx, actions);
+  if (!limits)
+  {
+    gate.result = std::move(limits);
+    gate.failed = ActionGateStep::LIMITS;
   }
   return gate;
 }

@@ -40,7 +40,8 @@ enum class ActionGateStep
   NONE,
   MODE,
   CAPABILITY,
-  CONFLICT
+  CONFLICT,
+  LIMITS
 };
 
 /// \brief Outcome of the shared stateless action gate.

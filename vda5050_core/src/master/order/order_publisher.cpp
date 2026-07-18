@@ -29,6 +29,7 @@
 #include "vda5050_core/validation/content_validator.hpp"
 #include "vda5050_core/validation/order_graph_validator.hpp"
 #include "vda5050_core/validation/pre_send_validator.hpp"
+#include "vda5050_core/validation/protocol_limits_validator.hpp"
 #include "vda5050_core/validation/traversability_validator.hpp"
 
 namespace vda5050_core::master {
@@ -40,7 +41,9 @@ vda5050_core::errors::ValidationResult OrderPublisher::publish(
   const std::optional<vda5050_core::types::Order>& active_order,
   std::optional<vda5050_core::types::Order>* merged_out)
 {
-  // Chain: schema → PreSend → structural → traversability → capability.
+  // Chain: schema → PreSend → structural → limits → traversability →
+  // capability. Structural and limits take the merged order on the stitch
+  // path, the order as-sent otherwise.
   auto schema_result = vda5050_core::validation::validate_order_content(order);
   if (!schema_result)
   {
@@ -80,6 +83,13 @@ vda5050_core::errors::ValidationResult OrderPublisher::publish(
         "Merged stitch order is not a valid graph", {}));
       return res;
     }
+    // Array limits are per-order, so the merged order is the subject.
+    auto merged_limits = vda5050_core::validation::validate_protocol_limits(
+      ctx, combine_res.order);
+    if (!merged_limits)
+    {
+      return merged_limits;
+    }
     if (merged_out != nullptr)
     {
       *merged_out = std::move(combine_res.order);
@@ -94,6 +104,12 @@ vda5050_core::errors::ValidationResult OrderPublisher::publish(
       VDA5050_WARN(
         "[OrderPublisher] order {} has {} graph advisory(ies); publishing",
         order.order_id, graph_result.warnings().size());
+    }
+    auto limits_result =
+      vda5050_core::validation::validate_protocol_limits(ctx, order);
+    if (!limits_result)
+    {
+      return limits_result;
     }
   }
 

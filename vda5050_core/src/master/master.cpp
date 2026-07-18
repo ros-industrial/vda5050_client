@@ -847,6 +847,9 @@ InstantActionAssignmentResult VDA5050Master::assign_instant_actions(
       case ActionGateStep::CAPABILITY:
         res.decision = InstantActionDecision::AGV_CANNOT_PERFORM_ACTION;
         break;
+      case ActionGateStep::LIMITS:
+        res.decision = InstantActionDecision::EXCEEDS_PROTOCOL_LIMITS;
+        break;
       case ActionGateStep::CONFLICT: {
         // A mixed batch can carry both; report HARD if any error is HARD.
         const bool any_hard =

@@ -430,6 +430,81 @@ TEST(OrderPublisherTest, StitchedUpdateBackwardUpdateIdRejected)
   EXPECT_FALSE(static_cast<bool>(result));
 }
 
+TEST(OrderPublisherTest, OrderExceedingFactsheetNodeLimitRejected)
+{
+  auto mock = std::make_shared<MockMqttClient>();
+  ON_CALL(*mock, connected()).WillByDefault(::testing::Return(true));
+  auto adapter = vda5050_core::execution::ProtocolAdapter::make(
+    mock, "uagv", "2.0.0", "ACME", "AGV001");
+  vda5050_core::master::OrderPublisher publisher;
+  EXPECT_CALL(
+    *mock, publish(::testing::_, ::testing::_, ::testing::_, ::testing::_))
+    .Times(0);
+
+  vda5050_core::types::Factsheet fs;
+  fs.protocol_limits.max_array_lens.order_nodes = 1;
+
+  auto ctx = make_ready_context("N0");
+  ctx.last_factsheet = fs;
+
+  // 3 nodes against a limit of 1.
+  auto order = make_active_v0();
+  auto result = publisher.publish(*adapter, ctx, order, std::nullopt);
+
+  EXPECT_FALSE(static_cast<bool>(result));
+  ASSERT_EQ(result.fatal_errors().size(), 1u);
+  EXPECT_EQ(
+    result.fatal_errors().front().error_type,
+    vda5050_core::errors::ProtocolLimitError);
+}
+
+TEST(OrderPublisherTest, StitchedUpdateUnderLimitButMergedOrderOverIsRejected)
+{
+  auto mock = std::make_shared<MockMqttClient>();
+  ON_CALL(*mock, connected()).WillByDefault(::testing::Return(true));
+  auto adapter = vda5050_core::execution::ProtocolAdapter::make(
+    mock, "uagv", "2.0.0", "ACME", "AGV001");
+  vda5050_core::master::OrderPublisher publisher;
+  EXPECT_CALL(
+    *mock, publish(::testing::_, ::testing::_, ::testing::_, ::testing::_))
+    .Times(0);
+
+  // Base keeps a two-node horizon, so the merge preserves N3 on top of the
+  // update and the merged order outgrows the fragment.
+  vda5050_core::types::Order base;
+  fill_schema_valid_header(base.header);
+  base.order_id = "ORDER_A";
+  base.order_update_id = 0;
+  base.nodes = {
+    mk_node("N0", 0, true), mk_node("N1", 2, true), mk_node("N2", 4, false),
+    mk_node("N3", 6, false)};
+  base.edges = {
+    mk_edge("E0", 1, "N0", "N1", true), mk_edge("E1", 3, "N1", "N2", false),
+    mk_edge("E2", 5, "N2", "N3", false)};
+
+  vda5050_core::types::Order update;
+  fill_schema_valid_header(update.header);
+  update.order_id = "ORDER_A";
+  update.order_update_id = 1;
+  update.nodes = {mk_node("N1", 2, true), mk_node("N2", 4, true)};
+  update.edges = {mk_edge("E1", 3, "N1", "N2", true)};
+
+  vda5050_core::types::Factsheet fs;
+  fs.protocol_limits.max_array_lens.order_nodes = 2;
+
+  auto ctx = make_ready_context("N1");
+  ctx.last_factsheet = fs;
+
+  auto result = publisher.publish(*adapter, ctx, update, base);
+
+  EXPECT_FALSE(static_cast<bool>(result));
+  ASSERT_EQ(result.fatal_errors().size(), 1u);
+  EXPECT_EQ(
+    result.fatal_errors().front().error_type,
+    vda5050_core::errors::ProtocolLimitError)
+    << "merged order must be the subject of the limits check";
+}
+
 TEST(OrderPublisherTest, DifferentOrderIdTakesGraphPath)
 {
   // active.order_id != candidate.order_id → graph path (treated as new

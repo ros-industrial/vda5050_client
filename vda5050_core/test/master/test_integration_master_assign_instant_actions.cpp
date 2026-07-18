@@ -520,6 +520,33 @@ TEST_F(
     std::string::npos);
 }
 
+TEST_F(MasterAssignInstantActionsTest, BatchOverFactsheetLimit_Rejected)
+{
+  inject_online_and_state();
+
+  auto agv = std::const_pointer_cast<vda5050_core::master::AGV>(
+    master_->get_agv(kManufacturer, kSerial));
+  ASSERT_NE(agv, nullptr);
+
+  vda5050_core::types::Factsheet fs;
+  fs.header.header_id = 1;
+  fs.header.timestamp = std::chrono::system_clock::now();
+  fs.header.version = "2.0.0";
+  fs.header.manufacturer = kManufacturer;
+  fs.header.serial_number = kSerial;
+  fs.protocol_limits.max_array_lens.instant_actions = 1;
+  agv->handle_factsheet(fs);
+  ASSERT_TRUE(agv->get_last_factsheet().has_value());
+
+  auto res = master_->assign_instant_actions(
+    kManufacturer, kSerial,
+    wrap(
+      {ActionFactory::build_state_request("req-1"),
+       ActionFactory::build_factsheet_request("req-2")}));
+
+  EXPECT_EQ(res.decision, InstantActionDecision::EXCEEDS_PROTOCOL_LIMITS);
+}
+
 TEST_F(MasterAssignInstantActionsTest, MultipleValidActions_AllAssigned)
 {
   // Happy-path batch: send 3 unique-id NONE-blocking actions; all should

@@ -54,7 +54,9 @@ enum class InstantActionDecision
   /// Batch failed schema validation, or is empty.
   INVALID_CONTENT,
   /// An action_type is not in the AGV's factsheet capabilities.
-  AGV_CANNOT_PERFORM_ACTION
+  AGV_CANNOT_PERFORM_ACTION,
+  /// Batch exceeds an array size the AGV declared in its factsheet.
+  EXCEEDS_PROTOCOL_LIMITS
 };
 
 /// \brief Structured outcome of `VDA5050Master::assign_instant_actions`.

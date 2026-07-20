@@ -153,6 +153,18 @@ TEST(OrderAcceptanceTest, AppliesUpdateByAppending)
       return n;
     }());
     execution->set_state(std::move(state));
+
+    types::Order current_order;
+    current_order.order_id = "o1";
+    current_order.order_update_id = 1;
+    current_order.nodes.push_back(make_node("node_a", 10));
+    auto old_horizon = make_node("old_horizon", 12);
+    old_horizon.released = false;
+    current_order.nodes.push_back(old_horizon);
+    auto old_edge = make_edge("old_edge", 11, "node_a", "old_horizon");
+    old_edge.released = false;
+    current_order.edges.push_back(old_edge);
+    execution->set_order(std::move(current_order));
   }
 
   types::Order update;
@@ -160,7 +172,9 @@ TEST(OrderAcceptanceTest, AppliesUpdateByAppending)
   update.order_update_id = 2;
   update.nodes.push_back(make_node("node_a", 10));  // re-sent stitch node
   update.nodes.push_back(make_node("node_b", 12));
-  update.edges.push_back(make_edge("edge_ab", 11, "node_a", "node_b"));
+  auto edge_ab = make_edge("edge_ab", 11, "node_a", "node_b");
+  edge_ab.max_speed = 1.25;
+  update.edges.push_back(edge_ab);
 
   context->provider()->push<OrderUpdate>(update);
   strategy.step(context);
@@ -172,6 +186,16 @@ TEST(OrderAcceptanceTest, AppliesUpdateByAppending)
   EXPECT_EQ(state.node_states[0].node_id, "node_a");
   EXPECT_EQ(state.node_states[1].node_id, "node_b");
   EXPECT_EQ(state.edge_states.size(), 1u);
+
+  const auto current_order = execution->get_order();
+  EXPECT_EQ(current_order.order_update_id, 2u);
+  ASSERT_EQ(current_order.nodes.size(), 2u);
+  EXPECT_EQ(current_order.nodes[0].node_id, "node_a");
+  EXPECT_EQ(current_order.nodes[1].node_id, "node_b");
+  ASSERT_EQ(current_order.edges.size(), 1u);
+  EXPECT_EQ(current_order.edges[0].edge_id, "edge_ab");
+  ASSERT_TRUE(current_order.edges[0].max_speed.has_value());
+  EXPECT_EQ(current_order.edges[0].max_speed.value(), 1.25);
 }
 
 // Test 4: A duplicate update (same orderUpdateId) leaves the state untouched.

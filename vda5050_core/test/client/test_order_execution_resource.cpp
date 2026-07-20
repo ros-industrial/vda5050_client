@@ -25,6 +25,7 @@
 #include "vda5050_core/client/resources/order_execution.hpp"
 #include "vda5050_core/client/updates/order.hpp"
 #include "vda5050_core/execution/base.hpp"
+#include "vda5050_core/types/order.hpp"
 #include "vda5050_core/types/state.hpp"
 
 namespace {
@@ -166,6 +167,29 @@ TEST(OrderExecutionResourceTest, GetAndSetStateRoundTrips)
   auto snapshot = resource.get_state();
   EXPECT_EQ(snapshot.order_id, "order_abc");
   EXPECT_EQ(snapshot.order_update_id, 99u);
+}
+
+TEST(OrderExecutionResourceTest, GetAndSetOrderRoundTrips)
+{
+  OrderExecutionResource resource;
+
+  types::Order order;
+  order.order_id = "order_abc";
+  order.order_update_id = 2;
+  types::Edge edge;
+  edge.edge_id = "edge_ab";
+  edge.sequence_id = 1;
+  edge.max_speed = 1.25;
+  order.edges.push_back(edge);
+
+  resource.set_order(order);
+
+  auto snapshot = resource.get_order();
+  EXPECT_EQ(snapshot.order_id, "order_abc");
+  EXPECT_EQ(snapshot.order_update_id, 2u);
+  ASSERT_EQ(snapshot.edges.size(), 1u);
+  ASSERT_TRUE(snapshot.edges[0].max_speed.has_value());
+  EXPECT_EQ(snapshot.edges[0].max_speed.value(), 1.25);
 }
 
 }  // namespace

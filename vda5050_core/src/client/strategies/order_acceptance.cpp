@@ -19,6 +19,7 @@
 #include "vda5050_core/client/strategies/order_acceptance.hpp"
 
 #include <algorithm>
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <string>
@@ -92,6 +93,7 @@ void apply_new_order(types::State& state, const types::Order& order)
   state.action_states.clear();
   state.order_id = order.order_id;
   state.order_update_id = order.order_update_id;
+  state.zone_set_id = order.zone_set_id;
 
   // A new order starts a fresh traversal, so clear any progress carried over
   // from a previous order. Otherwise the stale last-reached node could be
@@ -104,9 +106,17 @@ void apply_new_order(types::State& state, const types::Order& order)
   for (const auto& edge : order.edges) append_edge(state, edge);
 }
 
+void apply_new_order(
+  types::State& state, types::Order& current_order, const types::Order& order)
+{
+  apply_new_order(state, order);
+  current_order = order;
+}
+
 void apply_order_update(types::State& state, const types::Order& order)
 {
   state.order_update_id = order.order_update_id;
+  state.zone_set_id = order.zone_set_id;
 
   // Drop the previous horizon (unreleased) node/edge states; the update
   // re-supplies them. The first node of the update is the re-sent stitch node
@@ -122,14 +132,14 @@ void apply_order_update(types::State& state, const types::Order& order)
       [](const types::EdgeState& e) { return !e.released; }),
     state.edge_states.end());
 
-  for (size_t i = 1; i < order.nodes.size(); ++i)
+  for (std::size_t i = 1; i < order.nodes.size(); ++i)
   {
     append_node(state, order.nodes[i]);
   }
 
-  for (size_t i = 0; i < order.edges.size(); ++i)
+  for (const auto& edge : order.edges)
   {
-    append_edge(state, order.edges[i]);
+    append_edge(state, edge);
   }
 
   // Deduplicate action states after replacing the horizon. This prevents
@@ -146,6 +156,37 @@ void apply_order_update(types::State& state, const types::Order& order)
         return !seen_action_ids.insert(a.action_id).second;
       }),
     state.action_states.end());
+}
+
+void apply_order_update(
+  types::State& state, types::Order& current_order, const types::Order& order)
+{
+  apply_order_update(state, order);
+
+  current_order.header = order.header;
+  current_order.order_update_id = order.order_update_id;
+  current_order.zone_set_id = order.zone_set_id;
+
+  current_order.nodes.erase(
+    std::remove_if(
+      current_order.nodes.begin(), current_order.nodes.end(),
+      [](const types::Node& n) { return !n.released; }),
+    current_order.nodes.end());
+  current_order.edges.erase(
+    std::remove_if(
+      current_order.edges.begin(), current_order.edges.end(),
+      [](const types::Edge& e) { return !e.released; }),
+    current_order.edges.end());
+
+  for (std::size_t i = 1; i < order.nodes.size(); ++i)
+  {
+    current_order.nodes.push_back(order.nodes[i]);
+  }
+
+  for (const auto& edge : order.edges)
+  {
+    current_order.edges.push_back(edge);
+  }
 }
 
 }  // namespace
@@ -192,19 +233,21 @@ void OrderAcceptance::step(std::shared_ptr<execution::ContextInterface> context)
       last_order_id_ = order.order_id;
       last_order_update_id_ = order.order_update_id;
       types::State state = execution->get_state();
+      types::Order current_order = execution->get_order();
       // A successful acceptance supersedes any prior rejection, so clear stale
       // errors before applying the new order or update.
       state.errors.clear();
       const bool is_update = (order.order_id == state.order_id);
       if (is_update)
       {
-        apply_order_update(state, order);
+        apply_order_update(state, current_order, order);
       }
       else
       {
-        apply_new_order(state, order);
+        apply_new_order(state, current_order, order);
       }
       execution->set_state(std::move(state));
+      execution->set_order(std::move(current_order));
       execution->set_executing_order(true);
       break;
     }

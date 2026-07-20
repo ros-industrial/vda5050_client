@@ -24,6 +24,7 @@
 #include <utility>
 
 #include "vda5050_core/client/resources/order_execution.hpp"
+#include "vda5050_core/client/updates/node_reached.hpp"
 #include "vda5050_core/client/updates/order.hpp"
 
 namespace vda5050_core {
@@ -46,6 +47,14 @@ void AGVContext::init()
 
   provider()->on<OrderUpdate>(
     [w = weak_from_this()](std::shared_ptr<OrderUpdate> update) {
+      if (auto con = w.lock())
+      {
+        con->cache_update(update);
+      }
+    });
+
+  provider()->on<NodeReachedUpdate>(
+    [w = weak_from_this()](std::shared_ptr<NodeReachedUpdate> update) {
       if (auto con = w.lock())
       {
         con->cache_update(update);

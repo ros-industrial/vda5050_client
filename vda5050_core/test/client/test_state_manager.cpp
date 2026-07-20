@@ -61,9 +61,9 @@ TEST(StateManagerTest, SetPositionWithTransformation)
   auto transformation =
     Transformation::calibrate({10.0, 20.0, 0.0}, {0.0, 0.0, 0.0});
 
-  manager->set_transformation(transformation, "map_1");
+  manager->set_transformation(transformation, "world_map");
 
-  manager->set_position(1.0, 2.0, 0.0, "map_1");
+  manager->set_position(1.0, 2.0, 0.0, "world_map");
 
   auto state = manager->state();
 

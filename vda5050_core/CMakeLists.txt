@@ -296,9 +296,13 @@ if(BUILD_TESTING)
     test/client/test_order_validator.cpp
     test/client/test_order_acceptance.cpp
     test/client/test_execution.cpp
+    test/client/test_transformation.cpp
     test/client/test_state_manager.cpp
     test/client/test_adapter_lifecycle.cpp
     test/client/test_adapter_navigation.cpp
+    test/client/test_adapter_order.cpp
+    test/client/test_adapter_action.cpp
+    test/client/test_adapter_localization.cpp
   )
 
   target_link_libraries(test_client

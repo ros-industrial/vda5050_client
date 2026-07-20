@@ -18,16 +18,153 @@
 
 #include <gmock/gmock.h>
 
-TEST(AdapterLocalizationTest, InitPositionUsesLocalizationCallback) {}
+#include "adapter_test_fixture.hpp"
 
-TEST(AdapterLocalizationTest, InitPositionWithoutCallbackCreatesTransformation)
+class AdapterLocalizationTest : public AdapterTest
+{};
+
+TEST_F(AdapterLocalizationTest, InitPositionUsesLocalizationCallback)
 {
+  std::atomic_bool called = false;
+
+  adapter->on_localize(
+    [&](
+      LocalizationRequest request, std::shared_ptr<ActionExecution> execution) {
+      EXPECT_DOUBLE_EQ(request.x(), 1.0);
+      EXPECT_DOUBLE_EQ(request.y(), 2.0);
+      EXPECT_DOUBLE_EQ(request.theta(), 0.5);
+      EXPECT_EQ(request.map_id(), "map");
+
+      execution->finished();
+
+      called = true;
+    });
+
+  adapter->start();
+
+  vda5050_core::types::Action action = make_action("action_1", "initPosition");
+  std::vector<ActionParameter> params;
+  params.push_back(ActionParameter{"x", "1.0"});
+  params.push_back(ActionParameter{"y", "2.0"});
+  params.push_back(ActionParameter{"theta", "0.5"});
+  params.push_back(ActionParameter{"mapId", "map"});
+  params.push_back(ActionParameter{"lastNodeId", "N0"});
+  action.action_parameters = params;
+
+  InstantActions actions;
+  actions.actions.push_back(action);
+
+  inject_message(
+    fmt::format("{}/instantActions", protocol_adapter->get_topic_prefix()),
+    nlohmann::json(actions).dump());
+
+  ASSERT_TRUE(wait_until([&] { return called.load(); }));
+
+  adapter->stop();
 }
 
-TEST(AdapterLocalizationTest, MissingParametersFail) {}
+TEST_F(AdapterLocalizationTest, InitPositionWithoutCallbackFails)
+{
+  auto manager = adapter->state_manager();
 
-TEST(AdapterLocalizationTest, MissingRobotPoseFails) {}
+  manager->set_position(10.0, 20.0, 0.5, "agv_map");
 
-TEST(AdapterLocalizationTest, LocalizationUpdatesLastNode) {}
+  adapter->start();
 
-TEST(AdapterLocalizationTest, LocalizationMarksPositionInitialized) {}
+  vda5050_core::types::Action action = make_action("action_1", "initPosition");
+  std::vector<ActionParameter> params;
+  params.push_back(ActionParameter{"x", "1.0"});
+  params.push_back(ActionParameter{"y", "2.0"});
+  params.push_back(ActionParameter{"theta", "0.5"});
+  params.push_back(ActionParameter{"mapId", "world_map"});
+  params.push_back(ActionParameter{"lastNodeId", "N0"});
+  action.action_parameters = params;
+
+  InstantActions actions;
+  actions.actions.push_back(action);
+
+  inject_message(
+    fmt::format("{}/instantActions", protocol_adapter->get_topic_prefix()),
+    nlohmann::json(actions).dump());
+
+  ASSERT_TRUE(wait_publish(2));
+
+  auto state = manager->state();
+
+  ASSERT_EQ(state.action_states.size(), 1);
+
+  EXPECT_EQ(state.action_states.front().action_status, ActionStatus::FAILED);
+
+  ASSERT_TRUE(state.agv_position.has_value());
+  EXPECT_FALSE(state.agv_position->position_initialized);
+}
+
+TEST_F(AdapterLocalizationTest, MissingParametersFail)
+{
+  auto manager = adapter->state_manager();
+
+  adapter->start();
+
+  auto action = make_action("action_1", "initPosition");
+
+  // Missing theta, mapId, lastNodeId
+  action.action_parameters = {
+    ActionParameter{"x", "1.0"}, ActionParameter{"y", "2.0"}};
+
+  InstantActions actions;
+  actions.actions.push_back(action);
+
+  inject_message(
+    fmt::format("{}/instantActions", protocol_adapter->get_topic_prefix()),
+    nlohmann::json(actions).dump());
+
+  ASSERT_TRUE(wait_publish(2));
+
+  auto state = manager->state();
+
+  ASSERT_EQ(state.action_states.size(), 1);
+
+  EXPECT_EQ(state.action_states.front().action_status, ActionStatus::FAILED);
+
+  adapter->stop();
+}
+
+TEST_F(AdapterLocalizationTest, LocalizationUpdatesLastNode)
+{
+  auto manager = adapter->state_manager();
+
+  adapter->on_localize(
+    [&](
+      LocalizationRequest request, std::shared_ptr<ActionExecution> execution) {
+      manager->initialize_position(
+        request.x(), request.y(), request.theta(), request.map_id());
+      execution->finished();
+    });
+
+  adapter->start();
+
+  auto action = make_action("action_1", "initPosition");
+
+  action.action_parameters = {
+    ActionParameter{"x", "1.0"}, ActionParameter{"y", "2.0"},
+    ActionParameter{"theta", "0.5"}, ActionParameter{"mapId", "world_map"},
+    ActionParameter{"lastNodeId", "N5"}};
+
+  InstantActions actions;
+  actions.actions.push_back(action);
+
+  inject_message(
+    fmt::format("{}/instantActions", protocol_adapter->get_topic_prefix()),
+    nlohmann::json(actions).dump());
+
+  ASSERT_TRUE(wait_publish(2));
+
+  auto state = manager->state();
+
+  ASSERT_TRUE(state.agv_position.has_value());
+  EXPECT_TRUE(state.agv_position->position_initialized);
+
+  EXPECT_EQ(state.last_node_id, "N5");
+
+  adapter->stop();
+}

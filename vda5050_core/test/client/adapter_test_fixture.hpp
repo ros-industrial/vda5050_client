@@ -35,6 +35,7 @@
 using namespace vda5050_core::client::adapter;  // NOLINT
 using namespace vda5050_core::execution;        // NOLINT
 using namespace vda5050_core::transport;        // NOLINT
+using namespace vda5050_core::types;            // NOLINT
 using namespace testing;                        // NOLINT
 
 class AdapterTest : public testing::Test
@@ -71,6 +72,86 @@ protected:
       std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
     return true;
+  }
+
+  Order make_order(
+    const std::string& order_id, uint32_t order_update_id, uint32_t released,
+    uint32_t unreleased)
+  {
+    Order order;
+    order.order_id = order_id;
+    order.order_update_id = order_update_id;
+
+    std::vector<Node> nodes;
+    Node node;
+    node.released = true;
+
+    std::vector<Edge> edges;
+    Edge edge;
+    edge.released = true;
+    for (uint32_t i = 0; i < released; i++)
+    {
+      int inner_seq = i * 2;
+      node.node_id = "N" + std::to_string(inner_seq);
+      node.sequence_id = inner_seq;
+      nodes.push_back(node);
+
+      if ((inner_seq - 1) > 0)
+      {
+        edge.edge_id = "E" + std::to_string(inner_seq - 1);
+        edge.sequence_id = inner_seq - 1;
+        edge.start_node_id = "N" + std::to_string(inner_seq - 2);
+        edge.end_node_id = "N" + std::to_string(inner_seq);
+        edges.push_back(edge);
+      }
+    }
+
+    node.released = false;
+    edge.released = false;
+    for (uint32_t i = released; i < released + unreleased; i++)
+    {
+      uint32_t inner_seq = i * 2;
+      node.node_id = "N" + std::to_string(inner_seq);
+      node.sequence_id = inner_seq;
+      nodes.push_back(node);
+
+      if (inner_seq - 1 > 0)
+      {
+        edge.edge_id = "E" + std::to_string(inner_seq - 1);
+        edge.sequence_id = inner_seq - 1;
+        edge.start_node_id = "N" + std::to_string(inner_seq - 2);
+        edge.end_node_id = "N" + std::to_string(inner_seq);
+        edges.push_back(edge);
+      }
+    }
+
+    order.nodes = std::move(nodes);
+    order.edges = std::move(edges);
+
+    return order;
+  }
+
+  vda5050_core::types::Action make_action(
+    const std::string& action_id, const std::string& action_type)
+  {
+    vda5050_core::types::Action action;
+    action.action_id = action_id;
+    action.action_type = action_type;
+    action.blocking_type = BlockingType::NONE;
+
+    return action;
+  }
+
+  bool wait_until(std::function<bool()> predicate)
+  {
+    while (!predicate())
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    return true;
+  }
+
+  void inject_message(const std::string& topic, const std::string& message)
+  {
+    subscriptions.at(topic)(topic, message);
   }
 
   struct PublishedMessage

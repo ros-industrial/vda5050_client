@@ -18,14 +18,170 @@
 
 #include <gmock/gmock.h>
 
-TEST(AdapterActionTest, InstantActionDispatches) {}
+#include "adapter_test_fixture.hpp"
 
-TEST(AdapterActionTest, MultipleActionsProcessedInOrder) {}
+class AdapterActionTest : public AdapterTest
+{};
 
-TEST(AdapterActionTest, StartsRunning) {}
+TEST_F(AdapterActionTest, InstantActionDispatches)
+{
+  std::atomic_bool called = false;
 
-TEST(AdapterActionTest, FinishedUpdatesState) {}
+  std::string action_id;
+  std::string action_type;
 
-TEST(AdapterActionTest, FailedUpdatesState) {}
+  adapter->on_action(
+    [&](ActionRequest request, std::shared_ptr<ActionExecution> /*execution*/) {
+      called = true;
+      action_id = request.action_id();
+      action_type = request.action_type();
+    });
 
-TEST(AdapterActionTest, CallbackExceptionHandled) {}
+  adapter->start();
+
+  InstantActions actions;
+  actions.actions.push_back(make_action("action_1", "customAction"));
+
+  inject_message(
+    fmt::format("{}/instantActions", protocol_adapter->get_topic_prefix()),
+    nlohmann::json(actions).dump());
+
+  ASSERT_TRUE(wait_until([&] { return called.load(); }));
+
+  EXPECT_EQ(action_id, "action_1");
+  EXPECT_EQ(action_type, "customAction");
+
+  adapter->stop();
+}
+
+TEST_F(AdapterActionTest, MultipleActionsProcessedInOrder)
+{
+  std::vector<std::string> ids;
+
+  adapter->on_action(
+    [&](ActionRequest request, std::shared_ptr<ActionExecution> execution) {
+      ids.push_back(request.action_id());
+      execution->finished();
+    });
+
+  adapter->start();
+
+  InstantActions actions;
+
+  actions.actions.push_back(make_action("action_1", "customAction"));
+  actions.actions.push_back(make_action("action_2", "customAction"));
+  actions.actions.push_back(make_action("action_3", "customAction"));
+
+  inject_message(
+    fmt::format("{}/instantActions", protocol_adapter->get_topic_prefix()),
+    nlohmann::json(actions).dump());
+
+  ASSERT_TRUE(wait_until([&] { return ids.size() == 3; }));
+
+  EXPECT_THAT(ids, testing::ElementsAre("action_1", "action_2", "action_3"));
+
+  adapter->stop();
+}
+
+TEST_F(AdapterActionTest, StartsRunning)
+{
+  adapter->on_action([&](
+                       ActionRequest /*request*/,
+                       std::shared_ptr<ActionExecution> /*execution*/) {});
+
+  adapter->start();
+
+  InstantActions actions;
+  actions.actions.push_back(make_action("action_1", "customAction"));
+
+  inject_message(
+    fmt::format("{}/instantActions", protocol_adapter->get_topic_prefix()),
+    nlohmann::json(actions).dump());
+
+  ASSERT_TRUE(wait_publish(2));
+
+  auto state = nlohmann::json::parse(published.back().message).get<State>();
+
+  ASSERT_EQ(state.action_states.size(), 1);
+
+  EXPECT_EQ(state.action_states.front().action_status, ActionStatus::RUNNING);
+
+  adapter->stop();
+}
+
+TEST_F(AdapterActionTest, FinishedUpdatesState)
+{
+  adapter->on_action(
+    [&](ActionRequest /*request*/, std::shared_ptr<ActionExecution> execution) {
+      execution->finished();
+    });
+
+  adapter->start();
+
+  InstantActions actions;
+  actions.actions.push_back(make_action("action_1", "customAction"));
+
+  inject_message(
+    fmt::format("{}/instantActions", protocol_adapter->get_topic_prefix()),
+    nlohmann::json(actions).dump());
+
+  ASSERT_TRUE(wait_publish(2));
+
+  auto state = nlohmann::json::parse(published.back().message).get<State>();
+
+  ASSERT_EQ(state.action_states.size(), 1);
+
+  EXPECT_EQ(state.action_states.front().action_status, ActionStatus::FINISHED);
+
+  adapter->stop();
+}
+
+TEST_F(AdapterActionTest, FailedUpdatesState)
+{
+  adapter->on_action(
+    [&](ActionRequest /*request*/, std::shared_ptr<ActionExecution> execution) {
+      execution->failed("failed");
+    });
+
+  adapter->start();
+
+  InstantActions actions;
+  actions.actions.push_back(make_action("action_1", "customAction"));
+
+  inject_message(
+    fmt::format("{}/instantActions", protocol_adapter->get_topic_prefix()),
+    nlohmann::json(actions).dump());
+
+  ASSERT_TRUE(wait_publish(2));
+
+  auto state = nlohmann::json::parse(published.back().message).get<State>();
+
+  ASSERT_EQ(state.action_states.size(), 1);
+
+  EXPECT_EQ(state.action_states.front().action_status, ActionStatus::FAILED);
+  EXPECT_EQ(state.action_states.front().result_description, "failed");
+
+  adapter->stop();
+}
+
+TEST_F(AdapterActionTest, CallbackExceptionHandled)
+{
+  adapter->on_action([&](ActionRequest, std::shared_ptr<ActionExecution>) {
+    throw std::runtime_error("boom");
+  });
+
+  adapter->start();
+
+  InstantActions actions;
+  actions.actions.push_back(make_action("action_1", "customAction"));
+
+  inject_message(
+    fmt::format("{}/instantActions", protocol_adapter->get_topic_prefix()),
+    nlohmann::json(actions).dump());
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  SUCCEED();
+
+  adapter->stop();
+}

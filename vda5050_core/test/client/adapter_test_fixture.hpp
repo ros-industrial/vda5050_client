@@ -54,10 +54,12 @@ protected:
           int /*qos*/) { subscriptions[topic] = std::move(handler); });
 
     ON_CALL(*mqtt, publish(_, _, _, _))
-      .WillByDefault(
-        [this](
-          const std::string& topic, const std::string& message, int /*qos*/,
-          bool /*retain*/) { published.push_back({topic, message}); });
+      .WillByDefault([this](
+                       const std::string& topic, const std::string& message,
+                       int /*qos*/, bool /*retain*/) {
+        std::lock_guard<std::mutex> lock(publish_mutex);
+        published.push_back({topic, message});
+      });
 
     protocol_adapter =
       ProtocolAdapter::make(mqtt, "uagv", "2.0.0", "Robot", "001");
@@ -67,11 +69,14 @@ protected:
 
   bool wait_publish(size_t publish_count)
   {
-    while (published.size() < publish_count)
+    while (true)
     {
+      {
+        std::lock_guard<std::mutex> lock(publish_mutex);
+        if (published.size() >= publish_count) return true;
+      }
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-    return true;
   }
 
   Order make_order(
@@ -167,6 +172,7 @@ protected:
   std::unordered_map<std::string, MqttClientInterface::MessageHandler>
     subscriptions;
 
+  std::mutex publish_mutex;
   std::vector<PublishedMessage> published;
 };
 

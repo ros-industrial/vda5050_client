@@ -100,7 +100,11 @@ TEST_F(AdapterActionTest, StartsRunning)
 
   ASSERT_TRUE(wait_publish(2));
 
-  auto state = nlohmann::json::parse(published.back().message).get<State>();
+  State state;
+  {
+    std::lock_guard<std::mutex> lock(publish_mutex);
+    state = nlohmann::json::parse(published.back().message).get<State>();
+  }
 
   ASSERT_EQ(state.action_states.size(), 1);
 
@@ -127,7 +131,11 @@ TEST_F(AdapterActionTest, FinishedUpdatesState)
 
   ASSERT_TRUE(wait_publish(2));
 
-  auto state = nlohmann::json::parse(published.back().message).get<State>();
+  State state;
+  {
+    std::lock_guard<std::mutex> lock(publish_mutex);
+    state = nlohmann::json::parse(published.back().message).get<State>();
+  }
 
   ASSERT_EQ(state.action_states.size(), 1);
 
@@ -154,7 +162,11 @@ TEST_F(AdapterActionTest, FailedUpdatesState)
 
   ASSERT_TRUE(wait_publish(2));
 
-  auto state = nlohmann::json::parse(published.back().message).get<State>();
+  State state;
+  {
+    std::lock_guard<std::mutex> lock(publish_mutex);
+    state = nlohmann::json::parse(published.back().message).get<State>();
+  }
 
   ASSERT_EQ(state.action_states.size(), 1);
 

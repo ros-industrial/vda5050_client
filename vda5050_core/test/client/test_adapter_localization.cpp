@@ -89,7 +89,11 @@ TEST_F(AdapterLocalizationTest, InitPositionWithoutCallbackFails)
 
   ASSERT_TRUE(wait_publish(2));
 
-  auto state = nlohmann::json::parse(published.back().message).get<State>();
+  State state;
+  {
+    std::lock_guard<std::mutex> lock(publish_mutex);
+    state = nlohmann::json::parse(published.back().message).get<State>();
+  }
 
   ASSERT_EQ(state.action_states.size(), 1);
 
@@ -109,7 +113,6 @@ TEST_F(AdapterLocalizationTest, MissingParametersFail)
 
   auto action = make_action("action_1", "initPosition");
 
-  // Missing theta, mapId, lastNodeId
   action.action_parameters = {
     ActionParameter{"x", "1.0"}, ActionParameter{"y", "2.0"}};
 
@@ -122,7 +125,11 @@ TEST_F(AdapterLocalizationTest, MissingParametersFail)
 
   ASSERT_TRUE(wait_publish(2));
 
-  auto state = nlohmann::json::parse(published.back().message).get<State>();
+  State state;
+  {
+    std::lock_guard<std::mutex> lock(publish_mutex);
+    state = nlohmann::json::parse(published.back().message).get<State>();
+  }
 
   ASSERT_EQ(state.action_states.size(), 1);
 
@@ -161,7 +168,11 @@ TEST_F(AdapterLocalizationTest, LocalizationUpdatesLastNode)
 
   ASSERT_TRUE(wait_publish(2));
 
-  auto state = nlohmann::json::parse(published.back().message).get<State>();
+  State state;
+  {
+    std::lock_guard<std::mutex> lock(publish_mutex);
+    state = nlohmann::json::parse(published.back().message).get<State>();
+  }
 
   ASSERT_EQ(state.action_states.size(), 1);
 

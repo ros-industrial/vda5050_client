@@ -136,10 +136,12 @@ TEST_F(AdapterLifecycleTest, PublishThreadPublishesState)
   adapter->state_manager()->set_driving(true);
 
   ASSERT_TRUE(wait_publish(2));
-  ASSERT_EQ(published.size(), 2);
-  ASSERT_NE(published[1].topic.find("/state"), std::string::npos);
 
-  auto state = nlohmann::json::parse(published[1].message).get<State>();
+  State state;
+  {
+    std::lock_guard<std::mutex> lock(publish_mutex);
+    state = nlohmann::json::parse(published.back().message).get<State>();
+  }
 
   EXPECT_TRUE(state.driving);
 

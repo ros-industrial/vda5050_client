@@ -44,7 +44,11 @@ TEST_F(AdapterOrderTest, RejectsInvalidOrder)
 
   EXPECT_FALSE(called);
 
-  auto state = nlohmann::json::parse(published.back().message).get<State>();
+  State state;
+  {
+    std::lock_guard<std::mutex> lock(publish_mutex);
+    state = nlohmann::json::parse(published.back().message).get<State>();
+  }
 
   EXPECT_FALSE(state.errors.empty());
   EXPECT_EQ(state.errors[0].error_type, "graphValidationError");
@@ -80,7 +84,11 @@ TEST_F(AdapterOrderTest, AcceptsOrderUpdate)
 
   ASSERT_TRUE(wait_until([&] { return call_count == 2; }));
 
-  auto state = nlohmann::json::parse(published.back().message).get<State>();
+  State state;
+  {
+    std::lock_guard<std::mutex> lock(publish_mutex);
+    state = nlohmann::json::parse(published.back().message).get<State>();
+  }
 
   EXPECT_EQ(state.order_id, "order_id");
   EXPECT_EQ(state.order_update_id, 1);
@@ -118,7 +126,11 @@ TEST_F(AdapterOrderTest, RejectsInvalidOrderUpdate)
 
   EXPECT_EQ(call_count, 1);
 
-  auto state = nlohmann::json::parse(published.back().message).get<State>();
+  State state;
+  {
+    std::lock_guard<std::mutex> lock(publish_mutex);
+    state = nlohmann::json::parse(published.back().message).get<State>();
+  }
 
   EXPECT_FALSE(state.errors.empty());
   EXPECT_EQ(state.errors[0].error_type, "orderUpdateError");

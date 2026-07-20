@@ -152,20 +152,28 @@ TEST_F(AdapterNavigationTest, FinishUpdatesState)
     nlohmann::json(order).dump());
 
   ASSERT_TRUE(wait_publish(2));
-  auto initial_state =
-    nlohmann::json::parse(published.back().message).get<State>();
+
+  State initial_state;
+  {
+    std::lock_guard<std::mutex> lock(publish_mutex);
+    initial_state =
+      nlohmann::json::parse(published.back().message).get<State>();
+  }
 
   EXPECT_EQ(initial_state.last_node_id, "");
   EXPECT_EQ(initial_state.last_node_sequence_id, 0);
 
-  ASSERT_TRUE(wait_until([&] { return order_execution != nullptr; }));
+  ASSERT_NE(order_execution, nullptr);
 
   order_execution->finished();
 
   ASSERT_TRUE(wait_publish(3));
 
-  auto final_state =
-    nlohmann::json::parse(published.back().message).get<State>();
+  State final_state;
+  {
+    std::lock_guard<std::mutex> lock(publish_mutex);
+    final_state = nlohmann::json::parse(published.back().message).get<State>();
+  }
 
   EXPECT_EQ(final_state.last_node_id, n_request->node_id());
   EXPECT_EQ(final_state.last_node_sequence_id, n_request->sequence_id());
@@ -190,7 +198,12 @@ TEST_F(AdapterNavigationTest, FailureAddsError)
     nlohmann::json(order).dump());
 
   ASSERT_TRUE(wait_publish(3));
-  auto state = nlohmann::json::parse(published.back().message).get<State>();
+
+  State state;
+  {
+    std::lock_guard<std::mutex> lock(publish_mutex);
+    state = nlohmann::json::parse(published.back().message).get<State>();
+  }
 
   ASSERT_FALSE(state.errors.empty());
   EXPECT_EQ(state.errors.front().error_description, "navigation failed");
@@ -237,6 +250,7 @@ TEST_F(AdapterNavigationTest, NavigationExceptionHandled)
   adapter->start();
 
   auto order = make_order("order_id", 0, 2, 0);
+
   EXPECT_NO_THROW(inject_message(
     fmt::format("{}/order", protocol_adapter->get_topic_prefix()),
     nlohmann::json(order).dump()));

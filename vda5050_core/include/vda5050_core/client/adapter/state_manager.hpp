@@ -50,7 +50,7 @@ public:
   static std::shared_ptr<StateManager> make();
 
   void set_position(
-    double x, double y, double theta, const std::string& map_id);
+    double x, double y, double theta, const std::string& world_map_id);
 
   void set_velocity(const types::Velocity& velocity);
 
@@ -94,12 +94,18 @@ public:
 
   void remove_information();
 
-  void set_transformation(
-    const Transformation& transformation, const std::string& map_id);
+  void initialize_position(
+    double x, double y, double theta, const std::string& world_map_id);
 
-  std::optional<Transformation> transformation(const std::string& map_id) const;
+  void set_transformation(
+    const Transformation& transformation, const std::string& world_map_id);
+
+  std::optional<Transformation> transformation(
+    const std::string& world_map_id) const;
 
   types::State state() const;
+
+  bool position_initialized() const;
 
   void mark_publish_requested();
 
@@ -118,14 +124,10 @@ private:
 
   void clear_order();
 
-  void set_position_initialized(bool position_initialized_);
-
   void set_last_node(const std::string& node_id, uint32_t sequence_id = 0);
 
   mutable std::mutex mutex_;
   types::State state_;
-
-  bool position_initialized_;
 
   std::unordered_map<std::string, Transformation> transformation_;
 

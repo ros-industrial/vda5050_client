@@ -35,30 +35,31 @@ std::shared_ptr<StateManager> StateManager::make()
 
 //=============================================================================
 void StateManager::set_position(
-  double x, double y, double theta, const std::string& map_id)
+  double x, double y, double theta, const std::string& world_map_id)
 {
   std::lock_guard<std::mutex> lock(mutex_);
 
-  types::AGVPosition agv_position;
-  agv_position.map_id = map_id;
-  agv_position.position_initialized = position_initialized_;
+  if (!state_.agv_position.has_value())
+  {
+    state_.agv_position = types::AGVPosition{};
+  }
 
-  auto it = transformation_.find(map_id);
+  state_.agv_position->map_id = world_map_id;
+
+  auto it = transformation_.find(world_map_id);
   if (it != transformation_.end())
   {
     auto world_pose = it->second.to_world_pose({x, y, theta});
-    agv_position.x = world_pose.x;
-    agv_position.y = world_pose.y;
-    agv_position.theta = world_pose.theta;
+    state_.agv_position->x = world_pose.x;
+    state_.agv_position->y = world_pose.y;
+    state_.agv_position->theta = world_pose.theta;
   }
   else
   {
-    agv_position.x = x;
-    agv_position.y = y;
-    agv_position.theta = theta;
+    state_.agv_position->x = x;
+    state_.agv_position->y = y;
+    state_.agv_position->theta = theta;
   }
-
-  state_.agv_position = std::move(agv_position);
 }
 
 //=============================================================================
@@ -239,19 +240,35 @@ void StateManager::remove_information()
 }
 
 //=============================================================================
-void StateManager::set_transformation(
-  const Transformation& transformation, const std::string& map_id)
+void StateManager::initialize_position(
+  double x, double y, double theta, const std::string& world_map_id)
 {
   std::lock_guard<std::mutex> lock(mutex_);
-  transformation_.insert_or_assign(map_id, transformation);
+
+  types::AGVPosition position;
+  position.x = x;
+  position.y = y;
+  position.theta = theta;
+  position.map_id = world_map_id;
+  position.position_initialized = true;
+
+  state_.agv_position = std::move(position);
+}
+
+//=============================================================================
+void StateManager::set_transformation(
+  const Transformation& transformation, const std::string& world_map_id)
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  transformation_.insert_or_assign(world_map_id, transformation);
 }
 
 //=============================================================================
 std::optional<Transformation> StateManager::transformation(
-  const std::string& map_id) const
+  const std::string& world_map_id) const
 {
   std::lock_guard<std::mutex> lock(mutex_);
-  auto it = transformation_.find(map_id);
+  auto it = transformation_.find(world_map_id);
   if (it != transformation_.end()) return it->second;
   return std::nullopt;
 }
@@ -261,6 +278,14 @@ types::State StateManager::state() const
 {
   std::lock_guard<std::mutex> lock(mutex_);
   return state_;
+}
+
+//=============================================================================
+bool StateManager::position_initialized() const
+{
+  if (state_.agv_position.has_value())
+    return state_.agv_position->position_initialized;
+  return false;
 }
 
 //=============================================================================
@@ -276,8 +301,7 @@ bool StateManager::consume_publish_requested()
 }
 
 //=============================================================================
-StateManager::StateManager()
-: position_initialized_(false), publish_requested_(false)
+StateManager::StateManager() : publish_requested_(false)
 {
   // Nothing to do here ...
 }
@@ -369,13 +393,6 @@ void StateManager::clear_order()
   state_.order_id.clear();
   state_.order_update_id = 0;
   state_.zone_set_id.reset();
-}
-
-//=============================================================================
-void StateManager::set_position_initialized(bool position_initialized)
-{
-  std::lock_guard<std::mutex> lock(mutex_);
-  position_initialized_ = position_initialized;
 }
 
 //=============================================================================

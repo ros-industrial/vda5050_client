@@ -153,6 +153,18 @@ TEST(OrderAcceptanceTest, AppliesUpdateByAppending)
       return n;
     }());
     execution->set_state(std::move(state));
+
+    types::Order current_order;
+    current_order.order_id = "o1";
+    current_order.order_update_id = 1;
+    current_order.nodes.push_back(make_node("node_a", 10));
+    auto old_horizon = make_node("old_horizon", 12);
+    old_horizon.released = false;
+    current_order.nodes.push_back(old_horizon);
+    auto old_edge = make_edge("old_edge", 11, "node_a", "old_horizon");
+    old_edge.released = false;
+    current_order.edges.push_back(old_edge);
+    execution->set_order(std::move(current_order));
   }
 
   types::Order update;
@@ -160,7 +172,9 @@ TEST(OrderAcceptanceTest, AppliesUpdateByAppending)
   update.order_update_id = 2;
   update.nodes.push_back(make_node("node_a", 10));  // re-sent stitch node
   update.nodes.push_back(make_node("node_b", 12));
-  update.edges.push_back(make_edge("edge_ab", 11, "node_a", "node_b"));
+  auto edge_ab = make_edge("edge_ab", 11, "node_a", "node_b");
+  edge_ab.max_speed = 1.25;
+  update.edges.push_back(edge_ab);
 
   context->provider()->push<OrderUpdate>(update);
   strategy.step(context);
@@ -172,6 +186,16 @@ TEST(OrderAcceptanceTest, AppliesUpdateByAppending)
   EXPECT_EQ(state.node_states[0].node_id, "node_a");
   EXPECT_EQ(state.node_states[1].node_id, "node_b");
   EXPECT_EQ(state.edge_states.size(), 1u);
+
+  const auto current_order = execution->get_order();
+  EXPECT_EQ(current_order.order_update_id, 2u);
+  ASSERT_EQ(current_order.nodes.size(), 2u);
+  EXPECT_EQ(current_order.nodes[0].node_id, "node_a");
+  EXPECT_EQ(current_order.nodes[1].node_id, "node_b");
+  ASSERT_EQ(current_order.edges.size(), 1u);
+  EXPECT_EQ(current_order.edges[0].edge_id, "edge_ab");
+  ASSERT_TRUE(current_order.edges[0].max_speed.has_value());
+  EXPECT_EQ(current_order.edges[0].max_speed.value(), 1.25);
 }
 
 // Test 4: A duplicate update (same orderUpdateId) leaves the state untouched.
@@ -509,6 +533,31 @@ TEST(OrderAcceptanceTest, AcceptedOrderIsNotReprocessedOnLaterTicks)
   const auto state_after_second = execution->get_state();
   ASSERT_EQ(state_after_second.node_states.size(), 2u);
   EXPECT_EQ(state_after_second.node_states[1].node_id, "should_not_be_cleared");
+}
+
+// Test 12: An accepted order is persisted in full (with its actions) so action
+// strategies can reach the node/edge Action objects the state arrays drop.
+TEST(OrderAcceptanceTest, PersistsOrderOnAccept)
+{
+  OrderAcceptance strategy;
+  auto context = make_context();
+
+  types::Order order;
+  order.order_id = "o1";
+  order.order_update_id = 0;
+  auto node0 = make_node("node_0", 0);
+  node0.actions.push_back(make_action("act_0"));
+  order.nodes.push_back(node0);
+
+  context->provider()->push<OrderUpdate>(order);
+  strategy.step(context);
+
+  auto execution = context->get_resource<OrderExecutionResource>();
+  const auto active_order = execution->get_order();
+  EXPECT_EQ(active_order.order_id, "o1");
+  ASSERT_EQ(active_order.nodes.size(), 1u);
+  ASSERT_EQ(active_order.nodes.front().actions.size(), 1u);
+  EXPECT_EQ(active_order.nodes.front().actions.front().action_id, "act_0");
 }
 
 }  // namespace

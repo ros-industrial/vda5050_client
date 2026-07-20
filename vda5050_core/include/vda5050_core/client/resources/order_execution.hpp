@@ -22,6 +22,7 @@
 #include <mutex>
 
 #include "vda5050_core/execution/base.hpp"
+#include "vda5050_core/types/order.hpp"
 #include "vda5050_core/types/state.hpp"
 
 namespace vda5050_core {
@@ -51,6 +52,15 @@ public:
   /// \brief Replace the full working state snapshot.
   void set_state(types::State state);
 
+  /// \brief Return a copy of the full accepted order used for execution.
+  ///
+  /// Carries the full node/edge `Action` objects that the state arrays do not.
+  /// Empty until the first order is accepted.
+  types::Order get_order() const;
+
+  /// \brief Replace the full accepted order used for execution.
+  void set_order(types::Order order);
+
 private:
   /// \brief Serialises concurrent reads and writes to the members below.
   mutable std::mutex mutex_;
@@ -68,6 +78,13 @@ private:
   /// - last_node_id, last_node_sequence_id
   /// - node_states, edge_states, action_states
   types::State state_;
+
+  /// \brief Full accepted order payload retained for execution dispatch.
+  ///
+  /// Persisted by OrderAcceptance so strategies can reach the full node/edge
+  /// `Action` objects (type, parameters, blockingType) that the state arrays do
+  /// not carry. Empty until the first order is accepted.
+  types::Order order_;
 };
 
 }  // namespace client

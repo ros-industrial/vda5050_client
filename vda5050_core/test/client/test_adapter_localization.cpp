@@ -87,7 +87,20 @@ TEST_F(AdapterLocalizationTest, InitPositionWithoutCallbackFails)
     fmt::format("{}/instantActions", protocol_adapter->get_topic_prefix()),
     nlohmann::json(actions).dump());
 
-  ASSERT_TRUE(wait_publish(2));
+  ASSERT_TRUE(wait_until([&] {
+    std::lock_guard<std::mutex> lock(publish_mutex);
+    if (published.empty()) return false;
+    try
+    {
+      auto state = nlohmann::json::parse(published.back().message).get<State>();
+      return !state.action_states.empty() &&
+             state.action_states.front().action_status == ActionStatus::FAILED;
+    }
+    catch (...)
+    {
+      return false;
+    }
+  }));
 
   State state;
   {
@@ -123,7 +136,20 @@ TEST_F(AdapterLocalizationTest, MissingParametersFail)
     fmt::format("{}/instantActions", protocol_adapter->get_topic_prefix()),
     nlohmann::json(actions).dump());
 
-  ASSERT_TRUE(wait_publish(2));
+  ASSERT_TRUE(wait_until([&] {
+    std::lock_guard<std::mutex> lock(publish_mutex);
+    if (published.empty()) return false;
+    try
+    {
+      auto state = nlohmann::json::parse(published.back().message).get<State>();
+      return !state.action_states.empty() &&
+             state.action_states.front().action_status == ActionStatus::FAILED;
+    }
+    catch (...)
+    {
+      return false;
+    }
+  }));
 
   State state;
   {
@@ -166,7 +192,21 @@ TEST_F(AdapterLocalizationTest, LocalizationUpdatesLastNode)
     fmt::format("{}/instantActions", protocol_adapter->get_topic_prefix()),
     nlohmann::json(actions).dump());
 
-  ASSERT_TRUE(wait_publish(2));
+  ASSERT_TRUE(wait_until([&] {
+    std::lock_guard<std::mutex> lock(publish_mutex);
+    if (published.empty()) return false;
+    try
+    {
+      auto state = nlohmann::json::parse(published.back().message).get<State>();
+      return !state.action_states.empty() &&
+             state.action_states.front().action_status ==
+               ActionStatus::FINISHED;
+    }
+    catch (...)
+    {
+      return false;
+    }
+  }));
 
   State state;
   {

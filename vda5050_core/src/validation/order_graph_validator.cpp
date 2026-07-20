@@ -38,7 +38,7 @@ errors::ValidationResult is_valid_graph(const types::Order& order)
       {errors::RefOrderUpdateId, std::to_string(order.order_update_id)});
     res.add_error(errors::create_error(
       errors::GraphValidationError, description, refs,
-      types::ErrorLevel::WARNING));
+      types::ErrorLevel::FATAL));
   };
 
   // Check if there are nodes in the order, return if empty
@@ -178,7 +178,7 @@ errors::ValidationResult is_valid_update(
     refs.push_back(
       {errors::RefOrderUpdateId, std::to_string(next_order.order_update_id)});
     res.add_error(errors::create_error(
-      errors::OrderUpdateError, description, refs, types::ErrorLevel::WARNING));
+      errors::OrderUpdateError, description, refs, types::ErrorLevel::FATAL));
   };
 
   // Check if it is an existing order

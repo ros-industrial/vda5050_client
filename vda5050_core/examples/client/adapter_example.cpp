@@ -115,10 +115,10 @@ int main()
         "Received localization request with point [{}, {}, {}] on map: {}",
         request.x(), request.y(), request.theta(), request.map_id());
 
-      execution->finished();
-
-      state_manager->set_position(
+      state_manager->initialize_position(
         request.x(), request.y(), request.theta(), request.map_id());
+
+      execution->finished();
     });
 
   adapter->start();

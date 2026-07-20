@@ -343,8 +343,6 @@ void Adapter::Implementation::process_navigation()
 //=============================================================================
 void Adapter::Implementation::process_actions()
 {
-  if (!action_callback) return;
-
   types::Action action;
   {
     auto actions = instant_actions.lock();
@@ -362,6 +360,7 @@ void Adapter::Implementation::process_actions()
   action_state.action_description = action.action_description;
 
   state_manager->add_action_state(action_state);
+  request_state_publish();
 
   auto request = ActionRequest::from_action(action);
 
@@ -396,6 +395,7 @@ void Adapter::Implementation::process_actions()
   }
   else
   {
+    if (!action_callback) return;
     try
     {
       action_callback(std::move(request), execution);
@@ -491,10 +491,7 @@ void Adapter::Implementation::handle_init_position(
         types::ActionStatus status, std::optional<std::string> desc) {
         if (status == types::ActionStatus::FINISHED)
         {
-          state_manager->set_position_initialized(true);
           state_manager->set_last_node(last_node_id);
-
-          VDA5050_INFO("Localization successful");
         }
 
         if (current_execution->is_finished()) return;
@@ -514,25 +511,8 @@ void Adapter::Implementation::handle_init_position(
   }
   else
   {
-    auto current_position = state_manager->state().agv_position;
-    if (!current_position.has_value())
-    {
-      execution->failed("No position reported by AGV");
-      request_state_publish();
-      return;
-    }
-
-    VDA5050_INFO(
-      "No localization handler discovered. Applying default transformation "
-      "...");
-
-    Pose2D agv_pose{
-      current_position->x, current_position->y, current_position->theta};
-    Transformation tx = Transformation::calibrate(world_pose, agv_pose);
-    state_manager->set_transformation(tx, map_id.value());
-    state_manager->set_last_node(last_node_id.value());
-
-    execution->finished();
+    execution->failed("Localization failure due to missing handler");
+    request_state_publish();
   }
 }
 

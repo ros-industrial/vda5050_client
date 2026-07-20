@@ -89,7 +89,7 @@ TEST_F(AdapterLocalizationTest, InitPositionWithoutCallbackFails)
 
   ASSERT_TRUE(wait_publish(2));
 
-  auto state = manager->state();
+  auto state = nlohmann::json::parse(published.back().message).get<State>();
 
   ASSERT_EQ(state.action_states.size(), 1);
 
@@ -97,6 +97,8 @@ TEST_F(AdapterLocalizationTest, InitPositionWithoutCallbackFails)
 
   ASSERT_TRUE(state.agv_position.has_value());
   EXPECT_FALSE(state.agv_position->position_initialized);
+
+  adapter->stop();
 }
 
 TEST_F(AdapterLocalizationTest, MissingParametersFail)
@@ -120,7 +122,7 @@ TEST_F(AdapterLocalizationTest, MissingParametersFail)
 
   ASSERT_TRUE(wait_publish(2));
 
-  auto state = manager->state();
+  auto state = nlohmann::json::parse(published.back().message).get<State>();
 
   ASSERT_EQ(state.action_states.size(), 1);
 
@@ -159,7 +161,11 @@ TEST_F(AdapterLocalizationTest, LocalizationUpdatesLastNode)
 
   ASSERT_TRUE(wait_publish(2));
 
-  auto state = manager->state();
+  auto state = nlohmann::json::parse(published.back().message).get<State>();
+
+  ASSERT_EQ(state.action_states.size(), 1);
+
+  EXPECT_EQ(state.action_states.front().action_status, ActionStatus::FINISHED);
 
   ASSERT_TRUE(state.agv_position.has_value());
   EXPECT_TRUE(state.agv_position->position_initialized);

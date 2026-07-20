@@ -85,6 +85,46 @@ vda5050_core::types::InstantActions wrap(
 }  // namespace
 
 // =============================================================================
+// Override/recovery actions are never pre-blocked
+// =============================================================================
+
+TEST(ActionConflictValidator, ControlActions_ExemptWhileDrivingAndActive)
+{
+  auto ctx = make_ctx(make_state(
+    /*driving=*/true,
+    {make_action_state("a", vda5050_core::types::ActionStatus::RUNNING)}));
+
+  for (const char* type : {"cancelOrder", "startPause", "stopPause"})
+  {
+    auto res = validate_action_conflict(
+      ctx, wrap({make_action(type, vda5050_core::types::BlockingType::HARD)}));
+    EXPECT_TRUE(static_cast<bool>(res)) << type << " must be exempt";
+  }
+
+  // A non-control HARD action is still blocked while driving.
+  auto res = validate_action_conflict(
+    ctx, wrap({make_action("pick", vda5050_core::types::BlockingType::HARD)}));
+  EXPECT_FALSE(static_cast<bool>(res));
+}
+
+TEST(ActionConflictValidator, InitPosition_BlockedWhileDriving)
+{
+  // initPosition rewrites the pose; it must be rejected mid-drive regardless
+  // of blocking type, but allowed when the AGV is stationary.
+  auto driving_ctx = make_ctx(make_state(/*driving=*/true));
+  auto res_drive = validate_action_conflict(
+    driving_ctx, wrap({make_action(
+                   "initPosition", vda5050_core::types::BlockingType::NONE)}));
+  EXPECT_FALSE(static_cast<bool>(res_drive));
+
+  auto still_ctx = make_ctx(make_state(/*driving=*/false));
+  auto res_still = validate_action_conflict(
+    still_ctx, wrap({make_action(
+                 "initPosition", vda5050_core::types::BlockingType::NONE)}));
+  EXPECT_TRUE(static_cast<bool>(res_still));
+}
+
+// =============================================================================
 // Defensive / no-state cases
 // =============================================================================
 

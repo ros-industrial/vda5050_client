@@ -23,6 +23,7 @@
 
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
+#include "vda5050_core/validation/operating_mode_control.hpp"
 
 namespace vda5050_core::validation {
 
@@ -73,9 +74,7 @@ errors::ValidationResult validate_pre_send(const PreSendContext& ctx)
     return res;
   }
 
-  if (
-    ctx.last_state->operating_mode != types::OperatingMode::AUTOMATIC &&
-    ctx.last_state->operating_mode != types::OperatingMode::SEMIAUTOMATIC)
+  if (!is_master_in_control(ctx.last_state->operating_mode))
   {
     add_error("AGV operating_mode is not AUTOMATIC or SEMIAUTOMATIC");
   }

@@ -77,6 +77,18 @@ public:
   virtual void set_will(
     const std::string& topic, const std::string& message, int qos,
     bool retain = true) = 0;
+
+  using ConnectionStateHandler = std::function<void(const std::string&)>;
+
+  /// \brief Register a broker-connection-lost handler, run on the transport I/O
+  ///        thread (must be thread-safe; replaces any prior). Default no-op.
+  virtual void set_connection_lost_callback(ConnectionStateHandler /*handler*/)
+  {
+  }
+
+  /// \brief Register a broker-(re)connect handler (initial + every
+  ///        auto-reconnect); same threading/replace semantics. Default no-op.
+  virtual void set_connected_callback(ConnectionStateHandler /*handler*/) {}
 };
 
 /// \brief Create a default shared MQTT client interface

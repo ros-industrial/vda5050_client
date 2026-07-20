@@ -214,6 +214,13 @@ void MasterContext::on_connection(
   if (update) provider()->push_shared(std::move(update));
 }
 
+void MasterContext::forget_agv(const std::string& agv_id)
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  prev_states_.erase(agv_id);
+  prev_connections_.erase(agv_id);
+}
+
 std::shared_ptr<execution::UpdateBase> MasterContext::get_update_raw(
   std::type_index /*type*/) const
 {

@@ -386,6 +386,32 @@ TEST(MasterContextTest, OutOfOrderStateIsDropped)
   EXPECT_EQ(reached[1].node_id, "n3");
 }
 
+// The shared staleness gate protects the mode path too: an out-of-order State
+// must not re-fire an OperatingModeChangedUpdate.
+TEST(MasterContextTest, OutOfOrderStateDoesNotRefireModeChange)
+{
+  MasterContext context;
+
+  int mode_changes = 0;
+  context.provider()->on<OperatingModeChangedUpdate>(
+    [&](std::shared_ptr<OperatingModeChangedUpdate>) { ++mode_changes; });
+
+  auto with_mode = [](types::OperatingMode m, uint32_t header_id) {
+    types::State s;
+    s.operating_mode = m;
+    s.header.header_id = header_id;
+    return s;
+  };
+
+  context.on_state("agv1", with_mode(types::OperatingMode::AUTOMATIC, 5));
+  context.on_state("agv1", with_mode(types::OperatingMode::MANUAL, 7));
+  EXPECT_EQ(mode_changes, 1);
+
+  // Older header carrying the prior mode: dropped, no re-fire.
+  context.on_state("agv1", with_mode(types::OperatingMode::AUTOMATIC, 6));
+  EXPECT_EQ(mode_changes, 1);
+}
+
 // After a reconnect (CONNECTED edge) the stale baseline is dropped, so the
 // AGV's restarted low header_ids are accepted and re-seed instead of blocked.
 TEST(MasterContextTest, ReconnectReseedsStateBaseline)

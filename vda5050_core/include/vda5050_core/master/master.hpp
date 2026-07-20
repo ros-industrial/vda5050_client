@@ -19,263 +19,448 @@
 #ifndef VDA5050_CORE__MASTER__MASTER_HPP_
 #define VDA5050_CORE__MASTER__MASTER_HPP_
 
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
-#include "vda5050_core/types/connection.hpp"
-#include "vda5050_core/types/factsheet.hpp"
-#include "vda5050_core/types/instant_actions.hpp"
-#include "vda5050_core/types/order.hpp"
-#include "vda5050_core/types/state.hpp"
-#include "vda5050_core/types/visualization.hpp"
-
-#include "vda5050_core/transport/mqtt_client_interface.hpp"
-
+#include "vda5050_core/errors/validation_result.hpp"
+#include "vda5050_core/layout/graph.hpp"
+#include "vda5050_core/layout/layout_loader.hpp"
+#include "vda5050_core/master/actions/instant_action_assignment_result.hpp"
 #include "vda5050_core/master/agv.hpp"
-
-using vda5050_core::types::Connection;
-using vda5050_core::types::Factsheet;
-using vda5050_core::types::InstantActions;
-using vda5050_core::types::Order;
-using vda5050_core::types::State;
-using vda5050_core::types::Visualization;
-
-using vda5050_core::transport::MqttClientInterface;
+#include "vda5050_core/master/contexts/master_context.hpp"
+#include "vda5050_core/master/loaded_graph_holder.hpp"
+#include "vda5050_core/master/master_types.hpp"
+#include "vda5050_core/master/order/order_assignment_result.hpp"
+#include "vda5050_core/transport/mqtt_client_interface.hpp"
+#include "vda5050_core/types/operating_mode.hpp"
 
 namespace vda5050_core {
-
 namespace master {
 
-/**
- * @brief VDA5050 Master for multi-AGV fleet management
- *
- * This abstract base class manages VDA5050 communication for multiple AGVs
- * using a single shared MQTT client that creates protocol adapters for each AGV.
- *
- * Features:
- * - Single shared MQTT client that creates protocol adapters for each AGV
- * - AGV onboarding/offboarding with allow list
- * - Message routing based on topic parsing
- * - Protocol adapters for subscribing and publishing to AGVs
- *
- * Thread safety note: Callbacks are invoked on the MQTT client thread.
- * If thread safety is required, the callback implementation should handle
- * synchronization (e.g., using a mutex).
- *
- * Construction requirement: VDA5050Master MUST be constructed via
- * `std::make_shared<MyMaster>(...)`. Each onboarded AGV stores a
- * `std::weak_ptr<VDA5050Master>` back-pointer (populated via
- * `weak_from_this()`) and uses it to dispatch incoming messages to the
- * master's virtual callbacks. `weak_from_this()` only returns a valid
- * weak_ptr if the master is currently inside a `shared_ptr` — stack-
- * allocated or `unique_ptr`-managed masters silently no-op on user
- * callbacks.
- */
+/// \brief VDA5050 multi-AGV fleet control: onboards AGVs, routes their
+///        messages, queues outbound. Thread-safe.
 class VDA5050Master : public std::enable_shared_from_this<VDA5050Master>
 {
 public:
-  /**
-   * @brief Construct a VDA5050 master with shared MQTT client and broker address
-   * @param mqtt_client Shared MQTT client for subscriptions
-   *
-   * The mqtt_client is used to create protocol adapters for each onboarded AGV.
-   *
-   * IMPORTANT: must be constructed via `std::make_shared<MyMaster>(...)` —
-   * see class doc-comment.
-   *
-   * Example usage:
-   * @code
-   * auto client = vda5050_core::mqtt_client::create_default_client(broker, "master");
-   * auto master = std::make_shared<MyMaster>(client);
-   * master->connect();
-   * @endcode
-   */
-  explicit VDA5050Master(std::shared_ptr<MqttClientInterface> mqtt_client);
+  /// \brief Create a master. Shared ownership is required: the broker
+  ///        callbacks and the owned AGVs hold weak references back to it.
+  static std::shared_ptr<VDA5050Master> make(
+    std::shared_ptr<vda5050_core::transport::MqttClientInterface> mqtt_client);
 
-  /**
-   * @brief Virtual destructor - disconnects MQTT client
-   */
-  virtual ~VDA5050Master();
+  ~VDA5050Master();
 
-  // Non-copyable, non-movable
   VDA5050Master(const VDA5050Master&) = delete;
   VDA5050Master& operator=(const VDA5050Master&) = delete;
   VDA5050Master(VDA5050Master&&) = delete;
   VDA5050Master& operator=(VDA5050Master&&) = delete;
 
-  // ============================================================================
-  // Connection Management
-  // ============================================================================
+  // --- Connection Management ---
 
-  /**
-   * @brief Connect the MQTT client
-   */
   void connect();
-
-  /**
-   * @brief Disconnect the MQTT client
-   */
   void disconnect();
-
-  /**
-   * @brief Check if MQTT client is connected
-   */
   bool is_connected() const;
 
-  // ============================================================================
-  // AGV Onboarding/Offboarding
-  // ============================================================================
+  /// \brief Snapshot of the master's broker-connection state.
+  struct BrokerStatusSnapshot
+  {
+    bool connected = false;
+    /// When the broker last reported a disconnect; nullopt if never.
+    std::optional<std::chrono::system_clock::time_point> last_disconnect_at;
+    /// Times the broker connection was (re)established; initial connect = 1.
+    std::uint64_t reconnect_count = 0;
+  };
 
-  /**
-   * @brief Onboard an AGV to allow message routing
-   * @param manufacturer Manufacturer name
-   * @param serial_number Serial number
-   * @param max_queue_size Maximum number of outgoing messages to queue (default: 10)
-   * @param drop_oldest If true, drop oldest message when queue full; if false, reject new message (default: true)
-   *
-   * Creates an AGV instance in the allowed list. Messages from this AGV
-   * will be routed to the appropriate handlers.
-   * The interface name is set to "uagv" by default.
-   */
+  BrokerStatusSnapshot get_broker_status() const;
+
+  // --- AGV Onboarding/Offboarding ---
+
+  /// \brief Onboard an AGV (interface "uagv") so its messages are routed.
+  /// \param max_queue_size Outgoing queue cap (default 10).
+  /// \param drop_oldest    Drop oldest vs reject-new when the queue is full.
   void onboard_agv(
     const std::string& manufacturer, const std::string& serial_number,
     size_t max_queue_size = 10, bool drop_oldest = true);
 
-  /**
-   * @brief Onboard an AGV with a custom interface_name to allow message routing
-   * @param interface_name Interface name
-   * @param manufacturer Manufacturer name
-   * @param serial_number Serial number
-   * @param max_queue_size Maximum number of outgoing messages to queue (default: 10)
-   * @param drop_oldest If true, drop oldest message when queue full; if false, reject new message (default: true)
-   *
-   * Creates an AGV instance in the allowed list. Messages from this AGV
-   * will be routed to the appropriate handlers.
-   */
+  /// \brief Onboard an AGV with a custom interface_name (else as above).
   void onboard_agv(
     const std::string& interface_name, const std::string& manufacturer,
     const std::string& serial_number, size_t max_queue_size = 10,
     bool drop_oldest = true);
 
-  /**
-   * @brief Offboard an AGV to stop message routing
-   * @param manufacturer Manufacturer name
-   * @param serial_number Serial number
-   *
-   * Removes the AGV from the allowed list. Messages from this AGV
-   * will be ignored with a warning.
-   */
   void offboard_agv(
     const std::string& manufacturer, const std::string& serial_number);
 
-  /**
-   * @brief Check if an AGV is onboarded
-   * @param manufacturer Manufacturer name
-   * @param serial_number Serial number
-   * @return true if AGV is onboarded
-   */
   bool is_agv_onboarded(
     const std::string& manufacturer, const std::string& serial_number) const;
 
-  // ============================================================================
-  // AGV Access
-  // ============================================================================
+  // --- AGV Access ---
 
-  /**
-   * @brief Get a shared pointer to an onboarded AGV
-   * @param manufacturer Manufacturer name
-   * @param serial_number Serial number
-   * @return Shared pointer to AGV, or nullptr if not onboarded
-   */
-  std::shared_ptr<AGV> get_agv(
+  /// \brief Read-only view of the onboarded AGV, or nullptr if not onboarded.
+  std::shared_ptr<const AGV> get_agv(
     const std::string& manufacturer, const std::string& serial_number) const;
 
-  // ============================================================================
-  // Outgoing Messages
-  // ============================================================================
+  /// \brief Drop the AGV's queued outbound orders and instant actions; does
+  ///        not send a cancelOrder to the AGV.
+  void cancel_pending_orders(
+    const std::string& manufacturer, const std::string& serial_number);
 
-  /**
-   * @brief Publish an order to a specific AGV
-   * @param manufacturer Manufacturer name
-   * @param serial_number Serial number
-   * @param order The order message
-   * @return true if queued successfully, false if queue is full
-   * @throws std::runtime_error if AGV is not onboarded
-   */
+  /// \brief Re-queue the buffer captured when the AGV left master control.
+  /// \return {orders_resumed, actions_resumed}; {0, 0} if not onboarded.
+  std::pair<std::size_t, std::size_t> resume_mode_cancelled_queue(
+    const std::string& manufacturer, const std::string& serial_number);
+
+  /// \brief Drop the mode-cancelled buffer without re-queueing.
+  /// \return {orders_discarded, actions_discarded}; {0, 0} if not onboarded.
+  std::pair<std::size_t, std::size_t> discard_mode_cancelled_queue(
+    const std::string& manufacturer, const std::string& serial_number);
+
+  // --- Outgoing Messages ---
+
+  /// \brief Queue an order to an AGV (lower-level; skips assign_order's
+  ///        pre-flight and header fill — the caller owns the header).
+  /// \return false if the AGV is not onboarded or the queue is full.
   bool publish_order(
     const std::string& manufacturer, const std::string& serial_number,
-    const Order& order);
+    const vda5050_core::types::Order& order);
 
-  /**
-   * @brief Publish instant actions to a specific AGV
-   * @param manufacturer Manufacturer name
-   * @param serial_number Serial number
-   * @param actions The instant actions message
-   * @return true if queued successfully, false if queue is full
-   * @throws std::runtime_error if AGV is not onboarded
-   */
+  /// \brief Pre-flight and queue an order. Returns an OrderAssignmentResult:
+  ///        the failed check, or ASSIGNED/STITCH_QUEUED. The header's
+  ///        version/manufacturer/serial are filled from the args when unset.
+  OrderAssignmentResult assign_order(
+    const std::string& manufacturer, const std::string& serial_number,
+    const vda5050_core::types::Order& order);
+
+  // --- Batch onboarding — Device Manager integration ---
+
+  /// \brief One AGV's slot in a batch onboarding request.
+  struct OnboardSpec
+  {
+    std::string manufacturer;
+    std::string serial_number;
+    std::size_t max_queue_size = 10;
+    bool drop_oldest = true;
+  };
+
+  /// \brief Per-entry batch outcome, split into onboarded / skipped / failed.
+  struct BatchOnboardResult
+  {
+    std::vector<OnboardSpec> onboarded;  ///< Newly onboarded by this call.
+    /// Already-onboarded keys — idempotent no-op.
+    std::vector<OnboardSpec> skipped_already_onboarded;
+    std::vector<OnboardSpec> failed;  ///< Failed validation (empty mfg/serial).
+  };
+
+  /// \brief Onboard a batch under one `agv_mutex_` acquisition; idempotent per
+  ///        AGV, empty mfg/serial counts as failed.
+  BatchOnboardResult onboard_agv_batch(const std::vector<OnboardSpec>& specs);
+
+  /// \brief Offboard each present `{mfg, serial}` key; returns the count.
+  std::size_t offboard_agv_batch(
+    const std::vector<std::pair<std::string, std::string>>& keys);
+
+  std::vector<std::pair<std::string, std::string>> get_onboarded_agvs() const;
+
+  /// \brief Queue instant actions to an AGV (lower-level; skips the
+  ///        assign_instant_actions pre-flight and header fill).
+  /// \return false if the AGV is not onboarded or the queue is full.
   bool publish_instant_actions(
     const std::string& manufacturer, const std::string& serial_number,
-    const InstantActions& actions);
+    const vda5050_core::types::InstantActions& actions);
 
-  // ============================================================================
-  // User-Extension Callbacks (override in subclass)
-  // ============================================================================
-  //
-  // These virtuals fire after the per-AGV ProtocolAdapter receives and
-  // deserializes a message, and after the owning AGV instance has cached
-  // it. They are dispatched via a back-pointer the AGV holds to its
-  // owning master. Default implementations are empty — subclass and
-  // override to plug in fleet-level reaction logic.
-  //
-  // Threading: invoked on the Paho MQTT callback thread (not the user's
-  // main thread). User overrides must be thread-safe with respect to
-  // any state they touch.
+  /// \brief Pre-flight and queue instant actions. Lighter than assign_order:
+  ///        not mode/position/availability-gated, so they run when degraded.
+  ///        The header's version/manufacturer/serial are filled from the args
+  ///        when unset.
+  InstantActionAssignmentResult assign_instant_actions(
+    const std::string& manufacturer, const std::string& serial_number,
+    const vda5050_core::types::InstantActions& actions);
 
-  /**
-   * @brief Called after a State message arrives and is cached on the AGV.
-   * @param agv_id  manufacturer/serial composite ID
-   * @param state   the parsed State message
-   */
-  virtual void on_state(const std::string& agv_id, const State& state);
+  // --- Topology layout ---
 
-  /**
-   * @brief Called after a Connection message arrives and is cached.
-   */
-  virtual void on_connection(
-    const std::string& agv_id, const Connection& connection);
+  /// \brief Load a LIF topology from JSON; swaps the graph, re-runs alignment.
+  /// \return Load result; `lif` holds the parsed layout, else errors.
+  vda5050_core::layout::LayoutLoadResult load_layout_from_config(
+    const std::string& path);
 
-  /**
-   * @brief Called after a Factsheet message arrives and is cached.
-   */
-  virtual void on_factsheet(
-    const std::string& agv_id, const Factsheet& factsheet);
+  /// \brief Install an already-built graph (tests / external loaders).
+  void set_graph(vda5050_core::layout::Graph::ConstPtr graph);
 
-  /**
-   * @brief Called after a Visualization message arrives and is cached.
-   */
-  virtual void on_visualization(
-    const std::string& agv_id, const Visualization& visualization);
+  /// \brief The currently-loaded graph, or nullptr; safe to hold across swaps.
+  vda5050_core::layout::Graph::ConstPtr get_loaded_graph() const;
+
+  /// \brief Snapshot of the entire alignment cache, keyed by agv_id.
+  std::unordered_map<std::string, vda5050_core::errors::ValidationResult>
+  get_alignment_cache_snapshot() const;
+
+  /// \brief Refresh one AGV's alignment against the loaded graph after its
+  ///        factsheet arrives; prefer overriding on_factsheet over this.
+  void refresh_alignment_for_agv(
+    const std::string& agv_id, const vda5050_core::types::Factsheet& factsheet);
+
+  // --- Reaction callbacks (register handlers to react to AGV messages) ---
+  // Registered handlers fire on the MQTT thread after the AGV caches. Register
+  // before connect(); keep them prompt and thread-safe.
+
+  /// \brief Register the handler invoked on every State message.
+  void on_state(
+    std::function<
+      void(const std::string& agv_id, const vda5050_core::types::State& state)>
+      callback);
+
+  /// \brief Register the handler invoked on every Connection message.
+  void on_connection(std::function<void(
+                       const std::string& agv_id,
+                       const vda5050_core::types::Connection& connection)>
+                       callback);
+
+  /// \brief Register the handler invoked on every Factsheet message.
+  void on_factsheet(std::function<void(
+                      const std::string& agv_id,
+                      const vda5050_core::types::Factsheet& factsheet)>
+                      callback);
+
+  /// \brief Register the handler invoked on every Visualization message.
+  void on_visualization(
+    std::function<void(
+      const std::string& agv_id,
+      const vda5050_core::types::Visualization& visualization)>
+      callback);
+
+  // --- Event triggers ---
+  // Edge-detected callbacks layered on on_state / on_connection.
+
+  /// \brief Register the handler invoked when the AGV reports a
+  ///        previously-unreached node as released.
+  void on_node_reached(
+    std::function<void(const std::string& agv_id, const std::string& node_id)>
+      callback);
+
+  /// \brief Register the handler invoked when the AGV completes its active
+  ///        order (parked at the last released node, all actions terminal).
+  void on_order_complete(
+    std::function<void(const std::string& agv_id, const std::string& order_id)>
+      callback);
+
+  /// \brief Register the handler invoked when the error list gains entries.
+  /// \param callback receives only the newly-appeared errors.
+  void on_errors_appeared(
+    std::function<void(
+      const std::string& agv_id,
+      const std::vector<vda5050_core::types::Error>& new_errors)>
+      callback);
+
+  /// \brief Register the handler invoked when the error list loses entries.
+  /// \param callback receives only the entries that disappeared.
+  void on_errors_resolved(
+    std::function<void(
+      const std::string& agv_id,
+      const std::vector<vda5050_core::types::Error>& resolved_errors)>
+      callback);
+
+  /// \brief Register the handler invoked when new_base_request rises
+  ///        false→true.
+  void on_new_base_requested(
+    std::function<void(const std::string& agv_id)> callback);
+
+  /// \brief Register the handler invoked on operating_mode change. Leaving
+  ///        master control drains un-sent queues to a resumable buffer.
+  void on_mode_changed(
+    std::function<void(
+      const std::string& agv_id, vda5050_core::types::OperatingMode new_mode,
+      vda5050_core::types::OperatingMode prev_mode)>
+      callback);
+
+  /// \brief Register the handler invoked when the AGV's `paused` field flips.
+  void on_paused(
+    std::function<void(const std::string& agv_id, bool paused)> callback);
+
+  /// \brief Register the handler invoked when the AGV's `driving` field flips.
+  void on_driving(
+    std::function<void(const std::string& agv_id, bool driving)> callback);
+
+  /// \brief Register the handler invoked when the AGV's loads vector changes.
+  /// \param callback receives the full new vector (empty if none).
+  void on_loads_changed(std::function<void(
+                          const std::string& agv_id,
+                          const std::vector<vda5050_core::types::Load>& loads)>
+                          callback);
+
+  // --- Connection event triggers ---
+  // One named callback per connectionState transition; adds to on_connection.
+
+  /// \brief Register the handler invoked when connection_state becomes ONLINE.
+  void on_connect(std::function<void(const std::string& agv_id)> callback);
+
+  /// \brief Register the handler invoked when the AGV publishes OFFLINE.
+  void on_offline(std::function<void(const std::string& agv_id)> callback);
+
+  /// \brief Register the last-will (CONNECTIONBROKEN) handler: the AGV dropped
+  ///        unexpectedly; the triggering Connection has a stale timestamp.
+  void on_connection_broken(
+    std::function<void(const std::string& agv_id)> callback);
+
+  // --- State-heartbeat event triggers ---
+  // State-heartbeat timeout + recovery edge; additive to on_state.
+
+  /// \brief Register the handler invoked when the state heartbeat exceeds 30s;
+  ///        operational_state becomes STATE_UNKNOWN (pre-send rejects).
+  void on_state_timeout(
+    std::function<void(const std::string& agv_id)> callback);
+
+  /// \brief Register the handler invoked on the first State after a timeout,
+  ///        and on the AGV's first-ever State (STATE_UNKNOWN → AVAILABLE).
+  void on_state_resumed(
+    std::function<void(const std::string& agv_id)> callback);
+
+  // --- Master-broker connection event triggers ---
+  // Invoked on the transport thread — handlers must be thread-safe and prompt.
+
+  /// \brief Register the handler invoked when the master's broker connection
+  ///        drops; queued orders stay queued until Paho auto-reconnects.
+  void on_broker_disconnected(std::function<void()> callback);
+
+  /// \brief Register the handler invoked on initial connect and each reconnect.
+  void on_broker_reconnected(std::function<void()> callback);
 
 private:
-  // ============================================================================
-  // Internal AGV lookup
-  // ============================================================================
+  VDA5050Master(
+    std::shared_ptr<vda5050_core::transport::MqttClientInterface> mqtt_client);
+
+  // The owned AGV calls these on the MQTT thread to feed the event detector
+  // and run the registered raw-message handlers; not user-facing.
+  friend class AGV;
+  void ingest_state(
+    const std::string& agv_id, const vda5050_core::types::State& state);
+  void ingest_connection(
+    const std::string& agv_id,
+    const vda5050_core::types::Connection& connection);
+  void dispatch_state(
+    const std::string& agv_id, const vda5050_core::types::State& state);
+  void dispatch_connection(
+    const std::string& agv_id,
+    const vda5050_core::types::Connection& connection);
+  void dispatch_factsheet(
+    const std::string& agv_id, const vda5050_core::types::Factsheet& factsheet);
+  void dispatch_visualization(
+    const std::string& agv_id,
+    const vda5050_core::types::Visualization& visualization);
+  void dispatch_state_timeout(const std::string& agv_id);
+  void dispatch_state_resumed(const std::string& agv_id);
+  void dispatch_order_complete(
+    const std::string& agv_id, const std::string& order_id);
+
+  // --- Internal AGV lookup ---
 
   std::shared_ptr<AGV> get_agv_by_id(const std::string& agv_id) const;
 
-  // ============================================================================
-  // Member Variables
-  // ============================================================================
+  // First action_id that is empty, duplicated, or collides with an in-flight,
+  // active-order, or queued id (else nullopt).
+  std::optional<std::string> first_instant_action_id_conflict(
+    const std::shared_ptr<AGV>& agv,
+    const std::optional<vda5050_core::types::State>& last_state,
+    const vda5050_core::types::InstantActions& actions) const;
 
-  // Shared MQTT client for protocol adapters
-  std::shared_ptr<MqttClientInterface> mqtt_client_;
+  // Wire the fleet fan-out to master_context_'s Provider once, in the ctor:
+  // each agv_id-tagged update routes to its observer hook via fire_hook.
+  void register_event_dispatch();
 
-  // Onboarded AGVs (shared_ptr allows safe access)
+  // Run one observer hook, swallowing any exception so one bad callback can't
+  // stall the shared inbound thread.
+  void fire_hook(
+    const std::string& agv_id, const char* hook_name,
+    const std::function<void()>& fn);
+
+  // Build an AGV. Caller holds `agv_mutex_`; call setup_subscriptions() only
+  // AFTER releasing it (subscribing under the lock can deadlock).
+  std::shared_ptr<AGV> create_agv_locked(
+    const std::string& interface_name, const std::string& manufacturer,
+    const std::string& serial_number, std::size_t max_queue_size,
+    bool drop_oldest);
+
+  // --- Member Variables ---
+
+  std::shared_ptr<vda5050_core::transport::MqttClientInterface> mqtt_client_;
+
+  // Fleet-wide event detector (AGVs feed it via ingest_*). Declared before
+  // agvs_ so it outlives them.
+  MasterContext master_context_;
+
+  // Onboarded AGVs, keyed by agv_id.
   mutable std::mutex agv_mutex_;
   std::unordered_map<std::string, std::shared_ptr<AGV>> agvs_;
+
+  // Loaded graph, shared with each AGV's queue thread (self-guarded holder,
+  // so the queue thread reads it without referencing the master).
+  std::shared_ptr<LoadedGraphHolder> graph_holder_ =
+    std::make_shared<LoadedGraphHolder>();
+
+  // Per-AGV factsheet-alignment cache.
+  // Lock order: agv_mutex_ → map_mutex_. Never the reverse.
+  mutable std::mutex map_mutex_;
+  std::unordered_map<std::string, vda5050_core::errors::ValidationResult>
+    alignment_cache_;
+
+  // Broker connection state: written by the transport callback thread, read by
+  // get_broker_status() from any thread.
+  mutable std::mutex broker_status_mutex_;
+  bool broker_connected_ = false;
+  std::optional<std::chrono::system_clock::time_point>
+    broker_last_disconnect_at_;
+  std::uint64_t broker_reconnect_count_ = 0;
+
+  // Registered reaction callbacks. Set before connect() (the single inbound
+  // thread reads them), so no mutex; an unset slot is a no-op.
+  std::function<void(const std::string&, const vda5050_core::types::State&)>
+    on_state_cb_;
+  std::function<void(
+    const std::string&, const vda5050_core::types::Connection&)>
+    on_connection_cb_;
+  std::function<void(const std::string&, const vda5050_core::types::Factsheet&)>
+    on_factsheet_cb_;
+  std::function<void(
+    const std::string&, const vda5050_core::types::Visualization&)>
+    on_visualization_cb_;
+  std::function<void(const std::string&, const std::string&)>
+    on_node_reached_cb_;
+  std::function<void(const std::string&, const std::string&)>
+    on_order_complete_cb_;
+  std::function<void(
+    const std::string&, const std::vector<vda5050_core::types::Error>&)>
+    on_errors_appeared_cb_;
+  std::function<void(
+    const std::string&, const std::vector<vda5050_core::types::Error>&)>
+    on_errors_resolved_cb_;
+  std::function<void(const std::string&)> on_new_base_requested_cb_;
+  std::function<void(
+    const std::string&, vda5050_core::types::OperatingMode,
+    vda5050_core::types::OperatingMode)>
+    on_mode_changed_cb_;
+  std::function<void(const std::string&, bool)> on_paused_cb_;
+  std::function<void(const std::string&, bool)> on_driving_cb_;
+  std::function<void(
+    const std::string&, const std::vector<vda5050_core::types::Load>&)>
+    on_loads_changed_cb_;
+  std::function<void(const std::string&)> on_connect_cb_;
+  std::function<void(const std::string&)> on_offline_cb_;
+  std::function<void(const std::string&)> on_connection_broken_cb_;
+  std::function<void(const std::string&)> on_state_timeout_cb_;
+  std::function<void(const std::string&)> on_state_resumed_cb_;
+  std::function<void()> on_broker_disconnected_cb_;
+  std::function<void()> on_broker_reconnected_cb_;
+
+  // Transport connection-state handlers: update broker_* under the mutex, then
+  // invoke the on_broker_* callbacks outside the lock.
+  void handle_broker_connection_lost(const std::string& cause);
+  void handle_broker_connected(const std::string& cause);
 };
 
 }  // namespace master

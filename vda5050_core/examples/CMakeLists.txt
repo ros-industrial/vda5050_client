@@ -36,6 +36,13 @@ target_link_libraries(order_publisher PUBLIC
   ${PROJECT_NAME}::execution
 )
 
+add_executable(master_example master/master_example.cpp)
+target_link_libraries(master_example PUBLIC
+  ${PROJECT_NAME}::master
+  ${PROJECT_NAME}::transport
+  ${PROJECT_NAME}::logger
+)
+
 install(TARGETS
     custom_base
     provider_example
@@ -43,5 +50,6 @@ install(TARGETS
     handler_integration
     adapter_example
     order_publisher
+    master_example
   DESTINATION lib/${PROJECT_NAME}
 )

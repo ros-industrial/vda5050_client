@@ -294,6 +294,67 @@ TEST(CapabilityValidatorTest, InstantActionsRejectActionTypeNotInFactsheet)
   EXPECT_TRUE(AnyErrorMentions(res, "teleport"));
 }
 
+TEST(CapabilityValidatorTest, InstantActionErrorReferencesActionId)
+{
+  auto ctx = make_ctx(make_state_on_node("N0"), make_factsheet());
+  vda5050_core::types::InstantActions ia;
+  vda5050_core::types::Action unsupported;
+  unsupported.action_id = "A1";
+  unsupported.action_type = "teleport";
+  unsupported.blocking_type = vda5050_core::types::BlockingType::NONE;
+  ia.actions = {unsupported};
+
+  auto res = validate_capability(ctx, ia);
+  ASSERT_FALSE(static_cast<bool>(res));
+  bool has_action_ref = false;
+  for (const auto& e : res.fatal_errors())
+  {
+    if (!e.error_references) continue;
+    for (const auto& r : *e.error_references)
+    {
+      if (r.reference_key == errors::RefActionId && r.reference_value == "A1")
+      {
+        has_action_ref = true;
+      }
+    }
+  }
+  EXPECT_TRUE(has_action_ref);
+}
+
+TEST(CapabilityValidatorTest, InstantActionsSkipsCapabilityForPredefinedActions)
+{
+  // Factsheet present but does not list the protocol-predefined actions —
+  // they must still pass (always supported, not enumerated in the factsheet).
+  auto ctx = make_ctx(make_state_on_node("N0"), make_factsheet());
+  vda5050_core::types::InstantActions ia;
+  for (const char* type :
+       {"stateRequest", "factsheetRequest", "cancelOrder", "startPause"})
+  {
+    vda5050_core::types::Action a;
+    a.action_id = std::string("id-") + type;
+    a.action_type = type;
+    a.blocking_type = vda5050_core::types::BlockingType::NONE;
+    ia.actions.push_back(a);
+  }
+  auto res = validate_capability(ctx, ia);
+  EXPECT_TRUE(static_cast<bool>(res)) << "predefined actions must be exempt";
+}
+
+TEST(CapabilityValidatorTest, InstantActionsChargingIsCapabilityChecked)
+{
+  // Charging is capability-dependent — not exempt. An AGV whose factsheet
+  // doesn't list startCharging must have it rejected.
+  auto ctx = make_ctx(make_state_on_node("N0"), make_factsheet());
+  vda5050_core::types::InstantActions ia;
+  vda5050_core::types::Action charge;
+  charge.action_id = "c1";
+  charge.action_type = "startCharging";
+  charge.blocking_type = vda5050_core::types::BlockingType::NONE;
+  ia.actions = {charge};
+  auto res = validate_capability(ctx, ia);
+  EXPECT_FALSE(static_cast<bool>(res));
+}
+
 TEST(CapabilityValidatorTest, InstantActionsRejectScopeNotInstant)
 {
   auto fs = make_factsheet();

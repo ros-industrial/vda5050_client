@@ -28,8 +28,8 @@ namespace vda5050_core {
 namespace validation {
 
 /// \brief Check an instant action against the AGV's running actions and
-/// driving state (blocking_type: NONE ok; SOFT blocked while driving; HARD
-/// blocked while driving or any active action).
+///        driving state: NONE ok; SOFT blocked while driving; HARD blocked
+///        while driving or while any action is active.
 vda5050_core::errors::ValidationResult validate_action_conflict(
   const PreSendContext& ctx,
   const vda5050_core::types::InstantActions& actions);

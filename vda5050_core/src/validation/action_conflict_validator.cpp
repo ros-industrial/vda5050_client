@@ -24,6 +24,7 @@
 
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
+#include "vda5050_core/validation/predefined_action_types.hpp"
 
 namespace vda5050_core::validation {
 
@@ -71,6 +72,22 @@ errors::ValidationResult validate_action_conflict(
 
   for (const auto& action : actions.actions)
   {
+    if (driving && is_position_init_action_type(action.action_type))
+    {
+      add_error(
+        errors::ActionBlockedByDrivingError,
+        fmt::format(
+          "initPosition '{}' rejected because AGV is driving (would reset the "
+          "pose mid-motion).",
+          action.action_type),
+        {{errors::RefActionId, action.action_id}});
+      continue;
+    }
+
+    // Don't pre-block control actions (cancelOrder, startPause, stopPause) —
+    // they're issued mid-motion; the AGV is the authority.
+    if (is_motion_exempt_action_type(action.action_type)) continue;
+
     switch (action.blocking_type)
     {
       case types::BlockingType::NONE:

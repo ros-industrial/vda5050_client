@@ -84,8 +84,10 @@ TEST(InstantActionModeValidator, ExemptList_MatchesPredefinedInstantScope)
   EXPECT_TRUE(is_mode_exempt_action_type("initPosition"));
   EXPECT_TRUE(is_mode_exempt_action_type("startPause"));
   EXPECT_TRUE(is_mode_exempt_action_type("stopPause"));
-  EXPECT_TRUE(is_mode_exempt_action_type("startCharging"));
-  EXPECT_TRUE(is_mode_exempt_action_type("stopCharging"));
+  // Charging is an operational action, not recovery — NOT exempt outside
+  // AUTOMATIC (the master must not push charging to a hand-driven AGV).
+  EXPECT_FALSE(is_mode_exempt_action_type("startCharging"));
+  EXPECT_FALSE(is_mode_exempt_action_type("stopCharging"));
 }
 
 TEST(InstantActionModeValidator, NonExempt_ActionTypes_Rejected)

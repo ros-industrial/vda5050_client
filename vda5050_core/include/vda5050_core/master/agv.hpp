@@ -22,6 +22,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -30,43 +31,29 @@
 #include <string>
 #include <thread>
 #include <utility>
-
-#include "vda5050_core/types/connection.hpp"
-#include "vda5050_core/types/connection_state.hpp"
-#include "vda5050_core/types/error.hpp"
-#include "vda5050_core/types/factsheet.hpp"
-#include "vda5050_core/types/instant_actions.hpp"
-#include "vda5050_core/types/order.hpp"
-#include "vda5050_core/types/state.hpp"
-#include "vda5050_core/types/visualization.hpp"
+#include <vector>
 
 #include "vda5050_core/execution/protocol_adapter.hpp"
 #include "vda5050_core/logger/logger.hpp"
-
+#include "vda5050_core/master/actions/instant_actions_publisher.hpp"
 #include "vda5050_core/master/heartbeat.hpp"
+#include "vda5050_core/master/loaded_graph_holder.hpp"
+#include "vda5050_core/master/master_types.hpp"
+#include "vda5050_core/master/order/active_order_snapshot.hpp"
+#include "vda5050_core/master/order/order_lifecycle_manager.hpp"
+#include "vda5050_core/master/order/order_publisher.hpp"
+#include "vda5050_core/master/order/order_stitcher.hpp"
+#include "vda5050_core/master/pose_view.hpp"
 #include "vda5050_core/master/standard_names.hpp"
-
-using vda5050_core::types::Connection;
-using vda5050_core::types::ConnectionState;
-using vda5050_core::types::Error;
-using vda5050_core::types::Factsheet;
-using vda5050_core::types::InstantActions;
-using vda5050_core::types::Order;
-using vda5050_core::types::State;
-using vda5050_core::types::Visualization;
-
-using vda5050_core::execution::ProtocolAdapter;
+#include "vda5050_core/types/error.hpp"
 
 namespace vda5050_core {
-
 namespace master {
 
 // Forward declaration
 class VDA5050Master;
 
-/**
- * @brief AGV operational state based on state heartbeat
- */
+/// \brief AGV operational state based on state heartbeat
 enum class AGVState
 {
   STATE_UNKNOWN,  // Initial state or state heartbeat timed out
@@ -75,318 +62,225 @@ enum class AGVState
   ERROR           // AGV reported error state
 };
 
-/**
- * @brief Represents an individual AGV managed by VDA5050Master
- *
- * This class is primarily a data container that holds:
- * - Identity information (manufacturer, serial number)
- * - Cached VDA5050 messages (connection, state, factsheet, visualization)
- * - Connection and operational state
- * - Outgoing message queue for orders and instant actions
- *
- * The VDA5050Master routes incoming messages to AGV instances and the AGV
- * handles incoming/outgoing messages via the VDA5050Execution ProtocolAdapter.
- *
- * Thread safety: Methods are thread-safe. Cached data access is protected
- * by mutexes.
- */
+/// \brief An AGV managed by VDA5050Master: caches messages, tracks
+///        connection/operational state, queues outbound. Thread-safe.
 class AGV : public std::enable_shared_from_this<AGV>
 {
 public:
-  // Type aliases
   using Clock = std::chrono::system_clock;
   using TimePoint = std::chrono::time_point<Clock>;
 
-  /**
-   * @brief Construct an AGV instance
-   *
-   * Caller must invoke setup_subscriptions() after make_shared
-   * returns; weak_from_this() is only valid once the shared_ptr
-   * has been associated.
-   *
-   * @param protocol_adapter Protocol adapter for pub/sub
-   * @param manufacturer Manufacturer name
-   * @param serial_number Serial number
-   * @param max_queue_size Maximum number of outgoing messages to queue (default: 10)
-   * @param drop_oldest If true, drop oldest message when queue full; if false, reject new (default: true)
-   * @param state_heartbeat_interval State heartbeat timeout in seconds
-   * @param parent Optional non-owning back-pointer to the owning
-   *        VDA5050Master. When set, the AGV dispatches incoming
-   *        messages to the master's virtual callbacks (on_state,
-   *        on_connection, on_factsheet, on_visualization) after
-   *        caching them. Held as a `weak_ptr` so the AGV can detect
-   *        if the master is gone (returns null cleanly via `lock()`)
-   *        rather than silently dangling. The master MUST be
-   *        constructed via `std::make_shared<MyMaster>(...)` for the
-   *        weak_ptr to be valid — see VDA5050Master class
-   *        doc-comment.
-   */
+  /// \brief Construct an AGV. Call setup_subscriptions() after make_shared
+  ///        (weak_from_this needs it).
   AGV(
-    std::shared_ptr<execution::ProtocolAdapter> protocol_adapter,
+    std::shared_ptr<vda5050_core::execution::ProtocolAdapter> protocol_adapter,
     const std::string& interface_name, const std::string& manufacturer,
     const std::string& serial_number, size_t max_queue_size = 10,
     bool drop_oldest = true,
     int state_heartbeat_interval = StateHeartbeatInterval,
-    std::weak_ptr<VDA5050Master> parent = {});
+    std::weak_ptr<VDA5050Master> parent = {},
+    std::shared_ptr<LoadedGraphHolder> graph_holder = {});
 
-  /**
-   * @brief Destructor - stops the queue processing thread
-   */
+  /// \brief Stop the queue processor and heartbeat; join the worker thread.
   ~AGV();
 
-  // Non-copyable, non-movable (due to thread member)
   AGV(const AGV&) = delete;
   AGV& operator=(const AGV&) = delete;
   AGV(AGV&&) = delete;
   AGV& operator=(AGV&&) = delete;
 
-  // ============================================================================
-  // Identity
-  // ============================================================================
+  // --- Identity ---
 
-  /**
-   * @brief Get the interface name
-   */
   const std::string& get_interface_name() const
   {
     return interface_name_;
   }
-  /**
-   * @brief Get the manufacturer name
-   */
   const std::string& get_manufacturer() const
   {
     return manufacturer_;
   }
 
-  /**
-   * @brief Get the serial number
-   */
   const std::string& get_serial_number() const
   {
     return serial_number_;
   }
 
-  /**
-   * @brief Get the AGV ID (manufacturer/serial_number)
-   */
   const std::string& get_agv_id() const
   {
     return agv_id_;
   }
 
-  // ============================================================================
-  // Connection and Operational State
-  // ============================================================================
+  // --- Connection and Operational State ---
 
-  /**
-   * @brief Check if the AGV is connected (based on VDA5050 connection message)
-   * @return true if connection_status is ONLINE, false otherwise
-   */
   bool is_connected() const;
 
-  /**
-   * @brief Get the AGV connection state (based on VDA5050 connection message)
-   * @return ONLINE, OFFLINE, or CONNECTIONBROKEN
-   */
-  ConnectionState get_connection_status() const;
+  vda5050_core::types::ConnectionState get_connection_status() const;
 
-  /**
-   * @brief Get the AGV operational state (based on state heartbeat)
-   * @return STATE_UNKNOWN, AVAILABLE, UNAVAILABLE, or ERROR
-   */
   AGVState get_operational_state() const;
 
-  /**
-   * @brief Stop the AGV, releasing all runtime resources (heartbeat, queue processor)
-   *
-   * Stops the queue processor and heartbeat, resets connection and operational state,
-   * and clears all message queues. Cached messages are preserved.
-   * The AGV can be restarted later with start().
-   */
+  /// \brief Stop the processor + heartbeat and clear queues; cached kept.
   void stop();
 
-  /**
-   * @brief Restart the AGV, fully resetting state to accept new connections
-   *
-   * Calls stop(), then clears cached messages and timestamps.
-   * The heartbeat and queue processor will be started automatically when an
-   * ONLINE connection message is received.
-   */
+  /// \brief stop() plus clear cached messages; re-arms on the next ONLINE.
   void restart();
 
-  /**
-   * @brief Pause the AGV, suspending runtime resources without clearing queues
-   *
-   * Stops the queue processor and heartbeat, sets connection status to OFFLINE
-   * and operational state to UNAVAILABLE. Queued messages and cached data are
-   * preserved and will be processed when resumed.
-   */
+  /// \brief Suspend processor + heartbeat (OFFLINE/UNAVAILABLE); queues+cache
+  ///        kept.
   void pause();
 
-  /**
-   * @brief Resume a paused AGV, restarting the queue processor and heartbeat
-   *
-   * Restarts the queue processor and heartbeat so the AGV can resume
-   * publishing queued messages and monitoring state heartbeats.
-   */
+  /// \brief Resume the processor + heartbeat after pause().
   void resume();
 
-  // ============================================================================
-  // Cached Messages (read-only access)
-  // ============================================================================
+  // --- Cached Messages (read-only access) ---
 
-  /**
-   * @brief Get the last received connection message
-   * @return Optional containing the message if received, nullopt otherwise
-   */
-  std::optional<Connection> get_last_connection() const;
+  std::optional<vda5050_core::types::Connection> get_last_connection() const;
 
-  /**
-   * @brief Get the last received state message
-   * @return Optional containing the message if received, nullopt otherwise
-   */
-  std::optional<State> get_last_state() const;
+  std::optional<vda5050_core::types::State> get_last_state() const;
 
-  /**
-   * @brief Get the last received factsheet message
-   * @return Optional containing the message if received, nullopt otherwise
-   */
-  std::optional<Factsheet> get_last_factsheet() const;
+  std::optional<vda5050_core::types::Factsheet> get_last_factsheet() const;
 
-  /**
-   * @brief Get the last received visualization message
-   * @return Optional containing the message if received, nullopt otherwise
-   */
-  std::optional<Visualization> get_last_visualization() const;
+  std::optional<vda5050_core::types::Visualization> get_last_visualization()
+    const;
 
-  // ============================================================================
-  // Timestamps
-  // ============================================================================
+  /// \brief Coherent snapshot (one data_mutex_ acquisition) of cached
+  ///        State/Connection/Factsheet + receive times.
+  struct StatusSnapshot
+  {
+    std::optional<vda5050_core::types::State> state;
+    std::optional<vda5050_core::types::Connection> connection;
+    std::optional<vda5050_core::types::Factsheet> factsheet;
+    std::optional<TimePoint> state_received_at;
+    std::optional<TimePoint> connection_received_at;
+    std::optional<TimePoint> factsheet_received_at;
+  };
 
-  /**
-   * @brief Get the time when the AGV was created
-   */
+  StatusSnapshot get_status_snapshot() const;
+
+  /// \brief Coherent bundle of cached State + order-lifecycle view (data_mutex_
+  ///        then OrderLifecycleManager).
+  struct OrderStatusBundle
+  {
+    std::optional<vda5050_core::types::State> state;
+    std::optional<TimePoint> state_received_at;
+    ActiveOrderSnapshot active_order_snapshot;
+    std::size_t pending_stitch_count;
+  };
+
+  OrderStatusBundle get_order_status_bundle() const;
+
+  /// \brief Fused pose snapshot from the freshest of cached State /
+  ///        Visualization carrying an initialized position, under data_mutex_.
+  /// \return PoseView; source == None when no initialized position is cached.
+  PoseView get_pose_view() const;
+
+  // --- Order Lifecycle (forwarders to OrderLifecycleManager) ---
+
+  /// \brief Whether the master tracks an active order for this AGV (set on a
+  ///        recorded publish; cleared by recovery/new-order/explicit clear).
+  bool has_active_order() const;
+
+  std::optional<std::string> active_order_id() const;
+
+  std::optional<uint32_t> active_order_update_id() const;
+
+  /// \brief True once the AGV's reported last_node matches the active
+  ///        order's final node. Sticky until a new order is recorded.
+  bool is_order_complete() const;
+
+  /// \brief True when the AGV requested newBaseRequest and no higher
+  ///        order_update_id has been recorded yet.
+  bool active_order_needs_more_base() const;
+
+  size_t pending_update_count() const;
+
+  /// \brief Active-order tracking snapshot; safe to read concurrently.
+  ActiveOrderSnapshot active_order_snapshot() const;
+
+  // --- Timestamps ---
+
   TimePoint get_created_time() const
   {
     return created_time_;
   }
 
-  /**
-   * @brief Get the time of the last received connection message
-   * @return Optional containing the timestamp if received, nullopt otherwise
-   */
   std::optional<TimePoint> get_last_connection_time() const;
 
-  /**
-   * @brief Get the time of the last received state message
-   * @return Optional containing the timestamp if received, nullopt otherwise
-   */
   std::optional<TimePoint> get_last_state_time() const;
 
-  /**
-   * @brief Get the time of the last received factsheet message
-   * @return Optional containing the timestamp if received, nullopt otherwise
-   */
   std::optional<TimePoint> get_last_factsheet_time() const;
 
-  /**
-   * @brief Get the time of the last received visualization message
-   * @return Optional containing the timestamp if received, nullopt otherwise
-   */
   std::optional<TimePoint> get_last_visualization_time() const;
 
-  // ============================================================================
-  // Outgoing Messages
-  // ============================================================================
+  // --- Outgoing Messages ---
 
-  /**
-   * @brief Queue an order to be sent to this AGV
-   * @param order The order message
-   * @return true if queued successfully, false if queue is full (drop_oldest=false)
-   */
-  bool send_order(const Order& order);
+  /// \brief Queue an order to this AGV.
+  /// \return true if queued, false if the queue is full (drop_oldest=false).
+  bool send_order(const vda5050_core::types::Order& order);
 
-  /**
-   * @brief Queue instant actions to be sent to this AGV
-   * @param actions The instant actions message
-   * @return true if queued successfully, false if queue is full (drop_oldest=false)
-   */
-  bool send_instant_actions(const InstantActions& actions);
+  /// \brief Queue instant actions to this AGV.
+  /// \return true if queued, false if the queue is full (drop_oldest=false).
+  bool send_instant_actions(const vda5050_core::types::InstantActions& actions);
 
-  /**
-   * @brief Get the number of pending orders in the queue
-   * @return Number of orders waiting to be sent
-   */
   size_t get_pending_order_count() const;
 
-  /**
-   * @brief Get the number of pending instant actions in the queue
-   * @return Number of instant actions waiting to be sent
-   */
   size_t get_pending_instant_actions_count() const;
 
-  // ============================================================================
-  // Message Handlers (called by VDA5050Master to route incoming messages)
-  // ============================================================================
+  /// \brief action_ids of instant actions queued but not yet published.
+  ///        Used to keep action_id uniqueness checks queue-aware.
+  std::vector<std::string> get_queued_instant_action_ids() const;
 
-  /**
-   * @brief Handle an incoming connection message
-   * @param msg The parsed connection message
-   */
-  void handle_connection(const Connection& msg);
+  /// \brief Drop all queued outbound Orders and InstantActions (master-side
+  ///        only; does not send a cancelOrder to the AGV). Thread-safe.
+  void cancel_pending_orders();
 
-  /**
-   * @brief Handle an incoming state message
-   * @param msg The parsed state message
-   */
-  void handle_state(const State& msg);
+  // --- Mode-cancelled queue (capture-and-resume on mode change) ---
+  // Leaving master control drains the outbound queues here before
+  // on_mode_changed; the override calls resume/discard.
 
-  /**
-   * @brief Handle an incoming factsheet message
-   * @param msg The parsed factsheet message
-   */
-  void handle_factsheet(const Factsheet& msg);
+  /// Queue items captured at the most recent transition out of master control.
+  struct ModeCancelledQueue
+  {
+    std::vector<vda5050_core::types::Order> orders;
+    std::vector<vda5050_core::types::InstantActions> instant_actions;
+    std::optional<TimePoint> cancelled_at;
+    std::optional<vda5050_core::types::OperatingMode> from_mode;
+    std::optional<vda5050_core::types::OperatingMode> to_mode;
+  };
 
-  /**
-   * @brief Handle an incoming visualization message
-   * @param msg The parsed visualization message
-   */
-  void handle_visualization(const Visualization& msg);
+  /// \brief Snapshot the mode-cancelled buffer (empty if the AGV hasn't left
+  ///        master control since onboard/resume/discard). Thread-safe.
+  ModeCancelledQueue get_mode_cancelled_queue() const;
 
-  // ============================================================================
-  // Subscription Management
-  // ============================================================================
+  /// \brief Prepend the captured buffer to the live queue (submission order)
+  ///        and clear it; re-enqueued items re-run the validator chain.
+  /// \return {orders_resumed, actions_resumed}.
+  std::pair<std::size_t, std::size_t> resume_mode_cancelled_queue();
 
-  /**
-   * @brief Wire per-topic subscriptions on the protocol adapter.
-   *
-   * Must be called by the caller of the constructor after
-   * `make_shared<AGV>(...)` returns — the wrapper lambda captures
-   * `weak_from_this()`, which is only valid once the shared_ptr
-   * ownership has been associated. Calling from inside the
-   * constructor would silently install wrappers with empty
-   * weak_ptrs, and user callbacks would never fire.
-   */
+  /// \brief Drop the mode-cancelled buffer without re-enqueue.
+  /// \return {orders_discarded, actions_discarded}.
+  std::pair<std::size_t, std::size_t> discard_mode_cancelled_queue();
+
+  // --- Message Handlers (VDA5050Master routes incoming messages here) ---
+
+  void handle_connection(const vda5050_core::types::Connection& msg);
+  void handle_state(const vda5050_core::types::State& msg);
+  void handle_factsheet(const vda5050_core::types::Factsheet& msg);
+  void handle_visualization(const vda5050_core::types::Visualization& msg);
+
+  /// \brief Wire per-topic subscriptions. Call after make_shared (the wrappers
+  ///        capture weak_from_this()).
   void setup_subscriptions();
 
 private:
-  // Wire a typed subscription on protocol_adapter_. The wrapper
-  // captures weak_from_this() so the lambda no-ops cleanly if AGV
-  // is destroyed before the wrapper fires (instead of dereferencing
-  // a dangling pointer). Lock at the top keeps AGV alive for the
-  // entire dispatch — both `self->agv_id_` and `handler(msg)`
-  // (which captures [this]) are safe inside the locked scope.
-  // Logs parse errors at ERROR level and exceptions thrown by
-  // `handler` at WARN level without re-throwing — both are
-  // non-fatal for the AGV.
+  // Subscription wrapper: lock weak_from_this() first (keeps the AGV alive for
+  // the dispatch, no-op if gone). Parse/handler errors log, never rethrow.
   template <typename MsgType>
   void create_subscription(
     std::function<void(const MsgType&)> handler, QosLevel qos)
   {
     protocol_adapter_->template subscribe<MsgType>(
       [self_weak = weak_from_this(), handler = std::move(handler)](
-        MsgType msg, std::optional<Error> error) {
+        MsgType msg, std::optional<vda5050_core::types::Error> error) {
         auto self = self_weak.lock();
         if (!self) return;  // AGV gone — drop the message silently
 
@@ -411,91 +305,123 @@ private:
       static_cast<int>(qos));
   }
 
-  // ============================================================================
-  // Internal State Management
-  // ============================================================================
+  // --- Internal State Management ---
 
-  void set_connection_status(ConnectionState status);
-  void set_operational_state(AGVState state);
+  void set_connection_status(vda5050_core::types::ConnectionState status);
+  // Returns the effective state after precedence (STATE_UNKNOWN is ignored
+  // under UNAVAILABLE/ERROR), so callers see if the transition took effect.
+  AGVState set_operational_state(AGVState state);
   void on_state_heartbeat_timeout();
 
-  // Setup/cleanup heartbeat when connection state changes
   void setup_heartbeat();
   void cleanup_heartbeat();
 
-  // ============================================================================
-  // Queue Processing
-  // ============================================================================
+  // --- Queue Processing ---
 
   void start_queue_processor();
   void stop_queue_processor();
   void process_queues();
 
-  // Publishing
-  void publish_order(const Order& order);
-  void publish_instant_actions(const InstantActions& actions);
+  bool enqueue_order(
+    const vda5050_core::types::Order& order, bool pre_stitched);
 
-  // Helper to build topic paths
-  std::string build_topic(const std::string& topic_name) const;
+  // pre_stitched skips the stitch decision for a drained update.
+  void publish_order(
+    const vda5050_core::types::Order& order, bool pre_stitched = false);
+  void publish_instant_actions(
+    const vda5050_core::types::InstantActions& actions);
 
-  // ============================================================================
-  // Member Variables
-  // ============================================================================
+  // --- Member Variables ---
 
-  // Identity
   std::string interface_name_;
   std::string manufacturer_;
   std::string serial_number_;
   std::string agv_id_;
 
-  // Protocol Adapter for publishing/subscribing
-  std::shared_ptr<ProtocolAdapter> protocol_adapter_;
+  std::shared_ptr<vda5050_core::execution::ProtocolAdapter> protocol_adapter_;
 
-  // Non-owning back-pointer to the owning VDA5050Master.
-  // Set at construction and never reassigned — safe to read concurrently
-  // from MQTT-callback thread inside handle_*() dispatch.
-  // Stored as weak_ptr so dispatch sites can detect master destruction
-  // cleanly via lock() rather than silently dangling.
+  // Stateless publishers that run the outgoing validator chain.
+  OrderPublisher order_publisher_;
+  InstantActionsPublisher instant_actions_publisher_;
+
+  // Per-AGV order lifecycle; owns its mutex, updated from handle_state and
+  // publish_order.
+  OrderLifecycleManager order_lifecycle_;
+
+  // Stateless stitch guard at the front of publish_order.
+  OrderStitcher order_stitcher_;
+
+  // Set once at construction, never reassigned (safe to read concurrently);
+  // weak_ptr so dispatch detects master destruction via lock().
   std::weak_ptr<VDA5050Master> parent_;
 
-  // Heartbeat listener for state timeout detection (protected by heartbeat_mutex_)
+  // Loaded graph shared with the master; read by the queue thread without
+  // referencing the master. Set once at construction, never reassigned.
+  std::shared_ptr<LoadedGraphHolder> graph_holder_;
+
+  // Heartbeat listener for state timeout (guarded by heartbeat_mutex_)
   mutable std::mutex heartbeat_mutex_;
   std::unique_ptr<HeartbeatListener> state_heartbeat_;
   int state_heartbeat_interval_;
 
   // AGV states (protected by state_mutex_)
   mutable std::mutex state_mutex_;
-  ConnectionState connection_status_{ConnectionState::OFFLINE};
+  vda5050_core::types::ConnectionState connection_status_{
+    vda5050_core::types::ConnectionState::OFFLINE};
   AGVState operational_state_{AGVState::STATE_UNKNOWN};
 
-  // Timestamps
   TimePoint created_time_;
 
   // Cached messages and timestamps (protected by data_mutex_)
   mutable std::mutex data_mutex_;
 
-  std::optional<Connection> last_connection_;
+  std::optional<vda5050_core::types::Connection> last_connection_;
   std::optional<TimePoint> last_connection_time_;
 
-  std::optional<State> last_state_;
+  std::optional<vda5050_core::types::State> last_state_;
   std::optional<TimePoint> last_state_time_;
+  // Monotonic receive stamp for data_age (wall-clock steps must not skew it).
+  std::optional<std::chrono::steady_clock::time_point> last_state_steady_;
+  // Stale-State gate (QoS 0): drop a State not strictly newer than the last
+  // cached header_id; reset on reconnect so a restarted AGV isn't locked out.
+  uint32_t last_state_header_id_ = 0;
+  bool have_state_baseline_ = false;
 
-  std::optional<Factsheet> last_factsheet_;
+  std::optional<vda5050_core::types::Factsheet> last_factsheet_;
   std::optional<TimePoint> last_factsheet_time_;
 
-  std::optional<Visualization> last_visualization_;
+  std::optional<vda5050_core::types::Visualization> last_visualization_;
   std::optional<TimePoint> last_visualization_time_;
+  // Monotonic receive stamp for data_age (see last_state_steady_).
+  std::optional<std::chrono::steady_clock::time_point>
+    last_visualization_steady_;
+  // Stale-Visualization gate (QoS 0), same policy as State.
+  uint32_t last_visualization_header_id_ = 0;
+  bool have_visualization_baseline_ = false;
 
-  // Outgoing message queues (protected by queue_mutex_)
   size_t max_queue_size_;
   bool drop_oldest_;
 
+  // Drained updates carry pre_stitched=true so publish_order skips the guard.
+  struct QueuedOrder
+  {
+    vda5050_core::types::Order order;
+    bool pre_stitched = false;
+  };
+
   mutable std::mutex queue_mutex_;
   std::condition_variable queue_cv_;
-  std::queue<Order> order_queue_;
-  std::queue<InstantActions> instant_actions_queue_;
+  std::queue<QueuedOrder> order_queue_;
+  std::queue<vda5050_core::types::InstantActions> instant_actions_queue_;
 
-  // Queue processing thread
+  // Mode-cancelled buffer; protected by queue_mutex_.
+  ModeCancelledQueue mode_cancelled_queue_;
+
+  // Capture + drain the outbound queues; runs before on_mode_changed fires.
+  void capture_and_drain_on_leave_master_control(
+    vda5050_core::types::OperatingMode from,
+    vda5050_core::types::OperatingMode to);
+
   std::mutex thread_mutex_;
   bool stop_processing_{false};
   bool queue_processor_running_{false};

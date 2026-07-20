@@ -38,11 +38,15 @@ struct TypeSpecification
 
   /// \brief Simplified description of AGV kinematics type.
   /// Allowed values: [DIFF, OMNI, THREEWHEEL]
-  AGVKinematic agv_kinematic;
+  /// Default-member-initialized so a default-constructed TypeSpecification
+  /// has a defined value (otherwise the to_string() trait would observe
+  /// indeterminate memory and throw "Invalid AGVKinematic enum value").
+  AGVKinematic agv_kinematic{AGVKinematic::DIFF};
 
   /// \brief Simplified description of AGV class.
   /// Allowed values: [FORKLIFT, CONVEYOR, TUGGER, CARRIER]
-  AGVClass agv_class;
+  /// Default-member-initialized for the same reason as agv_kinematic.
+  AGVClass agv_class{AGVClass::FORKLIFT};
 
   /// \brief Maximum loadable mass [kg]
   double max_load_mass = 0.0;

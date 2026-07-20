@@ -26,6 +26,7 @@
 
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
+#include "vda5050_core/validation/predefined_action_types.hpp"
 
 namespace vda5050_core::validation {
 
@@ -48,6 +49,8 @@ void validate_action_against_factsheet(
   const types::Action& action, types::ActionScope expected_scope,
   const types::Factsheet& factsheet, const AddErrorFn& add_error)
 {
+  const std::vector<types::ErrorReference> action_ref = {
+    {errors::RefActionId, action.action_id}};
   const types::AGVAction* agv_action =
     find_agv_action(factsheet, action.action_type);
   if (agv_action == nullptr)
@@ -57,7 +60,7 @@ void validate_action_against_factsheet(
         "Action.action_type '{}' is not supported by AGV (not present in "
         "factsheet.agv_actions).",
         action.action_type),
-      {});
+      action_ref);
     return;
   }
 
@@ -69,7 +72,7 @@ void validate_action_against_factsheet(
         "Action.action_type '{}' does not declare the required scope for its "
         "placement.",
         action.action_type),
-      {});
+      action_ref);
   }
 
   if (agv_action->blocking_types.has_value())
@@ -84,7 +87,7 @@ void validate_action_against_factsheet(
           "Action.action_type '{}' does not support the requested "
           "blocking_type.",
           action.action_type),
-        {});
+        action_ref);
     }
   }
 
@@ -107,7 +110,7 @@ void validate_action_against_factsheet(
             "Action parameter key '{}' not declared by AGV for action_type "
             "'{}'.",
             p.key, action.action_type),
-          {});
+          action_ref);
       }
     }
   }
@@ -126,7 +129,7 @@ void validate_action_against_factsheet(
         fmt::format(
           "Action '{}' is missing required parameter '{}'.", action.action_type,
           d.key),
-        {});
+        action_ref);
     }
   }
 }
@@ -203,6 +206,9 @@ errors::ValidationResult validate_capability(
 
   for (const auto& action : actions.actions)
   {
+    // Always-supported protocol actions aren't in factsheet.agv_actions, so
+    // skip the check. Their param validation (e.g. initPosition) is deferred.
+    if (is_capability_exempt_action_type(action.action_type)) continue;
     validate_action_against_factsheet(
       action, types::ActionScope::INSTANT, fs, add_error);
   }

@@ -19,31 +19,19 @@
 #include "vda5050_core/validation/instant_action_mode_validator.hpp"
 
 #include <fmt/format.h>
-#include <set>
 #include <string>
 
 #include "vda5050_core/errors/error_codes.hpp"
 #include "vda5050_core/errors/error_factory.hpp"
+#include "vda5050_core/validation/operating_mode_control.hpp"
+#include "vda5050_core/validation/predefined_action_types.hpp"
 
 namespace vda5050_core::validation {
 
-namespace {
-
-// Predefined instant-scope actions exempt from the mode gate.
-const std::set<std::string>& exempt_action_types()
-{
-  static const std::set<std::string> kExempt = {
-    "stateRequest", "factsheetRequest", "logReport",
-    "cancelOrder",  "initPosition",     "startPause",
-    "stopPause",    "startCharging",    "stopCharging"};
-  return kExempt;
-}
-
-}  // namespace
-
 bool is_mode_exempt_action_type(const std::string& action_type)
 {
-  return exempt_action_types().count(action_type) != 0;
+  // Exempt outside AUTOMATIC is exactly the always-supported protocol set.
+  return is_capability_exempt_action_type(action_type);
 }
 
 errors::ValidationResult validate_instant_action_mode(
@@ -51,12 +39,10 @@ errors::ValidationResult validate_instant_action_mode(
 {
   errors::ValidationResult res;
 
-  // Master control is confirmed only in AUTOMATIC / SEMIAUTOMATIC; any other or
-  // unknown mode is treated conservatively — only exempt actions pass below.
+  // An unknown mode is treated conservatively — only exempt actions pass below.
   const bool master_in_control =
     ctx.last_state.has_value() &&
-    (ctx.last_state->operating_mode == types::OperatingMode::AUTOMATIC ||
-     ctx.last_state->operating_mode == types::OperatingMode::SEMIAUTOMATIC);
+    is_master_in_control(ctx.last_state->operating_mode);
   if (master_in_control) return res;
 
   for (const auto& action : actions.actions)

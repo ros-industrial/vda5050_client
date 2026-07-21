@@ -430,7 +430,8 @@ std::shared_ptr<RobotUpdateHandle> FleetUpdateHandle::add_robot(
   RobotCallbacks callbacks)
 {
   auto mqtt_client = transport::create_default_client_unique(
-    configuration_.broker_uri(), configuration_.client_id_prefix());
+    configuration_.broker_uri(),
+    fmt::format("{}_{}", configuration_.client_id_prefix(), name));
   auto protocol_adapter = execution::ProtocolAdapter::make(
     std::move(mqtt_client), configuration.interface_name, configuration.version,
     configuration.manufacturer, configuration.serial_number);

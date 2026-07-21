@@ -112,6 +112,7 @@ void StateManager::set_operating_mode(types::OperatingMode mode)
 {
   std::lock_guard<std::mutex> lock(mutex_);
   state_.operating_mode = mode;
+  publish_requested_ = true;
 }
 
 //=============================================================================
@@ -191,6 +192,7 @@ void StateManager::add_load(const types::Load& load)
     state_.loads = std::vector<types::Load>{};
   }
   state_.loads->push_back(load);
+  publish_requested_ = true;
 }
 
 //=============================================================================
@@ -198,6 +200,7 @@ void StateManager::set_loads(const std::vector<types::Load>& loads)
 {
   std::lock_guard<std::mutex> lock(mutex_);
   state_.loads = loads;
+  publish_requested_ = true;
 }
 
 //=============================================================================
@@ -205,6 +208,7 @@ void StateManager::clear_loads()
 {
   std::lock_guard<std::mutex> lock(mutex_);
   state_.loads = std::vector<types::Load>{};
+  publish_requested_ = true;
 }
 
 //=============================================================================
@@ -212,6 +216,7 @@ void StateManager::remove_loads()
 {
   std::lock_guard<std::mutex> lock(mutex_);
   state_.loads = std::nullopt;
+  publish_requested_ = true;
 }
 
 //=============================================================================
@@ -223,6 +228,7 @@ void StateManager::add_information(const types::Info& information)
     state_.information = std::vector<types::Info>{};
   }
   state_.information->push_back(information);
+  publish_requested_ = true;
 }
 
 //=============================================================================
@@ -230,6 +236,7 @@ void StateManager::set_information(const std::vector<types::Info>& infomation)
 {
   std::lock_guard<std::mutex> lock(mutex_);
   state_.information = infomation;
+  publish_requested_ = true;
 }
 
 //=============================================================================
@@ -237,6 +244,7 @@ void StateManager::remove_information()
 {
   std::lock_guard<std::mutex> lock(mutex_);
   state_.information = std::nullopt;
+  publish_requested_ = true;
 }
 
 //=============================================================================

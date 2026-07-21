@@ -91,7 +91,7 @@ types::AGVPosition RobotState::to_agv_position(
 types::BatteryState RobotState::to_battery_state(double soc)
 {
   types::BatteryState b;
-  b.battery_charge = soc;
+  b.battery_charge = soc * 100.0;
   return b;
 }
 
@@ -467,14 +467,18 @@ std::shared_ptr<RobotUpdateHandle> FleetUpdateHandle::add_robot(
         request.action_type(), request.action_id(), std::move(command));
     });
 
-  adapter->on_localize(
-    [callbacks](client::adapter::LocalizationRequest request, auto execution) {
-      auto destination = Destination(
-        request.map_id(), {request.x(), request.y(), request.theta()});
-      auto command = CommandExecution(execution, ActivityIdentifier());
+  if (callbacks.localize())
+  {
+    adapter->on_localize(
+      [callbacks](
+        client::adapter::LocalizationRequest request, auto execution) {
+        auto destination = Destination(
+          request.map_id(), {request.x(), request.y(), request.theta()});
+        auto command = CommandExecution(execution, ActivityIdentifier());
 
-      callbacks.localize()(std::move(destination), std::move(command));
-    });
+        callbacks.localize()(std::move(destination), std::move(command));
+      });
+  }
 
   robots_.insert_or_assign(name, adapter);
 

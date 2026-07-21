@@ -692,6 +692,8 @@ void Adapter::stop()
 
     pimpl_->publish_connection_offline();
 
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
     pimpl_->protocol_adapter->disconnect();
   }
 }

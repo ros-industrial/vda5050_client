@@ -30,16 +30,18 @@ class AdapterNavigationTest : public AdapterTest
 TEST_F(AdapterNavigationTest, ReceivesReleasedNode)
 {
   std::atomic_int call_count = 0;
-  std::optional<NodeRequest> n_request;
-  std::optional<EdgeRequest> e_request;
 
   adapter->on_navigate([&](
                          NodeRequest node_request,
                          std::optional<EdgeRequest> edge_request,
-                         std::shared_ptr<OrderExecution> /*execution*/) {
+                         std::shared_ptr<OrderExecution> execution) {
     call_count++;
-    n_request = std::move(node_request);
-    e_request = std::move(edge_request);
+
+    EXPECT_EQ(node_request.node_id(), "N0");
+    EXPECT_EQ(node_request.sequence_id(), 0);
+    EXPECT_FALSE(edge_request.has_value());
+
+    execution->finished();
   });
 
   adapter->start();
@@ -51,18 +53,13 @@ TEST_F(AdapterNavigationTest, ReceivesReleasedNode)
 
   ASSERT_TRUE(wait_until([&] { return call_count == 1; }));
 
-  ASSERT_TRUE(n_request.has_value());
-  EXPECT_EQ(n_request->node_id(), "N0");
-  EXPECT_EQ(n_request->sequence_id(), 0);
-
-  EXPECT_FALSE(e_request.has_value());
-
   adapter->stop();
 }
 
 TEST_F(AdapterNavigationTest, ReceivesReleasedNodeWithEdge)
 {
   std::atomic_int call_count = 0;
+  std::mutex nav_mutex;
   std::optional<NodeRequest> n_request;
   std::optional<EdgeRequest> e_request;
   std::shared_ptr<OrderExecution> order_execution;
@@ -72,6 +69,8 @@ TEST_F(AdapterNavigationTest, ReceivesReleasedNodeWithEdge)
                          std::optional<EdgeRequest> edge_request,
                          std::shared_ptr<OrderExecution> execution) {
     call_count++;
+
+    std::lock_guard<std::mutex> lock(nav_mutex);
     n_request = std::move(node_request);
     e_request = std::move(edge_request);
     order_execution = std::move(execution);
@@ -86,21 +85,29 @@ TEST_F(AdapterNavigationTest, ReceivesReleasedNodeWithEdge)
 
   ASSERT_TRUE(wait_until([&] { return call_count == 1; }));
 
-  ASSERT_TRUE(n_request.has_value());
-  EXPECT_EQ(n_request->node_id(), "N0");
-  EXPECT_EQ(n_request->sequence_id(), 0);
+  {
+    std::lock_guard<std::mutex> lock(nav_mutex);
 
-  order_execution->finished();
+    ASSERT_TRUE(n_request.has_value());
+    EXPECT_EQ(n_request->node_id(), "N0");
+    EXPECT_EQ(n_request->sequence_id(), 0);
+
+    order_execution->finished();
+  }
 
   ASSERT_TRUE(wait_until([&] { return call_count == 2; }));
 
-  ASSERT_TRUE(e_request.has_value());
-  EXPECT_EQ(e_request->edge_id(), "E1");
-  EXPECT_EQ(e_request->sequence_id(), 1);
+  {
+    std::lock_guard<std::mutex> lock(nav_mutex);
 
-  ASSERT_TRUE(n_request.has_value());
-  EXPECT_EQ(n_request->node_id(), "N2");
-  EXPECT_EQ(n_request->sequence_id(), 2);
+    ASSERT_TRUE(e_request.has_value());
+    EXPECT_EQ(e_request->edge_id(), "E1");
+    EXPECT_EQ(e_request->sequence_id(), 1);
+
+    ASSERT_TRUE(n_request.has_value());
+    EXPECT_EQ(n_request->node_id(), "N2");
+    EXPECT_EQ(n_request->sequence_id(), 2);
+  }
 
   adapter->stop();
 }
@@ -213,12 +220,14 @@ TEST_F(AdapterNavigationTest, FailureAddsError)
 
 TEST_F(AdapterNavigationTest, ContinuesToNextNode)
 {
+  std::mutex mutex;
   std::vector<uint32_t> visited;
 
   adapter->on_navigate([&](
                          NodeRequest node_request,
                          std::optional<EdgeRequest> /*edge_request*/,
                          std::shared_ptr<OrderExecution> execution) {
+    std::lock_guard<std::mutex> lock(mutex);
     visited.push_back(node_request.sequence_id());
     execution->finished();
   });
@@ -230,8 +239,12 @@ TEST_F(AdapterNavigationTest, ContinuesToNextNode)
     fmt::format("{}/order", protocol_adapter->get_topic_prefix()),
     nlohmann::json(order).dump());
 
-  ASSERT_TRUE(wait_until([&] { return visited.size() == 2; }));
+  ASSERT_TRUE(wait_until([&] {
+    std::lock_guard<std::mutex> lock(mutex);
+    return visited.size() == 2;
+  }));
 
+  std::lock_guard<std::mutex> lock(mutex);
   EXPECT_EQ(visited[0], 0);
   EXPECT_EQ(visited[1], 2);
 

@@ -140,6 +140,7 @@ TEST_F(AdapterNavigationTest, UnreleasedNodeDoesNotDispatch)
 
 TEST_F(AdapterNavigationTest, FinishUpdatesState)
 {
+  std::mutex mutex;
   std::optional<NodeRequest> n_request;
   std::shared_ptr<OrderExecution> order_execution;
 
@@ -147,6 +148,7 @@ TEST_F(AdapterNavigationTest, FinishUpdatesState)
                          NodeRequest node_request,
                          std::optional<EdgeRequest> /*edge_request*/,
                          std::shared_ptr<OrderExecution> execution) {
+    std::lock_guard<std::mutex> lock(mutex);
     n_request = std::move(node_request);
     order_execution = std::move(execution);
   });
@@ -170,9 +172,12 @@ TEST_F(AdapterNavigationTest, FinishUpdatesState)
   EXPECT_EQ(initial_state.last_node_id, "");
   EXPECT_EQ(initial_state.last_node_sequence_id, 0);
 
-  ASSERT_NE(order_execution, nullptr);
+  {
+    std::lock_guard<std::mutex> lock(mutex);
 
-  order_execution->finished();
+    ASSERT_NE(order_execution, nullptr);
+    order_execution->finished();
+  }
 
   ASSERT_TRUE(wait_publish(3));
 
@@ -182,8 +187,12 @@ TEST_F(AdapterNavigationTest, FinishUpdatesState)
     final_state = nlohmann::json::parse(published.back().message).get<State>();
   }
 
-  EXPECT_EQ(final_state.last_node_id, n_request->node_id());
-  EXPECT_EQ(final_state.last_node_sequence_id, n_request->sequence_id());
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+
+    EXPECT_EQ(final_state.last_node_id, n_request->node_id());
+    EXPECT_EQ(final_state.last_node_sequence_id, n_request->sequence_id());
+  }
 
   adapter->stop();
 }

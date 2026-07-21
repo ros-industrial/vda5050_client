@@ -27,14 +27,12 @@ TEST_F(AdapterActionTest, InstantActionDispatches)
 {
   std::atomic_bool called = false;
 
-  std::string action_id;
-  std::string action_type;
-
   adapter->on_action(
     [&](ActionRequest request, std::shared_ptr<ActionExecution> /*execution*/) {
       called = true;
-      action_id = request.action_id();
-      action_type = request.action_type();
+
+      EXPECT_EQ(request.action_id(), "action_1");
+      EXPECT_EQ(request.action_type(), "customAction");
     });
 
   adapter->start();
@@ -48,18 +46,17 @@ TEST_F(AdapterActionTest, InstantActionDispatches)
 
   ASSERT_TRUE(wait_until([&] { return called.load(); }));
 
-  EXPECT_EQ(action_id, "action_1");
-  EXPECT_EQ(action_type, "customAction");
-
   adapter->stop();
 }
 
 TEST_F(AdapterActionTest, MultipleActionsProcessedInOrder)
 {
+  std::mutex mutex;
   std::vector<std::string> ids;
 
   adapter->on_action(
     [&](ActionRequest request, std::shared_ptr<ActionExecution> execution) {
+      std::lock_guard<std::mutex> lock(mutex);
       ids.push_back(request.action_id());
       execution->finished();
     });
@@ -76,8 +73,12 @@ TEST_F(AdapterActionTest, MultipleActionsProcessedInOrder)
     fmt::format("{}/instantActions", protocol_adapter->get_topic_prefix()),
     nlohmann::json(actions).dump());
 
-  ASSERT_TRUE(wait_until([&] { return ids.size() == 3; }));
+  ASSERT_TRUE(wait_until([&] {
+    std::lock_guard<std::mutex> lock(mutex);
+    return ids.size() == 3;
+  }));
 
+  std::lock_guard<std::mutex> lock(mutex);
   EXPECT_THAT(ids, testing::ElementsAre("action_1", "action_2", "action_3"));
 
   adapter->stop();

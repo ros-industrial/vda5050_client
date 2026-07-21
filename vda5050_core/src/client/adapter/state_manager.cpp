@@ -326,8 +326,32 @@ void StateManager::set_order(const types::Order& order)
   state_.node_states.clear();
   state_.edge_states.clear();
 
-  for (const auto& node : order.nodes)
+  if (order.order_update_id == 0)
   {
+    types::NodeState ns;
+    ns.node_id = order.nodes.front().node_id;
+    ns.sequence_id = order.nodes.front().sequence_id;
+    ns.released = order.nodes.front().released;
+    ns.node_description = order.nodes.front().node_description;
+    ns.node_position = order.nodes.front().node_position;
+    state_.node_states.push_back(std::move(ns));
+
+    if (order.nodes.size() > 1)
+    {
+      types::EdgeState es;
+      es.edge_id = order.edges.front().edge_id;
+      es.sequence_id = order.edges.front().sequence_id;
+      es.released = order.edges.front().released;
+      es.edge_description = order.edges.front().edge_description;
+      es.trajectory = order.edges.front().trajectory;
+
+      state_.edge_states.push_back(std::move(es));
+    }
+  }
+
+  for (size_t i = 1; i < order.nodes.size(); i++)
+  {
+    auto node = order.nodes[i];
     types::NodeState ns;
     ns.node_id = node.node_id;
     ns.sequence_id = node.sequence_id;
@@ -338,8 +362,9 @@ void StateManager::set_order(const types::Order& order)
     state_.node_states.push_back(std::move(ns));
   }
 
-  for (const auto& edge : order.edges)
+  for (size_t i = 1; i < order.edges.size(); i++)
   {
+    auto edge = order.edges[i];
     types::EdgeState es;
     es.edge_id = edge.edge_id;
     es.sequence_id = edge.sequence_id;

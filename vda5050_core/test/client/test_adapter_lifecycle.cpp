@@ -48,11 +48,17 @@ TEST_F(AdapterLifecycleTest, StartConnectsBroker)
 
 TEST_F(AdapterLifecycleTest, StopDisconnectsBroker)
 {
+  std::atomic_bool disconnect_called = false;
+
   EXPECT_CALL(*mqtt, connect()).Times(1);
-  EXPECT_CALL(*mqtt, disconnect()).Times(1);
+  EXPECT_CALL(*mqtt, disconnect()).Times(1).WillOnce([&] {
+    disconnect_called = true;
+  });
 
   adapter->start();
   adapter->stop();
+
+  ASSERT_TRUE(wait_until([&] { return disconnect_called.load(); }));
 }
 
 TEST_F(AdapterLifecycleTest, PublishesOnlineOfflineConnection)

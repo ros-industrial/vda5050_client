@@ -149,6 +149,7 @@ void Adapter::Implementation::subscribe_instant_actions()
       if (error.has_value())
       {
         state_manager->add_error(error.value());
+        request_state_publish();
         return;
       }
 

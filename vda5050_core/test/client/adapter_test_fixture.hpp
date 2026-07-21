@@ -48,10 +48,13 @@ protected:
     ON_CALL(*mqtt, connected()).WillByDefault(Return(true));
 
     ON_CALL(*mqtt, subscribe(_, _, _))
-      .WillByDefault(
-        [this](
-          const std::string& topic, MqttClientInterface::MessageHandler handler,
-          int /*qos*/) { subscriptions[topic] = std::move(handler); });
+      .WillByDefault([this](
+                       const std::string& topic,
+                       MqttClientInterface::MessageHandler handler,
+                       int /*qos*/) {
+        std::lock_guard<std::mutex> lock(subscriptions_mutex);
+        subscriptions[topic] = std::move(handler);
+      });
 
     ON_CALL(*mqtt, publish(_, _, _, _))
       .WillByDefault([this](
@@ -156,7 +159,19 @@ protected:
 
   void inject_message(const std::string& topic, const std::string& message)
   {
-    subscriptions.at(topic)(topic, message);
+    MqttClientInterface::MessageHandler handler;
+    {
+      std::lock_guard<std::mutex> lock(subscriptions_mutex);
+      auto it = subscriptions.find(topic);
+      if (it != subscriptions.end())
+      {
+        handler = it->second;
+      }
+    }
+    if (handler)
+    {
+      handler(topic, message);
+    }
   }
 
   struct PublishedMessage
@@ -169,6 +184,7 @@ protected:
   std::shared_ptr<vda5050_core::execution::ProtocolAdapter> protocol_adapter;
   std::shared_ptr<Adapter> adapter;
 
+  std::mutex subscriptions_mutex;
   std::unordered_map<std::string, MqttClientInterface::MessageHandler>
     subscriptions;
 

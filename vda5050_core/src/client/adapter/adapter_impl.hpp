@@ -163,6 +163,8 @@ public:
     std::shared_ptr<ActionExecution> execution);
 
   types::Factsheet make_default_factsheet();
+
+  bool is_order_complete(const ActiveOrder& active_order);
 };
 
 }  // namespace adapter

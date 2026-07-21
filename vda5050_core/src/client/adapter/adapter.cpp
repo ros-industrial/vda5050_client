@@ -51,7 +51,12 @@ void Adapter::Implementation::subscribe_orders()
 
       auto active = active_order.lock();
 
-      if (!active->order.has_value())
+      bool has_active = active->order.has_value();
+      bool active_is_finished = has_active && is_order_complete(*active->order);
+      bool is_new_order_id =
+        has_active && (active->order->order.order_id != order.order_id);
+
+      if (!has_active || (active_is_finished && is_new_order_id))
       {
         auto result = validation::is_valid_graph(order);
 
@@ -594,6 +599,21 @@ types::Factsheet Adapter::Implementation::make_default_factsheet()
   factsheet.protocol_features.agv_actions = {};
 
   return factsheet;
+}
+
+//=============================================================================
+bool Adapter::Implementation::is_order_complete(const ActiveOrder& active_order)
+{
+  if (active_order.order.nodes.empty()) return true;
+
+  uint32_t max_seq = 0;
+  for (const auto& node : active_order.order.nodes)
+  {
+    if (node.sequence_id > max_seq) max_seq = node.sequence_id;
+  }
+
+  return active_order.last_completed_node_sequence_id.has_value() &&
+         active_order.last_completed_node_sequence_id.value() >= max_seq;
 }
 
 //=============================================================================

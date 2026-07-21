@@ -108,9 +108,14 @@ public:
 
     try
     {
+      uint32_t header_id;
+      {
+        std::lock_guard<std::mutex> lock(header_ids_mutex_);
+        header_id = header_ids_[type_idx]++;
+      }
       vda5050_core::types::Header header{
-        header_ids_[type_idx]++, std::chrono::system_clock::now(), version_,
-        manufacturer_, serial_number_};
+        header_id, std::chrono::system_clock::now(), version_, manufacturer_,
+        serial_number_};
       message.header = header;
 
       nlohmann::json j = message;
@@ -230,9 +235,14 @@ public:
 
     try
     {
+      uint32_t header_id;
+      {
+        std::lock_guard<std::mutex> lock(header_ids_mutex_);
+        header_id = header_ids_[type_idx];
+      }
       vda5050_core::types::Header header{
-        header_ids_[type_idx], std::chrono::system_clock::now(), version_,
-        manufacturer_, serial_number_};
+        header_id, std::chrono::system_clock::now(), version_, manufacturer_,
+        serial_number_};
       message.header = header;
 
       nlohmann::json j = message;
@@ -269,6 +279,8 @@ private:
   std::shared_ptr<transport::MqttClientInterface> mqtt_client_;
 
   std::unordered_map<std::type_index, std::string> topic_names_;
+
+  std::mutex header_ids_mutex_;
   std::unordered_map<std::type_index, uint32_t> header_ids_;
 
   // Per-type "active" flags. Captured by the wrapper installed on

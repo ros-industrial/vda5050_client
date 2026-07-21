@@ -679,6 +679,10 @@ void Adapter::stop()
   if (!pimpl_->running) return;
 
   pimpl_->running = false;
+
+  {
+    std::lock_guard<std::mutex> lock(pimpl_->state_mutex);
+  }
   pimpl_->state_cv.notify_all();
 
   if (pimpl_->dispatch_thread.joinable()) pimpl_->dispatch_thread.join();

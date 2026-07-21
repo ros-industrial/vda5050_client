@@ -392,6 +392,11 @@ void Adapter::Implementation::process_actions()
   }
   else if (action.action_type == "initPosition")
   {
+    if (!action.action_parameters.has_value())
+    {
+      execution->failed("Action parameters missing in initPosition");
+      return;
+    }
     handle_init_position(action.action_parameters.value(), execution);
   }
   else
@@ -403,6 +408,7 @@ void Adapter::Implementation::process_actions()
     }
     catch (const std::exception& e)
     {
+      execution->failed("Failed to run action");
       VDA5050_ERROR(
         "Failed to run action of type [{}] and action ID [{}]",
         action.action_type, action.action_id);
@@ -426,6 +432,7 @@ void Adapter::Implementation::publish_state()
 //=============================================================================
 void Adapter::Implementation::request_state_publish()
 {
+  std::lock_guard<std::mutex> lock(state_mutex);
   state_manager->mark_publish_requested();
   state_cv.notify_all();
 }

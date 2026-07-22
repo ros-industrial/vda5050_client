@@ -9,29 +9,26 @@ The library is **framework-independent** and can be embedded directly into stand
 
 ```mermaid
 flowchart LR
-    subgraph Core["Shared Library Base"]
-        Shared["<b>vda5050_core</b><br/>- MQTT Transport Layer</br>- C++ Data Models<br/>- JSON Parsing & Validation<br/>- Execution Engine<br/>"]
-    end
+    Shared["<b>vda5050_core</b><br/>• MQTT Transport Layer<br/>• C++ Data Models<br/>• JSON Parsing & Validation<br/>• Execution Engine"]
 
-    subgraph Targets["Core Targets"]
-        direction TB
+    subgraph MasterTrack["Master Control Application"]
+        direction LR
         MasterAPI["<b>vda5050_core::master</b><br/>Master Control API"]
-        ClientAPI["<b>vda5050_core::client</b><br/>AGV Client Adapter"]
-    end
-
-    subgraph Apps["Your Applications"]
-        direction TB
         MasterApp["Fleet Controller"]
-        ClientApp["Robot Software"]
+        MasterAPI --> MasterApp
     end
 
-    Shared --> MasterAPI
+    subgraph ClientTrack["AGV/AMR Application"]
+        direction LR
+        ClientAPI["<b>vda5050_core::client</b><br/>AGV Client Adapter"]
+        ClientApp["Robot Software"]
+        ClientAPI --> ClientApp
+    end
+
+    Shared ---> MasterAPI
     Shared --> ClientAPI
 
-    MasterAPI --> MasterApp
-    ClientAPI --> ClientApp
-
-    MasterApp <====>|"<b>MQTT</b> (uagv/v2/...)"| ClientApp
+    MasterApp <===>|"<b>MQTT</b> (uagv/v2/...)"| ClientApp
 ```
 
 > [!NOTE]

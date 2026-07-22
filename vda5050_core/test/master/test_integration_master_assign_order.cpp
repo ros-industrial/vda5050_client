@@ -424,9 +424,11 @@ TEST_F(MasterAssignOrderTest, OrderRejected_FiresWhenPublishStageRejects)
     [&](
       const std::string&, const std::string& order_id,
       const std::vector<vda5050_core::types::Error>& errors) {
-      rejected_calls.fetch_add(1);
+      // Publish the plain fields before the counter the waiter polls, so
+      // the main thread cannot read them mid-write.
       rejected_id = order_id;
       error_count = errors.size();
+      rejected_calls.fetch_add(1);
     });
 
   make_agv_ready();

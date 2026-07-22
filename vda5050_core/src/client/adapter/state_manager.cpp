@@ -53,6 +53,7 @@ void StateManager::set_position(
     state_.agv_position->x = world_pose.x;
     state_.agv_position->y = world_pose.y;
     state_.agv_position->theta = world_pose.theta;
+    state_.agv_position->position_initialized = true;
   }
   else
   {

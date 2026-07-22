@@ -1,85 +1,92 @@
 # Client Adapter
 
-This guide explains how to connect an existing robot to a VDA5050 master control using the C++ client adapter provided by `vda5050_core::client::adapter`.
+This guide explains how to connect an existing robot stack to a VDA5050 master control
+using the C++ client adapter provided by `vda5050_core::client::adapter`.
+The client adapter acts as a high level bridge by managing VDA5050 communication over MQTT,
+validation of incoming messages, order processing and state update.
 
-The client adapter handles VDA5050 communication and order processing. It does not directly control a robot.
+It **does not** directly control the hardware - you provide the callbacks that forward
+commands to your robot's lower-level drivers (ROS 2, vendor SDK, REST, etc.)
 
-To use it with an existing robot, create one C++ integration application that connects the client adapter to the robot's SDK, API, ROS 2 interface, or control software.
+## Complete Integration Checklist
+Use this checklist to track your progress when replacing the template implementation with real robot integration code:
 
-```mermaid
-flowchart LR
-    Master[Master control] <-->|VDA5050 over MQTT| Adapter[Client Adapter]
-    Adapter -->|Node and edge request| Navigation[Robot navigation]
-    Navigation -->|finished or failed| Adapter
-    Adapter -->|Action request| Actions[Robot action handler]
-    Actions -->|status and completion| Adapter
-    Robot[Robot telemetry] -->|StateManager updates| Adapter
-```
+- [ ] 1. MQTT & Identity Configuration
 
+    - Update MQTT broker URL and port (`tcp://<broker-ip>:1883`).
 
+    - Set unique MQTT client ID.
 
+    - Set `manufacturer` and `serialNumber` strings to match master control expectations.
 
+- [ ] 2. Navigation Dispatching and Completion
+
+    - Hook `on_navigate` to robot drivers navigation function.
+
+    - Verify local target coordinates from `node_request.node_position()`.
+
+    - Report completion through `execution->finished()` or failure through `execution->failed(...)`.
+
+- [ ] 3. Action Execution and Status Update
+
+    - Map supported VDA 5050 action types in `on_action`.
+
+    - Transition execution states properly (`running()`, `finished()`, `failed()`, etc.).
+
+    - Reject unsupported action types explicitly.
+
+- [ ] 4. Localization and Coordinate Transforms
+
+    - Register `on_localize` handler to calibrate world-to-AGV frame transformation using `Transformation::calibrate()`.
+
+    - `Store transform in `StateManager` using `set_transformation()`.
+
+    - Pass calibrated pose to local robot controller if required.
+
+- [ ] 5. State Reporting
+
+    - Stream local pose into `state_manager->set_position(...)` (automatically converted to world coordinates if transforms available).
+
+    - Continuously update driving status (`set_driving`), operating mode (`set_operating_mode`), and battery metrics (`set_battery_state`).
+
+- [ ] 6. CMake Setup
+
+    - Update `CMakeLists.txt` executable targets and link against `vda5050_core::client`, `vda5050_core::transport` and `vda5050_core::logger`.
 
 ## Table of Contents
 
 1. [Start from the Existing Example](#1-start-from-the-existing-example)
-2. [Build and Run the Packaged Example](#2-build-and-run-the-packaged-example)
-3. [Create Your Own Robot Integration](#3-create-your-own-robot-integration)  
-  3.1 [Change the MQTT Configuration and Robot Identity](#31-change-the-mqtt-configuration-and-robot-identity)  
-  3.2 [Replace Simulated Navigation](#32-replace-simulated-navigation)  
-  3.3 [Report Navigation Completion](#33-report-navigation-completion)  
-  3.4 [Replace Simulated Actions](#34-replace-simulated-actions)  
-  3.5 [Connect Localization](#35-connect-localization)  
-  3.6 [Replace Simulated State with Real Robot State](#36-replace-simulated-state-with-real-robot-state)  
-  3.7 [Coordinate Frames](#37-coordinate-frames)  
-  3.8 [Configure the Factsheet](#38-configure-the-factsheet)  
-  3.9 [Keep the Existing Start and Stop](#39-keep-the-existing-start-and-stop-flow)   
-  3.10 [Update CMake](#310-update-cmake)  
-4. [Build and Test Your Robot Integration](#4-build-and-test-your-robot-integration)
-5. [Summary of Required Changes](#5-summary-of-required-changes)
-
-
+1. [Build and Run the Packaged Example](#2-build-and-run-the-packaged-example)
+1. [Create Your Own Robot Integration](#3-create-your-own-robot-integration)
+    1. [Change the MQTT Configuration and Robot Identity](#31-change-the-mqtt-configuration-and-robot-identity)
+    1. [Replace Simulated Navigation and Report Navigation Completion](#32-replace-simulated-navigation-and-report-navigation-completion)
+    1. [Replace Simulated Actions](#34-replace-simulated-actions)
+    1. [Connect Localization and Map Calibration](#35-connect-localization-and-map-calibration)
+    1. [Localization Initialization Methods](#36-localization-initialization-methods)
+    1. [Replace Simulated State with Real Robot State](#37-replace-simulated-state-with-real-robot-state)
+    1. [Coordinate Frames and Automatic Transformations](#38-coordinate-frames-and-automatic-transformations)
+    1. [Configure the Factsheet](#39-configure-the-factsheet)
+    1. [Keep the Existing Start and Stop Flow](#310-keep-the-existing-start-and-stop-flow)
+    1. [Linking with CMake](#310-linking-with-cmake)
+1. [Build and Test Your Robot Integration](#4-build-and-test-your-robot-integration)
+1. [Summary of Required Changes](#5-summary-of-required-changes)
 
 ## 1. Start from the Existing Example
 
-Use the following file as the starting template:
-
-```
-examples/client/adapter_example.cpp
-```
+Use the following file as the starting template: `examples/client/adapter_example.cpp`
 
 The example already handles:
+- MQTT communication
+- VDA5050 order processing
+- adapter startup and shutdown
+- navigation callbacks
+- action callbacks
+- localization callbacks
+- robot state reporting
 
-- MQTT communication,
-- VDA5050 order processing,
-- adapter startup and shutdown,
-- navigation callbacks,
-- action callbacks,
-- localization callbacks, and
-- robot state reporting.
-
-To integrate a real robot, copy the example into the robot integration package and replace the simulated behaviour with the robot's SDK, ROS 2 interface, or control API.
+To integrate a real robot, copy the example into your robot integration package and replace the simulated behavior with the robot's control API.
 
 > Calls such as `robot_driver.navigate_to()` in this guide are placeholders. They are not part of `vda5050_core`.
-
-
-
-### What You Need to Change
-
-
-| Part                  | What to replace                                               |
-| --------------------- | ------------------------------------------------------------- |
-| MQTT configuration    | Broker address and MQTT client ID                             |
-| Robot identity        | Manufacturer and serial number                                |
-| Navigation callback   | Simulated delay with the robot navigation command             |
-| Navigation result     | Report completion or failure from the robot navigation status |
-| Action callback       | Simulated action with supported robot commands                |
-| Localization callback | Connect to the robot localization interface                   |
-| State updates         | Use real position, battery, movement, and safety data         |
-| Factsheet             | Describe the actual robot capabilities                        |
-
-
-
 
 ## 2. Build and Run the Packaged Example
 
@@ -113,55 +120,13 @@ Run this example first to confirm that the MQTT connection and client-adapter fl
 
 ## 3. Create Your Own Robot Integration
 
-After the packaged example works:
+After making sure the packaged example works, copy `adapter_example.cpp` into the directory of your choice and start working!
 
-- Copy `adapter_example.cpp` into the `src/` directory of an existing robot integration package and rename it.
+### 3.1 Change MQTT Configuration and Robot Identity
 
-For example:
+Set broker endpoints and align manufacturer strings with master control:
 
-```
-my_robot_integration/
-├── CMakeLists.txt
-├── package.xml
-└── src/
-    └── my_robot_vda5050_adapter.cpp
-```
-
-If no robot integration package exists yet, create a new C++ or ROS 2 package that depends on `vda5050_core`.    
-
-- Update the MQTT broker and robot identity.
-- Replace simulated navigation with the robot's navigation command.
-- Replace simulated actions with the robot's supported actions.
-- Connect localization when required.
-- Read real robot telemetry and update `StateManager`.
-- Report navigation and action completion or failure.
-- Build and run the new robot-specific application.
-
-A simple integration can use one C++ source file. You do not need to create a separate program for every section in this guide. You also do not need to modify `vda5050_core`. The new application uses `vda5050_core` as a library.
-
-### 3.1 Change the MQTT Configuration and Robot Identity
-
-The first part of the integration application creates the MQTT connection and identifies the robot.
-
-Find:
-
-```
-auto mqtt_client =
-  vda5050_core::transport::create_default_client_unique(
-    "tcp://localhost:1883",
-    "adapter_example");
-
-auto protocol_adapter = ProtocolAdapter::make(
-  std::move(mqtt_client),
-  "uagv",
-  "2.0.0",
-  "Manufacturer",
-  "S001");
-```
-
-Replace the values with the deployment configuration:
-
-```
+```cpp
 auto mqtt_client =
   vda5050_core::transport::create_default_client_unique(
     "tcp://192.168.1.10:1883",
@@ -169,41 +134,16 @@ auto mqtt_client =
 
 auto protocol_adapter = ProtocolAdapter::make(
   std::move(mqtt_client),
-  "uagv",
-  "2.0.0",
-  "MyCompany",
-  "AGV-001");
+  "uagv",          // Interface domain
+  "2.0.0",         // VDA5050 specification version
+  "MyCompany",     // Manufacturer string
+  "AGV-001"        // Serial number
+);
+
+auto adapter = client::adapter::Adapter::make(protocol_adapter);
 ```
 
-Replace the example values with the configuration used by the robot integration.
-
-
-| Value                  | Meaning                |
-| ---------------------- | ---------------------- |
-| `tcp://localhost:1883` | MQTT broker address    |
-| `my-robot-client`      | Unique MQTT client ID  |
-| `uagv`                 | VDA5050 interface name |
-| `2.0.0`                | VDA5050 version        |
-| `MyCompany`            | Robot manufacturer     |
-| `AGV-001`              | Robot serial number    |
-
-
-The MQTT client ID must be unique at the broker.
-
-The manufacturer and serial number must match the identity configured in the VDA5050 master.
-
-For example:
-
-```
-uagv/v2/MyCompany/AGV-001/order
-uagv/v2/MyCompany/AGV-001/instantActions
-uagv/v2/MyCompany/AGV-001/state
-uagv/v2/MyCompany/AGV-001/connection
-```
-
-
-
-### 3.2 Replace Simulated Navigation
+### 3.2 Replace Simulated Navigation and Report Navigation Completion
 
 The example currently simulates navigation using a delay:
 

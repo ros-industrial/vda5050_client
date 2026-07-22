@@ -23,6 +23,7 @@
 #include <optional>
 #include <string>
 
+#include "vda5050_core/client/adapter/transformation.hpp"
 #include "vda5050_core/types/node.hpp"
 #include "vda5050_core/types/node_position.hpp"
 
@@ -46,7 +47,9 @@ public:
 private:
   friend class Adapter;
 
-  static NodeRequest from_node(const types::Node& node);
+  static NodeRequest from_node(
+    const types::Node& node,
+    std::optional<Transformation> transformation = std::nullopt);
 
   NodeRequest(
     const std::string& node_id, uint32_t sequence_id,

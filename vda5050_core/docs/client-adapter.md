@@ -145,7 +145,9 @@ auto adapter = client::adapter::Adapter::make(protocol_adapter);
 
 ### 3.2 Replace Simulated Navigation and Report Navigation Completion
 
-The example currently simulates navigation using a delay:
+Forward navigation requests to local controllers. If a transformation for
+`map_id` exists, the incoming position is automatically transformed
+to local AGV coordinates:
 
 ```
 adapter->on_navigate(

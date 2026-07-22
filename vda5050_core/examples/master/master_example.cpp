@@ -22,6 +22,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include <vda5050_core/logger/logger.hpp>
 
@@ -190,6 +191,17 @@ int main()
       }
       next_order();
     });
+
+  // An order discarded before it reached the AGV never completes, so a
+  // scheduler driven only by on_order_complete would stall here.
+  master->on_order_rejected([](
+                              const std::string& agv_id,
+                              const std::string& order_id,
+                              const std::vector<types::Error>& errors) {
+    VDA5050_WARN(
+      "[{}] order [{}] rejected ({} error(s))", agv_id, order_id,
+      errors.size());
+  });
 
   master->on_offline([](const std::string& agv_id) {
     VDA5050_WARN("[{}] went offline", agv_id);

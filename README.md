@@ -1,83 +1,84 @@
 # VDA5050 Library and Support Tools
 
-`vda5050_core` is a modern C++ library for developing applications that communicate using the VDA5050 specification. It provides reusable components for both AGV-side and master-control implementations, including message types along with serialization and deserialization utilities, validation, execution utilities, MQTT communication and a high-level adapter API for robot integration.
+`vda5050_core` is a modern C++ library designed for implementing the [VDA5050 specification](https://github.com/VDA5050/VDA5050) across AGVs, AMRs and fleet control systems.
 
-The library is runtime framework-independent and can be integrated into standalone C++ applications, ROS 2 systems or existing robot software. It uses `ament_cmake` as its build system.
+It provides native JSON serialization/deserialization, specification validation, an asynchronous execution framework, MQTT transport abstractions and high-level client adapter
+and master control APIs.
 
+The library is **framework-independent** and can be embedded directly into standalone native C++ drivers, ROS 2 packages, or Python-based systems.
+
+```mermaid
+flowchart LR
+    subgraph Core["Shared Library Base"]
+        Shared["<b>vda5050_core</b><br/>- MQTT Transport Layer</br>- C++ Data Models<br/>- JSON Parsing & Validation<br/>- Execution Engine<br/>"]
+    end
+
+    subgraph Targets["Core Targets"]
+        direction TB
+        MasterAPI["<b>vda5050_core::master</b><br/>Master Control API"]
+        ClientAPI["<b>vda5050_core::client</b><br/>AGV Client Adapter"]
+    end
+
+    subgraph Apps["Your Applications"]
+        direction TB
+        MasterApp["Fleet Controller"]
+        ClientApp["Robot Software"]
+    end
+
+    Shared --> MasterAPI
+    Shared --> ClientAPI
+
+    MasterAPI --> MasterApp
+    ClientAPI --> ClientApp
+
+    MasterApp <====>|"<b>MQTT</b> (uagv/v2/...)"| ClientApp
 ```
-VDA5050 Master
-      │ MQTT
-      ▼
-vda5050_core AGV Client
-      │ navigation, action and state callbacks
-      ▼
-Robot SDK / REST API / ROS 2 Integration
-      │
-      ▼
-    Robot
-```
 
-> **Status:** This project is under active development.
-
+> [!NOTE]
+> This project is under active development. API stability is guaranteed across minor releases.
 
 
 ## Features
 
-- **VDA5050 message types** represented as plain C++ structs.
-- **JSON serialization and deserialization** for native types and optional ROS 2 `vda5050_interfaces` messages.
-- **Validation** of orders, instant actions, protocol limits, action conflicts, factsheet alignment and graph traversability.
-- **MQTT transport** built on Eclipse Paho.
-- **An execution framework** for composing reactive, non-blocking robot logic.
-- **A high-level AGV client adapter** for navigation, actions and state reporting.
-- **Layout Interchange Format support** for loading and validating facility graphs.
-- **Python bindings**, including helpers for migrating Open-RMF fleet adapters.
+- **Specification Compliant Data Structures:** Native C++17 representations for all VDA5050 message types.
+- **Serialization and Validation:** Fast JSON parsing (`nlohmann/json`) with standard compliance validation
+- **Asynchronous Execution Framework:** Reactive execution engine for managing non-blocking robot state transitions, node execution and instant actions.
+- **High-Level Client Adapter API:** Pre-built abstraction layer wrapping navigation, action execution and automated state reporting.
+- **Layout Interchange Format (LIF):** Native support for loading and validating VDMA define Layout Interchange Format.
+- **Multi-Ecosystem Support:** Standalone CMake and `ament_cmake` build integration, optional ROS 2 (`vda5050_interfaces`) support and Python bindings via `pybind11`.
 
+## Overview
 
-
-## Documentation
-
-
-| Document                                                    | Contents                                    |
-| ----------------------------------------------------------- | ------------------------------------------- |
-| [Client Adapter Guide](vda5050_core/docs/client-adapter.md) | Integrating an AGV using the client adapter |
-| [RMF Migration Guide](vda5050_core/docs/rmf-migration.md)   | Migrating an Open-RMF fleet adapter         |
-| [Design Guide](vda5050_core/docs/design.md)                 | Architecture and design rationale           |
-| [Execution Guide](vda5050_core/docs/execution.md)           | Building custom execution logic             |
-| [Types Guide](vda5050_core/docs/types.md)                   | Message types and JSON conversion           |
-
+| Guide                                                              | Description                                               |
+| ------------------------------------------------------------------ | --------------------------------------------------------- |
+| **[Client Adapter Guide](vda5050_core/docs/client-adapter.md)**    | Step-by-step integration guide for AGV/AMR                |
+| **[Types and Serialization Guide](vda5050_core/docs/types.md)**    | Message structures, validation rules and JSON conversion  |
+| **[Open-RMF Migration Guide](vda5050_core/docs/rmf-migration.md)** | Migrating an Open-RMF fleet adapter to a VDA5050 Adapter  |
+| **[Architecture and Design](vda5050_core/docs/design.md)**         | Architecture and design rationale                         |
 
 To connect an existing robot SDK, REST API or ROS 2 navigation system, start with the [Client Adapter Guide](vda5050_core/docs/client-adapter.md).
 
-To understand or extend the library architecture, start with the [Design Guide](vda5050_core/docs/design.md).
-
 ## Getting Started
-
-
 
 ### Requirements
 
-- C++17
-- CMake 3.8 or newer
-- Eclipse Paho MQTT C++
-- `nlohmann/json`
-- `fmt`
-- `pybind11` when building the Python bindings
-- `vda5050_interfaces` when `ENABLE_ROS2=ON`
-
-
+- **C++ Compiler:** C++17 or higher
+- **Build System:** CMake $\ge 3.8$, `colcon` (optional for ROS 2 workspaces)
+- **System Libraries:** `nlohmann-json3-dev`, `libfmt-dev`, `libpaho-mqtt-dev`, `libpaho-mqttpp-dev`
+- **Optional:** ROS 2 (Humble/Jazzy) for `vda5050_interfaces`, `pybind11` for Python bindings.
 
 ### Build
 
-Install the required MQTT dependencies:
+1. Install the required MQTT dependencies:
 
-```
+```bash
 sudo apt update
 sudo apt install libpaho-mqtt-dev libpaho-mqttpp-dev
 ```
 
-Create a workspace, clone the repository and build the package:
+2. Create a workspace, clone the repository and build the package:
 
-```
+```bash
 mkdir -p ~/vda5050_ws/src
 cd ~/vda5050_ws/src
 
@@ -88,10 +89,9 @@ colcon build --packages-select vda5050_core
 source install/setup.bash
 ```
 
-
-
 #### Build Options
 
+Pass these flags through `colcon build --cmake-args -D<OPTION>=<VALUE>` or directly in CMake.
 
 | Option           | Default | Effect                                                  |
 | ---------------- | ------- | ------------------------------------------------------- |
@@ -100,14 +100,14 @@ source install/setup.bash
 | `BUILD_EXAMPLES` | `ON`    | Builds the examples                                     |
 | `BUILD_TESTING`  | `ON`    | Builds the tests and configured linters                 |
 
+### Quick Examples
 
-
-
-### Basic Usage
+#### AGV Client Integration
 
 The following example shows the basic setup for an AGV-side client.
 
-It creates an MQTT transport and a VDA5050 client adapter, then registers a navigation callback. In a real application, the callback should forward the request to the robot's navigation system.
+It creates an MQTT transport and a VDA5050 client adapter, then registers a navigation callback.
+In a real application, the callback should forward the request to the robot's navigation system.
 
 ```cpp
 #include <iostream>
@@ -154,76 +154,70 @@ int main()
 }
 ```
 
-CMake integration:
+##### Linking with CMake
 
 ```cmake
 find_package(vda5050_core REQUIRED)
 
-target_link_libraries(
-  my_agv
+target_link_libraries(agv_application
   PRIVATE
-  vda5050_core::client
+    vda5050_core::client
 )
 ```
 
-For a complete integration covering navigation, actions, localization, cancellation and state reporting, see the [Client Adapter Guide](vda5050_core/docs/client-adapter.md) and [vda5050_core/examples/client/adapter_example.cpp](vda5050_core/examples/client/adapter_example.cpp).
+For a complete integration covering navigation, actions, localization, cancellation and state reporting,
+see the [Client Adapter Guide](vda5050_core/docs/client-adapter.md) and a preconfigured
+[example](vda5050_core/examples/client/adapter_example.cpp).
 
 ## Examples
 
-The following examples can be run against a local MQTT broker:
+You can launch a local MQTT broker to test the included examples.
 
 ```bash
-mosquitto -v
+mosquitto -v -p 1883
 ```
 
+| Example                                                   | Demonstrates                                     |
+| --------------------------------------------------------- | ------------------------------------------------ |
+| `vda5050_core/examples/client/adapter_example.cpp`        | AGV client-adapter integration                   |
+| `vda5050_core/examples/master/order_publisher.cpp`        | Continuously dispatching a growing VDA5050 order |
 
-| Example                                                   | Demonstrates                              |
-| --------------------------------------------------------- | ----------------------------------------- |
-| `vda5050_core/examples/client/adapter_example.cpp`        | AGV client-adapter integration            |
-| `vda5050_core/examples/master/order_publisher.cpp`        | Dispatching a VDA5050 order               |
-| `vda5050_core/examples/execution/handler_integration.cpp` | Context, strategy and handler integration |
-| `vda5050_core/examples/execution/engine_example.cpp`      | Event queues and wait conditions          |
-| `vda5050_core/examples/execution/provider_example.cpp`    | Update broadcasting                       |
-| `vda5050_core/examples/execution/custom_base.cpp`         | Defining custom updates and events        |
+## Directory Layout
 
-
-
-
-## Repository Structure
-
+```bash
+.
+└── vda5050_core
+    ├── docs                 # Guides and architectural documentation
+    ├── examples             # Ready-to-run executables
+    ├── include
+    │   └── vda5050_core
+    │       ├── client       # High-level AGV client adapter
+    │       ├── errors       # Error definitions
+    │       ├── execution    # Reactive execution framework
+    │       ├── json_utils   # JSON serialization and traits
+    │       ├── layout       # Layout Interchange Format (LIF) support and tools
+    │       ├── logger       # Logging utilities
+    │       ├── master       # Master control components
+    │       ├── transport    # MQTT client interface and default implementation
+    │       ├── types        # VDA5050 message structs
+    │       └── validation   # VDA5050 specification compliance checks
+    ├── python               # pybind11 modules and migration tools
+    └── test                 # Unit and integration tests
 ```
-vda5050_core/
-  include/vda5050_core/
-    types/        VDA5050 message structs
-    json_utils/   JSON serialization and traits
-    validation/   Specification compliance checks
-    errors/       Error codes and factories
-    transport/    MQTT client interface and implementation
-    execution/    Reactive execution framework
-    client/       AGV-side client and adapter
-    master/       Master-control components
-    layout/       Layout Interchange Format support
-    logger/       Logging
-  examples/       Runnable examples
-  python/         Python bindings
-  test/           Unit and integration tests
-  docs/           Documentation
-```
-
-
 
 ## Testing
 
-Run the test suite with:
+Run the unit and integration tests using `colcon`.
 
 ```bash
-colcon test --packages-select vda5050_core
-colcon test-result --verbose
+colcon test --event-handlers console_direct+ --packages-select vda5050_core
 ```
 
-Some integration tests require an MQTT broker running on `localhost:1883`.
+> Note: Some integration tests require an active MQTT broker listening on `localhost:1883`.
 
 ## Contributing
+
+Contributions are welcome!
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development and contribution guidelines.
 

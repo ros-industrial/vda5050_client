@@ -22,6 +22,8 @@
 #include <utility>
 
 #include "nlohmann/json.hpp"
+#include "vda5050_core/errors/error_codes.hpp"
+#include "vda5050_core/errors/error_factory.hpp"
 #include "vda5050_core/execution/protocol_adapter.hpp"
 #include "vda5050_core/json_utils/serialization.hpp"
 #include "vda5050_core/logger/logger.hpp"
@@ -1111,6 +1113,15 @@ void AGV::publish_order(
           VDA5050_WARN(
             "Pending queue full for [{}]; dropping order [{}] (update {})",
             agv_id_, order.order_id, order.order_update_id);
+          if (auto p = parent_.lock())
+          {
+            p->dispatch_order_rejected(
+              agv_id_, order.order_id,
+              {vda5050_core::errors::create_error(
+                vda5050_core::errors::OrderUpdateError,
+                "Pending update queue is full; order dropped.",
+                {{vda5050_core::errors::RefOrderId, order.order_id}})});
+          }
         }
         else
         {
@@ -1125,6 +1136,10 @@ void AGV::publish_order(
           "Stitch validation rejected order [{}] (update {}) for [{}]: "
           "{} error(s)",
           order.order_id, order.order_update_id, agv_id_, stitch.errors.size());
+        if (auto p = parent_.lock())
+        {
+          p->dispatch_order_rejected(agv_id_, order.order_id, stitch.errors);
+        }
         return;
     }
   }
@@ -1175,6 +1190,11 @@ void AGV::publish_order(
         err.error_level == vda5050_core::types::ErrorLevel::FATAL ? "FATAL"
                                                                   : "WARNING",
         err.error_description.value_or(""));
+    }
+    if (auto p = parent_.lock())
+    {
+      p->dispatch_order_rejected(
+        agv_id_, order.order_id, result.fatal_errors());
     }
     return;
   }

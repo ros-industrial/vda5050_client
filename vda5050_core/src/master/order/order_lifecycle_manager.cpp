@@ -383,6 +383,13 @@ std::vector<vda5050_core::types::Order> OrderLifecycleManager::on_state_update(
   return drain_pending_locked(state);
 }
 
+vda5050_core::types::Error OrderLifecycleManager::pending_queue_full_error(
+  const std::string& order_id)
+{
+  return make_combine_error(
+    "Pending update queue is full; order dropped.", order_id);
+}
+
 bool OrderLifecycleManager::enqueue_pending_update(
   const vda5050_core::types::Order& update)
 {

@@ -22,8 +22,6 @@
 #include <utility>
 
 #include "nlohmann/json.hpp"
-#include "vda5050_core/errors/error_codes.hpp"
-#include "vda5050_core/errors/error_factory.hpp"
 #include "vda5050_core/execution/protocol_adapter.hpp"
 #include "vda5050_core/json_utils/serialization.hpp"
 #include "vda5050_core/logger/logger.hpp"
@@ -1117,10 +1115,8 @@ void AGV::publish_order(
           {
             p->dispatch_order_rejected(
               agv_id_, order.order_id,
-              {vda5050_core::errors::create_error(
-                vda5050_core::errors::OrderUpdateError,
-                "Pending update queue is full; order dropped.",
-                {{vda5050_core::errors::RefOrderId, order.order_id}})});
+              {OrderLifecycleManager::pending_queue_full_error(
+                order.order_id)});
           }
         }
         else

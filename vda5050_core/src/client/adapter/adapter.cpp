@@ -264,7 +264,14 @@ void Adapter::Implementation::process_navigation()
   const auto& next_node = order.nodes[node_it->second];
   if (!next_node.released) return;
 
-  auto node_request = NodeRequest::from_node(next_node);
+  std::optional<Transformation> map_transformation = std::nullopt;
+  if (next_node.node_position.has_value())
+  {
+    map_transformation =
+      state_manager->transformation(next_node.node_position->map_id);
+  }
+
+  auto node_request = NodeRequest::from_node(next_node, map_transformation);
 
   uint32_t next_edge_seq = next_node_seq - 1;
 

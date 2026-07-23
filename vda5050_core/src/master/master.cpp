@@ -1027,6 +1027,15 @@ void VDA5050Master::on_order_complete(
   on_order_complete_cb_ = std::move(callback);
 }
 
+void VDA5050Master::on_order_rejected(
+  std::function<void(
+    const std::string&, const std::string&,
+    const std::vector<vda5050_core::types::Error>&)>
+    callback)
+{
+  on_order_rejected_cb_ = std::move(callback);
+}
+
 void VDA5050Master::on_errors_appeared(
   std::function<
     void(const std::string&, const std::vector<vda5050_core::types::Error>&)>
@@ -1176,6 +1185,18 @@ void VDA5050Master::dispatch_order_complete(
   {
     fire_hook(agv_id, "on_order_complete", [&] {
       on_order_complete_cb_(agv_id, order_id);
+    });
+  }
+}
+
+void VDA5050Master::dispatch_order_rejected(
+  const std::string& agv_id, const std::string& order_id,
+  const std::vector<vda5050_core::types::Error>& errors)
+{
+  if (on_order_rejected_cb_)
+  {
+    fire_hook(agv_id, "on_order_rejected", [&] {
+      on_order_rejected_cb_(agv_id, order_id, errors);
     });
   }
 }

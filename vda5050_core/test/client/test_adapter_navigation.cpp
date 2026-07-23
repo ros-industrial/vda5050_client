@@ -279,3 +279,121 @@ TEST_F(AdapterNavigationTest, NavigationExceptionHandled)
 
   adapter->stop();
 }
+TEST_F(AdapterNavigationTest, TransformsCoordinatesUsingInitializePosition)
+{
+  std::mutex mutex;
+  std::optional<NodeRequest> received_request;
+  std::atomic_bool nav_called = false;
+
+  adapter->on_navigate([&](
+                         NodeRequest node_request,
+                         std::optional<EdgeRequest> /*edge_request*/,
+                         std::shared_ptr<OrderExecution> execution) {
+    std::lock_guard<std::mutex> lock(mutex);
+    received_request = std::move(node_request);
+    nav_called = true;
+    execution->finished();
+  });
+
+  const std::string map_id = "floor_1";
+
+  adapter->state_manager()->initialize_position(10.0, 5.0, M_PI_2, map_id);
+
+  EXPECT_TRUE(adapter->state_manager()->position_initialized());
+
+  adapter->start();
+
+  auto order = make_order("order_id", 0, 1, 0);
+  order.nodes[0].node_position = vda5050_core::types::NodePosition{};
+  order.nodes[0].node_position->map_id = map_id;
+  order.nodes[0].node_position->x = 10.0;
+  order.nodes[0].node_position->y = 15.0;
+  order.nodes[0].node_position->theta = M_PI_2;
+
+  inject_message(
+    fmt::format("{}/order", protocol_adapter->get_topic_prefix()),
+    nlohmann::json(order).dump());
+
+  ASSERT_TRUE(wait_until([&] { return nav_called.load(); }));
+
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    ASSERT_TRUE(received_request.has_value());
+    const auto& pos = received_request->node_position();
+    ASSERT_TRUE(pos.has_value());
+
+    EXPECT_DOUBLE_EQ(pos->x, 10.0);
+    EXPECT_DOUBLE_EQ(pos->y, 15.0);
+    ASSERT_TRUE(pos->theta.has_value());
+    EXPECT_DOUBLE_EQ(pos->theta.value(), M_PI_2);
+  }
+
+  adapter->stop();
+}
+
+TEST_F(AdapterNavigationTest, TransformsCoordinatesUsingSetTransform)
+{
+  std::mutex mutex;
+  std::optional<NodeRequest> received_request;
+  std::atomic_bool nav_called = false;
+
+  adapter->on_navigate([&](
+                         NodeRequest node_request,
+                         std::optional<EdgeRequest> /*edge_request*/,
+                         std::shared_ptr<OrderExecution> execution) {
+    std::lock_guard<std::mutex> lock(mutex);
+    received_request = std::move(node_request);
+    nav_called = true;
+    execution->finished();
+  });
+
+  const std::string map_id = "floor_1";
+
+  vda5050_core::client::adapter::Pose2D world_ref{10.0, 5.0, M_PI_2};
+  vda5050_core::client::adapter::Pose2D agv_ref{0.0, 0.0, 0.0};
+
+  auto tf = vda5050_core::client::adapter::Transformation::calibrate(
+    world_ref, agv_ref);
+
+  adapter->state_manager()->set_transformation(tf, map_id);
+  adapter->state_manager()->set_position(0.0, 0.0, 0.0, map_id);
+
+  EXPECT_TRUE(adapter->state_manager()->position_initialized());
+
+  adapter->start();
+
+  auto order = make_order("order_id", 0, 1, 0);
+  order.nodes[0].node_position = vda5050_core::types::NodePosition{};
+  order.nodes[0].node_position->map_id = map_id;
+  order.nodes[0].node_position->x = 10.0;
+  order.nodes[0].node_position->y = 15.0;
+  order.nodes[0].node_position->theta = M_PI_2;
+
+  inject_message(
+    fmt::format("{}/order", protocol_adapter->get_topic_prefix()),
+    nlohmann::json(order).dump());
+
+  ASSERT_TRUE(wait_until([&] { return nav_called.load(); }));
+
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    ASSERT_TRUE(received_request.has_value());
+    const auto& pos = received_request->node_position();
+    ASSERT_TRUE(pos.has_value());
+
+    EXPECT_NEAR(pos->x, 10.0, 1e-4);
+    EXPECT_NEAR(pos->y, 0.0, 1e-4);
+    ASSERT_TRUE(pos->theta.has_value());
+    EXPECT_NEAR(pos->theta.value(), 0.0, 1e-4);
+  }
+
+  adapter->state_manager()->set_position(5.0, 0.0, 0.0, map_id);
+
+  auto current_state = adapter->state_manager()->state();
+  ASSERT_TRUE(current_state.agv_position.has_value());
+  EXPECT_NEAR(current_state.agv_position->x, 10.0, 1e-4);
+  EXPECT_NEAR(current_state.agv_position->y, 10.0, 1e-4);
+  EXPECT_NEAR(current_state.agv_position->theta, M_PI_2, 1e-4);
+
+  adapter->stop();
+}

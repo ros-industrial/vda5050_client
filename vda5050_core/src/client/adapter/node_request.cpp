@@ -51,10 +51,28 @@ const std::optional<std::string>& NodeRequest::node_description() const
 }
 
 //=============================================================================
-NodeRequest NodeRequest::from_node(const types::Node& node)
+NodeRequest NodeRequest::from_node(
+  const types::Node& node, std::optional<Transformation> transformation)
 {
-  return NodeRequest(
+  auto request = NodeRequest(
     node.node_id, node.sequence_id, node.node_position, node.node_description);
+
+  if (request.node_position_.has_value() && transformation.has_value())
+  {
+    const auto& pos = request.node_position_.value();
+
+    auto agv_pose =
+      transformation->to_agv_pose({pos.x, pos.y, pos.theta.value_or(0.0)});
+
+    request.node_position_->x = agv_pose.x;
+    request.node_position_->y = agv_pose.y;
+    if (pos.theta.has_value())
+    {
+      request.node_position_->theta = agv_pose.theta;
+    }
+  }
+
+  return request;
 }
 
 //=============================================================================

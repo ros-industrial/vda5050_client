@@ -415,6 +415,46 @@ TEST_F(MasterAssignOrderTest, OrderComplete_FiresOnceWhenAgvParksAtLastNode)
   EXPECT_EQ(complete_calls.load(), 1);
 }
 
+TEST_F(MasterAssignOrderTest, OrderRejected_FiresWhenPublishStageRejects)
+{
+  std::atomic<int> rejected_calls{0};
+  std::string rejected_id;
+  std::size_t error_count = 0;
+  master_->on_order_rejected(
+    [&](
+      const std::string&, const std::string& order_id,
+      const std::vector<vda5050_core::types::Error>& errors) {
+      // Publish the plain fields before the counter the waiter polls, so
+      // the main thread cannot read them mid-write.
+      rejected_id = order_id;
+      error_count = errors.size();
+      rejected_calls.fetch_add(1);
+    });
+
+  make_agv_ready();
+
+  // Passes the pre-flight, fails content validation on the queue thread:
+  // the pre-flight never inspects node actions.
+  auto bad = make_minimal_order(0);
+  vda5050_core::types::Action a;
+  a.action_id = "";
+  a.action_type = "";
+  bad.nodes[0].actions = {a};
+
+  ASSERT_EQ(
+    master_->assign_order(kManufacturer, kSerial, bad).decision,
+    OrderAssignmentDecision::ASSIGNED);
+
+  ASSERT_TRUE(wait_for(
+    [&] { return rejected_calls.load() > 0; }, std::chrono::milliseconds(500)))
+    << "on_order_rejected did not fire within 500ms";
+
+  EXPECT_EQ(rejected_calls.load(), 1);
+  EXPECT_EQ(rejected_id, kOrderId);
+  // Empty action_id and empty action_type: one content error each.
+  EXPECT_EQ(error_count, 2u);
+}
+
 TEST_F(MasterAssignOrderTest, AssignOrder_FilledHeaderEnablesPublish)
 {
   make_agv_ready();

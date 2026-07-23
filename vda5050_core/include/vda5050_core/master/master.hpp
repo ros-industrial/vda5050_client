@@ -250,6 +250,17 @@ public:
     std::function<void(const std::string& agv_id, const std::string& order_id)>
       callback);
 
+  /// \brief Register the handler invoked when a queued order is discarded
+  ///        before publish, after assign_order already returned ASSIGNED.
+  ///
+  /// \param callback receives the errors that caused the rejection. Pairs with
+  ///        on_order_complete: every accepted order ends in one or the other.
+  void on_order_rejected(
+    std::function<void(
+      const std::string& agv_id, const std::string& order_id,
+      const std::vector<vda5050_core::types::Error>& errors)>
+      callback);
+
   /// \brief Register the handler invoked when the error list gains entries.
   /// \param callback receives only the newly-appeared errors.
   void on_errors_appeared(
@@ -357,6 +368,9 @@ private:
   void dispatch_state_resumed(const std::string& agv_id);
   void dispatch_order_complete(
     const std::string& agv_id, const std::string& order_id);
+  void dispatch_order_rejected(
+    const std::string& agv_id, const std::string& order_id,
+    const std::vector<vda5050_core::types::Error>& errors);
 
   // --- Internal AGV lookup ---
 
@@ -433,6 +447,10 @@ private:
     on_node_reached_cb_;
   std::function<void(const std::string&, const std::string&)>
     on_order_complete_cb_;
+  std::function<void(
+    const std::string&, const std::string&,
+    const std::vector<vda5050_core::types::Error>&)>
+    on_order_rejected_cb_;
   std::function<void(
     const std::string&, const std::vector<vda5050_core::types::Error>&)>
     on_errors_appeared_cb_;

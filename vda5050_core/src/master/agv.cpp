@@ -1111,6 +1111,13 @@ void AGV::publish_order(
           VDA5050_WARN(
             "Pending queue full for [{}]; dropping order [{}] (update {})",
             agv_id_, order.order_id, order.order_update_id);
+          if (auto p = parent_.lock())
+          {
+            p->dispatch_order_rejected(
+              agv_id_, order.order_id,
+              {OrderLifecycleManager::pending_queue_full_error(
+                order.order_id)});
+          }
         }
         else
         {
@@ -1125,6 +1132,10 @@ void AGV::publish_order(
           "Stitch validation rejected order [{}] (update {}) for [{}]: "
           "{} error(s)",
           order.order_id, order.order_update_id, agv_id_, stitch.errors.size());
+        if (auto p = parent_.lock())
+        {
+          p->dispatch_order_rejected(agv_id_, order.order_id, stitch.errors);
+        }
         return;
     }
   }
@@ -1175,6 +1186,11 @@ void AGV::publish_order(
         err.error_level == vda5050_core::types::ErrorLevel::FATAL ? "FATAL"
                                                                   : "WARNING",
         err.error_description.value_or(""));
+    }
+    if (auto p = parent_.lock())
+    {
+      p->dispatch_order_rejected(
+        agv_id_, order.order_id, result.fatal_errors());
     }
     return;
   }

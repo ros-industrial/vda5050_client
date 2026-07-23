@@ -101,6 +101,10 @@ public:
   /// \return false if the queue is at capacity.
   bool enqueue_pending_update(const vda5050_core::types::Order& update);
 
+  /// \brief The error describing an update dropped for want of queue room.
+  static vda5050_core::types::Error pending_queue_full_error(
+    const std::string& order_id);
+
   /// \brief Return drained-but-unsent updates to the front of the pending
   ///        queue, preserving order, so a congested outbound queue can't
   ///        reorder the stitch chain.

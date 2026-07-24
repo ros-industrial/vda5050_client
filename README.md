@@ -49,16 +49,16 @@ flowchart LR
 | Guide                                                              | Description                                               |
 | ------------------------------------------------------------------ | --------------------------------------------------------- |
 | **[Client Adapter Guide](vda5050_core/docs/client-adapter.md)**    | Step-by-step integration guide for AGV/AMR                |
-| **[Master Guide](vda5050_core/docs/master.md)**                    | Step-by-step guide to building a master control           |
-| **[Master API Reference](vda5050_core/docs/master-api.md)**        | Master commands, types and callbacks                      |
+| **[Master Guide](docs/master.md)**                    | Step-by-step guide to building a master control           |
+| **[Master API Reference](docs/master-api.md)**        | Master commands, types and callbacks                      |
 | **[Types and Serialization Guide](vda5050_core/docs/types.md)**    | Message structures, validation rules and JSON conversion  |
-| **[Validation Guide](vda5050_core/docs/validation.md)**            | Validator checks, required inputs and results             |
+| **[Validation Guide](docs/validation.md)**            | Validator checks, required inputs and results             |
 | **[Open-RMF Migration Guide](vda5050_core/docs/rmf-migration.md)** | Migrating an Open-RMF fleet adapter to a VDA5050 Adapter  |
 | **[Architecture and Design](vda5050_core/docs/design.md)**         | Architecture and design rationale                         |
 
 To connect an existing robot SDK, REST API or ROS 2 navigation system, start with the [Client Adapter Guide](vda5050_core/docs/client-adapter.md).
 
-To build a master control, or integrate one into an existing application, start with the [Master Guide](vda5050_core/docs/master.md).
+To build a master control, or integrate one into an existing application, start with the [Master Guide](docs/master.md).
 
 ## Getting Started
 
@@ -179,7 +179,7 @@ It creates an MQTT transport and a master, onboards one AGV, and assigns it a tw
 the AGV reports itself ready. In a real application, the completion callback assigns the next order.
 
 This assumes an AGV that is already localized and reporting state. See the
-[Master Guide](vda5050_core/docs/master.md) for bringing an unlocalized vehicle up with an
+[Master Guide](docs/master.md) for bringing an unlocalized vehicle up with an
 `initPosition` instant action.
 
 ```cpp
@@ -263,7 +263,7 @@ target_link_libraries(master_application
 ```
 
 For a complete integration covering order construction, validation, event handling and multi-AGV
-dispatch, see the [Master Guide](vda5050_core/docs/master.md) and a preconfigured
+dispatch, see the [Master Guide](docs/master.md) and a preconfigured
 [example](vda5050_core/examples/master/master_example.cpp).
 
 ## Examples

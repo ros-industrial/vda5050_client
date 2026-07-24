@@ -7,7 +7,7 @@
 
 This guide explains how to build a master on top of `vda5050_core::master`. It
 is the counterpart to the client adapter
-([`client-adapter.md`](client-adapter.md)): the adapter runs *on* a vehicle and
+([`client-adapter.md`](../vda5050_core/docs/client-adapter.md)): the adapter runs *on* a vehicle and
 answers orders; the master runs on the fleet-control host and *issues* them.
 
 Two companion documents: [`master-api.md`](master-api.md) is the reference for
@@ -244,7 +244,7 @@ Section 3.4 covers building orders properly, and
 Copy `master_example.cpp` into your own package and rebuild it around your own
 logic. The result is one half of the system: your master issues orders, and
 each vehicle needs a VDA5050 client on the other end: either the client
-adapter in this library (see [`client-adapter.md`](client-adapter.md)) or the
+adapter in this library (see [`client-adapter.md`](../vda5050_core/docs/client-adapter.md)) or the
 vendor's own VDA5050 implementation.
 
 The demo dispatch (`make_order`, `make_node`, `next_order`, the `orders_sent`

@@ -27,9 +27,9 @@ namespace adapter {
 
 struct Pose2D
 {
-  double x;
-  double y;
-  double theta;
+  double x{0.0};
+  double y{0.0};
+  double theta{0.0};
 };
 
 class Transformation

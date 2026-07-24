@@ -19,8 +19,10 @@
 #include <pybind11/functional.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <pybind11_json/pybind11_json.hpp>
 
 #include "vda5050_core/client/adapter/state_manager.hpp"
+#include "vda5050_core/client/adapter/transformation.hpp"
 #include "vda5050_core/types/action_state.hpp"
 #include "vda5050_core/types/action_status.hpp"
 #include "vda5050_core/types/agv_position.hpp"
@@ -55,7 +57,9 @@ using vda5050_core::python::rmf_migration::RobotState;
 using vda5050_core::python::rmf_migration::RobotUpdateHandle;
 using vda5050_core::python::rmf_migration::StopRequest;
 
+using vda5050_core::client::adapter::Pose2D;
 using vda5050_core::client::adapter::StateManager;
+using vda5050_core::client::adapter::Transformation;
 using vda5050_core::types::ActionState;
 using vda5050_core::types::ActionStatus;
 using vda5050_core::types::AGVPosition;
@@ -186,6 +190,17 @@ PYBIND11_MODULE(vda5050_core_python, m)
     .def("__eq__", &Info::operator==)
     .def("__ne__", &Info::operator!=);
 
+  py::class_<Pose2D>(m_client, "Pose2D")
+    .def(py::init<>())
+    .def_readwrite("x", &Pose2D::x)
+    .def_readwrite("y", &Pose2D::y)
+    .def_readwrite("theta", &Pose2D::theta);
+
+  py::class_<Transformation>(m_client, "Transformation")
+    .def_static("calibrate", &Transformation::calibrate)
+    .def("to_world_pose", &Transformation::to_world_pose)
+    .def("to_agv_pose", &Transformation::to_agv_pose);
+
   py::class_<StateManager, std::shared_ptr<StateManager>>(
     m_client, "StateManager")
     .def("set_position", &StateManager::set_position)
@@ -207,17 +222,15 @@ PYBIND11_MODULE(vda5050_core_python, m)
     .def("clear_errors", &StateManager::clear_errors)
     .def("add_information", &StateManager::add_information)
     .def("set_information", &StateManager::set_information)
-    .def("remove_information", &StateManager::remove_information);
+    .def("remove_information", &StateManager::remove_information)
+    .def("initialize_position", &StateManager::initialize_position)
+    .def("set_transformation", &StateManager::set_transformation);
 
   auto m_rmf_migration =
     m.def_submodule("rmf_migration", "Open-RMF style migration API");
 
-  py::class_<ActivityIdentifier>(m_rmf_migration, "ActivityIdentifier")
-    .def(
-      py::init<std::optional<std::string>, std::optional<std::string>>(),
-      py::arg("order_id") = std::nullopt, py::arg("action_id") = std::nullopt)
-    .def_property_readonly("order_id", &ActivityIdentifier::order_id)
-    .def_property_readonly("action_id", &ActivityIdentifier::action_id)
+  py::class_<ActivityIdentifier, std::shared_ptr<ActivityIdentifier>>(
+    m_rmf_migration, "ActivityIdentifier")
     .def("__eq__", &ActivityIdentifier::operator==)
     .def("__ne__", &ActivityIdentifier::operator!=);
 

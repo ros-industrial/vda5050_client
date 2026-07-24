@@ -19,6 +19,7 @@
 #include <algorithm>
 
 #include "vda5050_core/execution/protocol_adapter.hpp"
+#include "vda5050_core/json_utils/serialization.hpp"
 #include "vda5050_core/transport/mqtt_client_interface.hpp"
 #include "vda5050_core/types/agv_position.hpp"
 
@@ -166,29 +167,16 @@ Destination::Destination(
 }
 
 //=============================================================================
-ActivityIdentifier::ActivityIdentifier(
-  std::optional<std::string> order_id, std::optional<std::string> action_id)
-: order_id_(std::move(order_id)), action_id_(std::move(action_id))
+ActivityIdentifier::ActivityIdentifier(uint64_t identifier)
+: identifier_(identifier)
 {
   // Nothing to do here ...
 }
 
 //=============================================================================
-const std::optional<std::string>& ActivityIdentifier::order_id() const
-{
-  return order_id_;
-}
-
-//=============================================================================
-const std::optional<std::string>& ActivityIdentifier::action_id() const
-{
-  return action_id_;
-}
-
-//=============================================================================
 bool ActivityIdentifier::operator==(const ActivityIdentifier& other) const
 {
-  return order_id_ == other.order_id_ && action_id_ == other.action_id_;
+  return identifier_ == other.identifier_;
 }
 
 //=============================================================================
@@ -237,7 +225,7 @@ bool CommandExecution::is_finished() const
 }
 
 //=============================================================================
-const ActivityIdentifier& CommandExecution::identifier() const
+ConstActivityIdentifierPtr CommandExecution::identifier() const
 {
   return identifier_;
 }
@@ -245,7 +233,7 @@ const ActivityIdentifier& CommandExecution::identifier() const
 //=============================================================================
 CommandExecution::CommandExecution(
   std::shared_ptr<client::adapter::Execution> execution,
-  ActivityIdentifier identifier)
+  ConstActivityIdentifierPtr identifier)
 : execution_(std::move(execution)), identifier_(std::move(identifier))
 {
   // Nothing to do here ...
@@ -296,7 +284,7 @@ LocalizationRequest RobotCallbacks::localize() const
 
 //=============================================================================
 void RobotUpdateHandle::update(
-  RobotState state, ActivityIdentifier /*identifier*/)
+  RobotState state, ConstActivityIdentifierPtr /*identifier*/)
 {
   adapter_->state_manager()->set_position(
     state.position()[0], state.position()[1], state.position()[2], state.map());
@@ -444,7 +432,7 @@ std::shared_ptr<RobotUpdateHandle> FleetUpdateHandle::add_robot(
     RobotState::to_battery_state(initial_state.battery_state_of_charge()));
 
   adapter->on_navigate(
-    [callbacks](
+    [callbacks, this](
       client::adapter::NodeRequest node_request,
       std::optional<client::adapter::EdgeRequest> /*edge_request*/,
       std::shared_ptr<client::adapter::OrderExecution> execution) {
@@ -453,29 +441,48 @@ std::shared_ptr<RobotUpdateHandle> FleetUpdateHandle::add_robot(
         node_request.node_position().value().map_id,
         {node_position.x, node_position.y, node_position.theta.value_or(0.0)},
         node_request.sequence_id(), node_request.node_id());
-      auto command =
-        CommandExecution(execution, ActivityIdentifier(execution->order_id()));
+      auto command = CommandExecution(
+        execution, std::shared_ptr<ActivityIdentifier>(
+                     new ActivityIdentifier(activity_count_++)));
 
       callbacks.navigate()(std::move(destination), std::move(command));
     });
 
   adapter->on_action(
-    [callbacks](client::adapter::ActionRequest request, auto execution) {
+    [callbacks, this](
+      client::adapter::ActionRequest request,
+      std::shared_ptr<client::adapter::ActionExecution> execution) {
       auto command = CommandExecution(
-        execution, ActivityIdentifier(request.order_id(), request.action_id()));
-
-      callbacks.action_executor()(
-        request.action_type(), request.action_id(), std::move(command));
+        execution, std::shared_ptr<ActivityIdentifier>(
+                     new ActivityIdentifier(activity_count_++)));
+      if (request.action_type() == "startPause")
+      {
+        callbacks.stop()(command.identifier());
+        command.finished();
+      }
+      else
+      {
+        nlohmann::json description = {};
+        if (request.action_parameters().has_value())
+        {
+          description = request.action_parameters().value();
+        }
+        callbacks.action_executor()(
+          request.action_type(), description, std::move(command));
+      }
     });
 
   if (callbacks.localize())
   {
     adapter->on_localize(
-      [callbacks](
-        client::adapter::LocalizationRequest request, auto execution) {
+      [callbacks, this](
+        client::adapter::LocalizationRequest request,
+        std::shared_ptr<client::adapter::ActionExecution> execution) {
         auto destination = Destination(
           request.map_id(), {request.x(), request.y(), request.theta()});
-        auto command = CommandExecution(execution, ActivityIdentifier());
+        auto command = CommandExecution(
+          execution, std::shared_ptr<ActivityIdentifier>(
+                       new ActivityIdentifier(activity_count_++)));
 
         callbacks.localize()(std::move(destination), std::move(command));
       });

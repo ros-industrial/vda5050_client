@@ -123,22 +123,19 @@ private:
 class ActivityIdentifier
 {
 public:
-  ActivityIdentifier(
-    std::optional<std::string> order_id = std::nullopt,
-    std::optional<std::string> action_id = std::nullopt);
-
-  const std::optional<std::string>& order_id() const;
-
-  const std::optional<std::string>& action_id() const;
-
   bool operator==(const ActivityIdentifier& other) const;
 
   bool operator!=(const ActivityIdentifier& other) const;
 
 private:
-  std::optional<std::string> order_id_;
-  std::optional<std::string> action_id_;
+  friend class FleetUpdateHandle;
+
+  explicit ActivityIdentifier(uint64_t identifier);
+
+  uint64_t identifier_;
 };
+using ActivityIdentifierPtr = std::shared_ptr<ActivityIdentifier>;
+using ConstActivityIdentifierPtr = std::shared_ptr<const ActivityIdentifier>;
 
 class CommandExecution
 {
@@ -151,25 +148,25 @@ public:
 
   void failed(const std::string& reason);
 
-  const ActivityIdentifier& identifier() const;
+  ConstActivityIdentifierPtr identifier() const;
 
 private:
   friend class FleetUpdateHandle;
 
   CommandExecution(
     std::shared_ptr<client::adapter::Execution> execution,
-    ActivityIdentifier identifier);
+    ConstActivityIdentifierPtr identifier);
 
   std::shared_ptr<client::adapter::Execution> execution_;
-  ActivityIdentifier identifier_;
+  ConstActivityIdentifierPtr identifier_;
 };
 
 using NavigationRequest = std::function<void(Destination, CommandExecution)>;
 
-using StopRequest = std::function<void()>;
+using StopRequest = std::function<void(ConstActivityIdentifierPtr)>;
 
 using ActionExecutor =
-  std::function<void(std::string, std::string, CommandExecution)>;
+  std::function<void(std::string, nlohmann::json, CommandExecution)>;
 
 using LocalizationRequest = std::function<void(Destination, CommandExecution)>;
 
@@ -200,7 +197,7 @@ private:
 class RobotUpdateHandle
 {
 public:
-  void update(RobotState state, ActivityIdentifier identifier);
+  void update(RobotState state, ConstActivityIdentifierPtr identifier);
 
   std::shared_ptr<client::adapter::StateManager> more();
 
@@ -274,6 +271,8 @@ private:
 
   std::unordered_map<std::string, std::shared_ptr<client::adapter::Adapter>>
     robots_;
+
+  std::atomic_uint64_t activity_count_{0};
 };
 
 class Adapter

@@ -17,6 +17,7 @@
  */
 
 #include <algorithm>
+#include <stdexcept>
 
 #include "vda5050_core/execution/protocol_adapter.hpp"
 #include "vda5050_core/json_utils/serialization.hpp"
@@ -420,8 +421,14 @@ std::shared_ptr<RobotUpdateHandle> FleetUpdateHandle::add_robot(
   auto mqtt_client = transport::create_default_client_unique(
     configuration_.broker_uri(),
     fmt::format("{}_{}", configuration_.client_id_prefix(), name));
+  auto version = types::ProtocolVersion::from_string(configuration.version);
+  if (!version.has_value())
+  {
+    throw std::invalid_argument(
+      "Unsupported VDA5050 protocol version '" + configuration.version + "'");
+  }
   auto protocol_adapter = execution::ProtocolAdapter::make(
-    std::move(mqtt_client), configuration.interface_name, configuration.version,
+    std::move(mqtt_client), configuration.interface_name, version.value(),
     configuration.manufacturer, configuration.serial_number);
 
   auto adapter = client::adapter::Adapter::make(protocol_adapter);

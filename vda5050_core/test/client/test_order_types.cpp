@@ -62,13 +62,14 @@ TEST(OrderTypesTest, OrderUpdateReportsItsTypeThroughBase)
   EXPECT_TRUE(recovered->order.order_id.empty());
 }
 
-// Test 3: Check whether ConfigResource stores all four strings correctly
+// Test 3: Check whether ConfigResource stores all four fields correctly
 TEST(OrderTypesTest, ConfigResourceCarriesAllFields)
 {
-  HeaderConfigResource config("uagv", "2.0.0", "ROS-I", "S001");
+  HeaderConfigResource config(
+    "uagv", types::ProtocolVersion::V2_0_0, "ROS-I", "S001");
 
   EXPECT_EQ(config.interface_name, "uagv");
-  EXPECT_EQ(config.version, "2.0.0");
+  EXPECT_EQ(config.version, types::ProtocolVersion::V2_0_0);
   EXPECT_EQ(config.manufacturer, "ROS-I");
   EXPECT_EQ(config.serial_number, "S001");
 }
@@ -76,8 +77,8 @@ TEST(OrderTypesTest, ConfigResourceCarriesAllFields)
 // Test 4: Check if ConfigResource reports its type correctly through the base class.
 TEST(OrderTypesTest, ConfigResourceReportsItsTypeThroughBase)
 {
-  std::shared_ptr<ResourceBase> base =
-    std::make_shared<HeaderConfigResource>("uagv", "2.0.0", "ROS-I", "S001");
+  std::shared_ptr<ResourceBase> base = std::make_shared<HeaderConfigResource>(
+    "uagv", types::ProtocolVersion::V2_0_0, "ROS-I", "S001");
 
   EXPECT_EQ(base->get_type(), std::type_index(typeid(HeaderConfigResource)));
 }

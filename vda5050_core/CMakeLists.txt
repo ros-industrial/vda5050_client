@@ -270,6 +270,11 @@ if(BUILD_TESTING)
 
   find_package(ament_cmake_gmock REQUIRED)
 
+  ament_add_gmock(test_types
+    test/types/test_unit_protocol_version.cpp
+  )
+  target_link_libraries(test_types vda5050_core::types)
+
   set(json_tests test/json_utils/test_json_utils.cpp)
   if(ENABLE_ROS2)
     list(APPEND json_tests test/json_utils/test_json_utils_ros2.cpp)

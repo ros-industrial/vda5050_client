@@ -194,7 +194,8 @@ int main()
   auto mqtt_client = vda5050_core::transport::create_default_client_unique(
     "tcp://localhost:1883", "order_publisher");
   auto protocol_adapter = ProtocolAdapter::make(
-    std::move(mqtt_client), "uagv", "2.0.0", "Manufacturer", "S001");
+    std::move(mqtt_client), "uagv",
+    vda5050_core::types::ProtocolVersion::V2_0_0, "Manufacturer", "S001");
 
   protocol_adapter->connect();
 

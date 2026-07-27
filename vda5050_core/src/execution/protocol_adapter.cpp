@@ -28,7 +28,8 @@ namespace execution {
 //=============================================================================
 std::shared_ptr<ProtocolAdapter> ProtocolAdapter::make(
   std::shared_ptr<transport::MqttClientInterface> mqtt_client,
-  const std::string& interface, const std::string& version,
+  const std::string& interface,
+  const vda5050_core::types::ProtocolVersion& version,
   const std::string& manufacturer, const std::string& serial_number)
 {
   auto adapter = std::shared_ptr<ProtocolAdapter>(new ProtocolAdapter(
@@ -112,18 +113,10 @@ std::string ProtocolAdapter::get_topic_prefix()
 }
 
 //=============================================================================
-std::string ProtocolAdapter::get_topic_version(const std::string& version)
-{
-  // TODO(sauk2): Enforce stricter version checking before parsing string
-  auto position = version.find('.');
-  std::string major = version.substr(0, position);
-  return "v" + major;
-}
-
-//=============================================================================
 ProtocolAdapter::ProtocolAdapter(
   std::shared_ptr<vda5050_core::transport::MqttClientInterface> mqtt_client,
-  const std::string& interface, const std::string& version,
+  const std::string& interface,
+  const vda5050_core::types::ProtocolVersion& version,
   const std::string& manufacturer, const std::string& serial_number)
 : mqtt_client_(std::move(mqtt_client)),
   interface_(interface),
@@ -132,7 +125,7 @@ ProtocolAdapter::ProtocolAdapter(
   serial_number_(serial_number)
 {
   topic_prefix_ = fmt::format(
-    "{}/{}/{}/{}", interface_, get_topic_version(version_), manufacturer_,
+    "{}/{}/{}/{}", interface_, version_.to_topic_version(), manufacturer_,
     serial_number_);
 
   topic_names_ = {

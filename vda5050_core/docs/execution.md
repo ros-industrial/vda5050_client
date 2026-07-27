@@ -13,7 +13,8 @@ structs.
 
   // Create the prototocl adapter to manage VDA5050 headers and topic naming
   auto protocol_adapter = vda5050_core::execution::ProtocolAdapter::make(
-    mqtt_client, "uagv", "v2", "ROS-I", "S001");
+    mqtt_client, "uagv", vda5050_core::types::protocol_versions::V2_0_0,
+    "ROS-I", "S001");
 
   // Subscribe to topic just by specifying types. The protocol adapter handles
   // the JSON parsing internally

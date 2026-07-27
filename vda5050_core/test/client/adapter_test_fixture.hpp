@@ -64,8 +64,8 @@ protected:
         published.push_back({topic, message});
       });
 
-    protocol_adapter =
-      ProtocolAdapter::make(mqtt, "uagv", "2.0.0", "Robot", "001");
+    protocol_adapter = ProtocolAdapter::make(
+      mqtt, "uagv", ProtocolVersion::V2_0_0, "Robot", "001");
 
     adapter = Adapter::make(protocol_adapter);
   }

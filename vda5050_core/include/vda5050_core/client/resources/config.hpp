@@ -23,6 +23,9 @@
 #include <utility>
 
 #include "vda5050_core/execution/base.hpp"
+#include "vda5050_core/types/protocol_version.hpp"
+
+using vda5050_core::types::ProtocolVersion;
 
 namespace vda5050_core {
 
@@ -42,8 +45,8 @@ struct HeaderConfigResource
   /// \brief Interface name, e.g. "uagv".
   std::string interface_name;
 
-  /// \brief Protocol/major version segment, e.g. "2.0.0".
-  std::string version;
+  /// \brief VDA5050 protocol version, e.g. ProtocolVersion::V2_0_0.
+  ProtocolVersion version;
 
   /// \brief Manufacturer of the AGV.
   std::string manufacturer;
@@ -52,10 +55,10 @@ struct HeaderConfigResource
   std::string serial_number;
 
   HeaderConfigResource(
-    std::string interface_name, std::string version, std::string manufacturer,
-    std::string serial_number)
+    std::string interface_name, ProtocolVersion version,
+    std::string manufacturer, std::string serial_number)
   : interface_name(std::move(interface_name)),
-    version(std::move(version)),
+    version(version),
     manufacturer(std::move(manufacturer)),
     serial_number(std::move(serial_number))
   {

@@ -174,7 +174,8 @@ TEST(OrderPublisherTest, MalformedOrderRejectedAtSchema)
   auto mock = std::make_shared<MockMqttClient>();
   ON_CALL(*mock, connected()).WillByDefault(::testing::Return(true));
   auto adapter = vda5050_core::execution::ProtocolAdapter::make(
-    mock, "uagv", "2.0.0", "ACME", "AGV001");
+    mock, "uagv", vda5050_core::types::ProtocolVersion::V2_0_0, "ACME",
+    "AGV001");
   vda5050_core::master::OrderPublisher publisher;
 
   vda5050_core::types::Order malformed;
@@ -216,7 +217,8 @@ TEST(OrderPublisherTest, NotReadyAGVRejectedAtPreSend)
   auto mock = std::make_shared<MockMqttClient>();
   ON_CALL(*mock, connected()).WillByDefault(::testing::Return(true));
   auto adapter = vda5050_core::execution::ProtocolAdapter::make(
-    mock, "uagv", "2.0.0", "ACME", "AGV001");
+    mock, "uagv", vda5050_core::types::ProtocolVersion::V2_0_0, "ACME",
+    "AGV001");
   vda5050_core::master::OrderPublisher publisher;
 
   vda5050_core::types::Order order;
@@ -287,7 +289,8 @@ TEST(OrderPublisherTest, FreshOrderNoActiveTakesGraphPath)
   auto mock = std::make_shared<MockMqttClient>();
   ON_CALL(*mock, connected()).WillByDefault(::testing::Return(true));
   auto adapter = vda5050_core::execution::ProtocolAdapter::make(
-    mock, "uagv", "2.0.0", "ACME", "AGV001");
+    mock, "uagv", vda5050_core::types::ProtocolVersion::V2_0_0, "ACME",
+    "AGV001");
   vda5050_core::master::OrderPublisher publisher;
   auto v0 = make_active_v0();
 
@@ -308,7 +311,8 @@ TEST(OrderPublisherTest, NoGraphLoadedSkipsGraphIntegrity)
   auto mock = std::make_shared<MockMqttClient>();
   ON_CALL(*mock, connected()).WillByDefault(::testing::Return(true));
   auto adapter = vda5050_core::execution::ProtocolAdapter::make(
-    mock, "uagv", "2.0.0", "ACME", "AGV001");
+    mock, "uagv", vda5050_core::types::ProtocolVersion::V2_0_0, "ACME",
+    "AGV001");
   vda5050_core::master::OrderPublisher publisher;
   auto v0 = make_active_v0();
 
@@ -330,7 +334,8 @@ TEST(OrderPublisherTest, StitchedUpdateValidatedViaCombineOrder)
   auto mock = std::make_shared<MockMqttClient>();
   ON_CALL(*mock, connected()).WillByDefault(::testing::Return(true));
   auto adapter = vda5050_core::execution::ProtocolAdapter::make(
-    mock, "uagv", "2.0.0", "ACME", "AGV001");
+    mock, "uagv", vda5050_core::types::ProtocolVersion::V2_0_0, "ACME",
+    "AGV001");
   vda5050_core::master::OrderPublisher publisher;
 
   EXPECT_CALL(
@@ -349,7 +354,8 @@ TEST(OrderPublisherTest, MergedGraphInvalidRejected)
   auto mock = std::make_shared<MockMqttClient>();
   ON_CALL(*mock, connected()).WillByDefault(::testing::Return(true));
   auto adapter = vda5050_core::execution::ProtocolAdapter::make(
-    mock, "uagv", "2.0.0", "ACME", "AGV001");
+    mock, "uagv", vda5050_core::types::ProtocolVersion::V2_0_0, "ACME",
+    "AGV001");
   vda5050_core::master::OrderPublisher publisher;
   EXPECT_CALL(
     *mock, publish(::testing::_, ::testing::_, ::testing::_, ::testing::_))
@@ -376,7 +382,8 @@ TEST(OrderPublisherTest, StitchedUpdateBackwardUpdateIdRejected)
   auto mock = std::make_shared<MockMqttClient>();
   ON_CALL(*mock, connected()).WillByDefault(::testing::Return(true));
   auto adapter = vda5050_core::execution::ProtocolAdapter::make(
-    mock, "uagv", "2.0.0", "ACME", "AGV001");
+    mock, "uagv", vda5050_core::types::ProtocolVersion::V2_0_0, "ACME",
+    "AGV001");
   vda5050_core::master::OrderPublisher publisher;
   EXPECT_CALL(
     *mock, publish(::testing::_, ::testing::_, ::testing::_, ::testing::_))
@@ -397,7 +404,8 @@ TEST(OrderPublisherTest, OrderExceedingFactsheetNodeLimitRejected)
   auto mock = std::make_shared<MockMqttClient>();
   ON_CALL(*mock, connected()).WillByDefault(::testing::Return(true));
   auto adapter = vda5050_core::execution::ProtocolAdapter::make(
-    mock, "uagv", "2.0.0", "ACME", "AGV001");
+    mock, "uagv", vda5050_core::types::ProtocolVersion::V2_0_0, "ACME",
+    "AGV001");
   vda5050_core::master::OrderPublisher publisher;
   EXPECT_CALL(
     *mock, publish(::testing::_, ::testing::_, ::testing::_, ::testing::_))
@@ -425,7 +433,8 @@ TEST(OrderPublisherTest, StitchedUpdateUnderLimitButMergedOrderOverIsRejected)
   auto mock = std::make_shared<MockMqttClient>();
   ON_CALL(*mock, connected()).WillByDefault(::testing::Return(true));
   auto adapter = vda5050_core::execution::ProtocolAdapter::make(
-    mock, "uagv", "2.0.0", "ACME", "AGV001");
+    mock, "uagv", vda5050_core::types::ProtocolVersion::V2_0_0, "ACME",
+    "AGV001");
   vda5050_core::master::OrderPublisher publisher;
   EXPECT_CALL(
     *mock, publish(::testing::_, ::testing::_, ::testing::_, ::testing::_))
@@ -474,7 +483,8 @@ TEST(OrderPublisherTest, DifferentOrderIdTakesGraphPath)
   auto mock = std::make_shared<MockMqttClient>();
   ON_CALL(*mock, connected()).WillByDefault(::testing::Return(true));
   auto adapter = vda5050_core::execution::ProtocolAdapter::make(
-    mock, "uagv", "2.0.0", "ACME", "AGV001");
+    mock, "uagv", vda5050_core::types::ProtocolVersion::V2_0_0, "ACME",
+    "AGV001");
   vda5050_core::master::OrderPublisher publisher;
   EXPECT_CALL(
     *mock, publish(::testing::_, ::testing::_, ::testing::_, ::testing::_))

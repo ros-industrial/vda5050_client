@@ -31,6 +31,7 @@
 #include "vda5050_core/types/factsheet.hpp"
 #include "vda5050_core/types/instant_actions.hpp"
 #include "vda5050_core/types/order.hpp"
+#include "vda5050_core/types/protocol_version.hpp"
 #include "vda5050_core/types/state.hpp"
 #include "vda5050_core/types/visualization.hpp"
 
@@ -46,6 +47,7 @@ using vda5050_core::types::Error;
 using vda5050_core::types::Factsheet;
 using vda5050_core::types::InstantActions;
 using vda5050_core::types::Order;
+using vda5050_core::types::ProtocolVersion;
 using vda5050_core::types::State;
 using vda5050_core::types::Visualization;
 
@@ -80,7 +82,7 @@ protected:
   std::shared_ptr<ProtocolAdapter> adapter_;
 
   std::string interface_;
-  std::string version_;
+  ProtocolVersion version_ = ProtocolVersion::V2_0_0;
   std::string manufacturer_;
   std::string serial_number_;
 
@@ -92,7 +94,7 @@ protected:
   void SetUp()
   {
     interface_ = "uagv";
-    version_ = "2.0.0";
+    version_ = ProtocolVersion::V2_0_0;
     manufacturer_ = "ROS-I";
     serial_number_ = "S001";
 
@@ -102,8 +104,8 @@ protected:
       mock_, interface_, version_, manufacturer_, serial_number_);
 
     topic_prefix_ = fmt::format(
-      "{}/{}/{}/{}/", interface_, ProtocolAdapter::get_topic_version(version_),
-      manufacturer_, serial_number_);
+      "{}/{}/{}/{}/", interface_, version_.to_topic_version(), manufacturer_,
+      serial_number_);
 
     qos_ = 0;
     retained_ = false;
@@ -168,7 +170,7 @@ TYPED_TEST(ProtocolAdapterTest, PublishMessage)
       auto j = nlohmann::json::parse(message);
 
       EXPECT_EQ(j["headerId"], 0);
-      EXPECT_EQ(j["version"], this->version_);
+      EXPECT_EQ(j["version"], this->version_.to_string());
       EXPECT_EQ(j["manufacturer"], this->manufacturer_);
       EXPECT_EQ(j["serialNumber"], this->serial_number_);
     });
@@ -282,7 +284,7 @@ TYPED_TEST(ProtocolAdapterTest, SetWill)
       auto j = nlohmann::json::parse(message);
 
       EXPECT_EQ(j["headerId"], 0);
-      EXPECT_EQ(j["version"], this->version_);
+      EXPECT_EQ(j["version"], this->version_.to_string());
       EXPECT_EQ(j["manufacturer"], this->manufacturer_);
       EXPECT_EQ(j["serialNumber"], this->serial_number_);
     });

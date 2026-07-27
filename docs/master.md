@@ -167,7 +167,7 @@ mosquitto -v      # -d instead to run it in the background
 Run it on its own to see it connect, onboard, and wait:
 
 ```bash
-./build/vda5050_core/master_example
+ros2 run vda5050_core master_example
 ```
 
 ```
@@ -186,8 +186,8 @@ adapter example uses the same identity (`uagv` / `Manufacturer` / `S001`), so
 the two pair up without configuration. Run the adapter first, then the master:
 
 ```bash
-./build/vda5050_core/adapter_example    # terminal 1
-./build/vda5050_core/master_example     # terminal 2
+ros2 run vda5050_core adapter_example    # terminal 1
+ros2 run vda5050_core master_example     # terminal 2
 ```
 
 Stop either with `Ctrl+C`. The full run goes:
@@ -686,7 +686,7 @@ target_link_libraries(my_master
 ```bash
 colcon build --packages-select my_master
 source install/setup.bash
-./build/my_master/my_master
+ros2 run my_master my_master
 ```
 
 Bring it up in stages:

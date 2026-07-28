@@ -14,20 +14,15 @@ the Context (data storage of the system).
 Design Principles:
 
 1. Stateful Context: Instead of transient stream of messages, the system
-
 maintains a snapshot.
 
 1. Reactive Execution: The system sleeps when idle and wakes up only when
-
 new data arrives or timeout occurs.
 
-1. Non-Blocking Logic: Strategies use an internal Engine to manage log running
-
+1. Non-Blocking Logic: Strategies use an internal Engine to manage long running
 tasks using asynchronous events dispatch and wait-conditions.
 
 ## Core Components
-
-
 
 ### 1. Data Layer (`UpdateBase`, `ResourceBase`, `Provider`, `Context`)
 

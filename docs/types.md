@@ -104,7 +104,7 @@ int main()
 
   // Serialize to a JSON value and then to a compact string.
   //
-  // Option 1: Single line dump using ADL conversion
+  // Option A: Single line dump using ADL conversion
   const std::string compact_payload = nlohmann::json(order).dump();
   //
   // Option B: Explicit json assignment for logging
@@ -228,6 +228,7 @@ For example, an order may deserialize successfully but still contain,
 - incorrect graph relationships
 - unsupported actions
 - conflicting action definitions
+
 To prevent logic failures, always pass parsed structs
 into the content validation methods.
 

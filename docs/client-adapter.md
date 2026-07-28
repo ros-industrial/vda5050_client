@@ -24,7 +24,6 @@ You can find a [complete integration checklist](#complete-integration-checklist)
     - 3.7. [Adapter Lifecycle and Entrypoint](#37-adapter-lifecycle-and-entrypoint)
     - 3.8. [Linking with CMake](#38-linking-with-cmake)
 4. [Build and Test Your Robot Integration](#4-build-and-test-your-robot-integration)
-5. [Summary of Required Changes](#5-summary-of-required-changes)
 
 ## 1. Start from the Existing Example
 
@@ -420,7 +419,7 @@ Use this checklist to track your progress when replacing the template implementa
 
     - Register `on_localize` handler to calibrate world-to-AGV frame transformation using `Transformation::calibrate()`.
 
-    - `Store transform in `StateManager` using `set_transformation()`.
+    - Store transform in `StateManager` using `set_transformation()`.
 
     - Pass calibrated pose to local robot controller if required.
 

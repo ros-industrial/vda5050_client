@@ -158,6 +158,7 @@ void StateManager::clear_action_states()
 {
   std::lock_guard<std::mutex> lock(mutex_);
   state_.action_states.clear();
+  publish_requested_ = true;
 }
 
 //=============================================================================

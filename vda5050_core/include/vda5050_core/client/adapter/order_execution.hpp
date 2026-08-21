@@ -43,9 +43,9 @@ public:
 
   uint32_t order_update_id() const;
 
-  void finished();
+  void finished() override;
 
-  void failed(const std::string& reason);
+  void failed(const std::string& reason) override;
 
 private:
   OrderExecution(

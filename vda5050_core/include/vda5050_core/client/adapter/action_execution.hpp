@@ -46,9 +46,11 @@ public:
 
   void paused(std::optional<std::string> result_description = std::nullopt);
 
-  void finished(std::optional<std::string> result_description = std::nullopt);
+  void finished() override;
 
-  void failed(const std::string& reason);
+  void finished(std::optional<std::string> result_description);
+
+  void failed(const std::string& reason) override;
 
 private:
   ActionExecution(

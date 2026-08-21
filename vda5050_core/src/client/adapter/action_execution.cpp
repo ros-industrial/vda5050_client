@@ -57,6 +57,12 @@ void ActionExecution::paused(std::optional<std::string> result_description)
 }
 
 //=============================================================================
+void ActionExecution::finished()
+{
+  finished(std::nullopt);
+}
+
+//=============================================================================
 void ActionExecution::finished(std::optional<std::string> result_description)
 {
   if (is_finished()) return;

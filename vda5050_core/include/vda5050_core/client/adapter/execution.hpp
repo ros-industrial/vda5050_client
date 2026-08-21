@@ -35,9 +35,9 @@ class Execution : public std::enable_shared_from_this<Execution>
 public:
   virtual ~Execution();
 
-  void finished();
+  virtual void finished();
 
-  void failed(const std::string& reason);
+  virtual void failed(const std::string& reason);
 
   bool okay() const;
 
@@ -48,10 +48,10 @@ public:
 protected:
   Execution();
 
+  void deactivate();
+
 private:
   friend class Adapter;
-
-  void deactivate();
 
   std::optional<std::string> failure_reason_;
 

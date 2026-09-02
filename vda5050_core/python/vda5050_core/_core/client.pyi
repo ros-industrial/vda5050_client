@@ -6,473 +6,54 @@
 Native VDA5050 client API
 """
 from __future__ import annotations
-import collections.abc
-import typing
-__all__: list[str] = ['AGVPosition', 'ActionState', 'ActionStatus', 'BatteryState', 'EStop', 'Error', 'ErrorLevel', 'ErrorReference', 'Info', 'InfoLevel', 'InfoReference', 'OperatingMode', 'Pose2D', 'SafetyState', 'StateManager', 'Transformation', 'Velocity']
-class AGVPosition:
-    __hash__: typing.ClassVar[None] = None
-    map_description: str | None
-    map_id: str
-    position_initialized: bool
-    def __eq__(self, arg0: AGVPosition) -> bool:
-        ...
-    def __init__(self) -> None:
-        ...
-    def __ne__(self, arg0: AGVPosition) -> bool:
-        ...
-    @property
-    def deviation_range(self) -> float | None:
-        ...
-    @deviation_range.setter
-    def deviation_range(self, arg0: typing.SupportsFloat | typing.SupportsIndex | None) -> None:
-        ...
-    @property
-    def localization_score(self) -> float | None:
-        ...
-    @localization_score.setter
-    def localization_score(self, arg0: typing.SupportsFloat | typing.SupportsIndex | None) -> None:
-        ...
-    @property
-    def theta(self) -> float:
-        ...
-    @theta.setter
-    def theta(self, arg0: typing.SupportsFloat | typing.SupportsIndex) -> None:
-        ...
-    @property
-    def x(self) -> float:
-        ...
-    @x.setter
-    def x(self, arg0: typing.SupportsFloat | typing.SupportsIndex) -> None:
-        ...
-    @property
-    def y(self) -> float:
-        ...
-    @y.setter
-    def y(self, arg0: typing.SupportsFloat | typing.SupportsIndex) -> None:
-        ...
-class ActionState:
-    __hash__: typing.ClassVar[None] = None
-    action_description: str | None
-    action_id: str
-    action_status: ActionStatus
-    action_type: str | None
-    result_description: str | None
-    def __eq__(self, arg0: ActionState) -> bool:
-        ...
-    def __init__(self) -> None:
-        ...
-    def __ne__(self, arg0: ActionState) -> bool:
-        ...
-class ActionStatus:
-    """
-    Members:
-    
-      WAITING
-    
-      INITIALIZING
-    
-      RUNNING
-    
-      PAUSED
-    
-      FINISHED
-    
-      FAILED
-    """
-    FAILED: typing.ClassVar[ActionStatus]  # value = <ActionStatus.FAILED: 5>
-    FINISHED: typing.ClassVar[ActionStatus]  # value = <ActionStatus.FINISHED: 4>
-    INITIALIZING: typing.ClassVar[ActionStatus]  # value = <ActionStatus.INITIALIZING: 1>
-    PAUSED: typing.ClassVar[ActionStatus]  # value = <ActionStatus.PAUSED: 3>
-    RUNNING: typing.ClassVar[ActionStatus]  # value = <ActionStatus.RUNNING: 2>
-    WAITING: typing.ClassVar[ActionStatus]  # value = <ActionStatus.WAITING: 0>
-    __members__: typing.ClassVar[dict[str, ActionStatus]]  # value = {'WAITING': <ActionStatus.WAITING: 0>, 'INITIALIZING': <ActionStatus.INITIALIZING: 1>, 'RUNNING': <ActionStatus.RUNNING: 2>, 'PAUSED': <ActionStatus.PAUSED: 3>, 'FINISHED': <ActionStatus.FINISHED: 4>, 'FAILED': <ActionStatus.FAILED: 5>}
-    @typing.overload
-    def __eq__(self, other: ActionStatus) -> bool:
-        ...
-    @typing.overload
-    def __eq__(self, other: typing.Any) -> bool:
-        ...
-    def __getstate__(self) -> int:
-        ...
-    def __hash__(self) -> int:
-        ...
-    def __index__(self) -> int:
-        ...
-    def __init__(self, value: typing.SupportsInt | typing.SupportsIndex) -> None:
-        ...
-    def __int__(self) -> int:
-        ...
-    @typing.overload
-    def __ne__(self, other: ActionStatus) -> bool:
-        ...
-    @typing.overload
-    def __ne__(self, other: typing.Any) -> bool:
-        ...
-    def __repr__(self) -> str:
-        ...
-    def __setstate__(self, state: typing.SupportsInt | typing.SupportsIndex) -> None:
-        ...
-    def __str__(self) -> str:
-        ...
-    @property
-    def name(self) -> str:
-        ...
-    @property
-    def value(self) -> int:
-        ...
-class BatteryState:
-    __hash__: typing.ClassVar[None] = None
-    charging: bool
-    def __eq__(self, arg0: BatteryState) -> bool:
-        ...
-    def __init__(self) -> None:
-        ...
-    def __ne__(self, arg0: BatteryState) -> bool:
-        ...
-    @property
-    def battery_charge(self) -> float:
-        ...
-    @battery_charge.setter
-    def battery_charge(self, arg0: typing.SupportsFloat | typing.SupportsIndex) -> None:
-        ...
-    @property
-    def battery_health(self) -> int | None:
-        ...
-    @battery_health.setter
-    def battery_health(self, arg0: typing.SupportsInt | typing.SupportsIndex | None) -> None:
-        ...
-    @property
-    def battery_voltage(self) -> float | None:
-        ...
-    @battery_voltage.setter
-    def battery_voltage(self, arg0: typing.SupportsFloat | typing.SupportsIndex | None) -> None:
-        ...
-    @property
-    def reach(self) -> int | None:
-        ...
-    @reach.setter
-    def reach(self, arg0: typing.SupportsInt | typing.SupportsIndex | None) -> None:
-        ...
-class EStop:
-    """
-    Members:
-    
-      AUTOACK
-    
-      MANUAL
-    
-      REMOTE
-    
-      NONE
-    """
-    AUTOACK: typing.ClassVar[EStop]  # value = <EStop.AUTOACK: 0>
-    MANUAL: typing.ClassVar[EStop]  # value = <EStop.MANUAL: 1>
-    NONE: typing.ClassVar[EStop]  # value = <EStop.NONE: 3>
-    REMOTE: typing.ClassVar[EStop]  # value = <EStop.REMOTE: 2>
-    __members__: typing.ClassVar[dict[str, EStop]]  # value = {'AUTOACK': <EStop.AUTOACK: 0>, 'MANUAL': <EStop.MANUAL: 1>, 'REMOTE': <EStop.REMOTE: 2>, 'NONE': <EStop.NONE: 3>}
-    @typing.overload
-    def __eq__(self, other: EStop) -> bool:
-        ...
-    @typing.overload
-    def __eq__(self, other: typing.Any) -> bool:
-        ...
-    def __getstate__(self) -> int:
-        ...
-    def __hash__(self) -> int:
-        ...
-    def __index__(self) -> int:
-        ...
-    def __init__(self, value: typing.SupportsInt | typing.SupportsIndex) -> None:
-        ...
-    def __int__(self) -> int:
-        ...
-    @typing.overload
-    def __ne__(self, other: EStop) -> bool:
-        ...
-    @typing.overload
-    def __ne__(self, other: typing.Any) -> bool:
-        ...
-    def __repr__(self) -> str:
-        ...
-    def __setstate__(self, state: typing.SupportsInt | typing.SupportsIndex) -> None:
-        ...
-    def __str__(self) -> str:
-        ...
-    @property
-    def name(self) -> str:
-        ...
-    @property
-    def value(self) -> int:
-        ...
-class Error:
-    __hash__: typing.ClassVar[None] = None
-    error_description: str | None
-    error_level: ErrorLevel
-    error_type: str
-    def __eq__(self, arg0: Error) -> bool:
-        ...
-    def __init__(self) -> None:
-        ...
-    def __ne__(self, arg0: Error) -> bool:
-        ...
-    @property
-    def error_references(self) -> list[ErrorReference] | None:
-        ...
-    @error_references.setter
-    def error_references(self, arg0: collections.abc.Sequence[ErrorReference] | None) -> None:
-        ...
-class ErrorLevel:
-    """
-    Members:
-    
-      WARNING
-    
-      FATAL
-    """
-    FATAL: typing.ClassVar[ErrorLevel]  # value = <ErrorLevel.FATAL: 1>
-    WARNING: typing.ClassVar[ErrorLevel]  # value = <ErrorLevel.WARNING: 0>
-    __members__: typing.ClassVar[dict[str, ErrorLevel]]  # value = {'WARNING': <ErrorLevel.WARNING: 0>, 'FATAL': <ErrorLevel.FATAL: 1>}
-    @typing.overload
-    def __eq__(self, other: ErrorLevel) -> bool:
-        ...
-    @typing.overload
-    def __eq__(self, other: typing.Any) -> bool:
-        ...
-    def __getstate__(self) -> int:
-        ...
-    def __hash__(self) -> int:
-        ...
-    def __index__(self) -> int:
-        ...
-    def __init__(self, value: typing.SupportsInt | typing.SupportsIndex) -> None:
-        ...
-    def __int__(self) -> int:
-        ...
-    @typing.overload
-    def __ne__(self, other: ErrorLevel) -> bool:
-        ...
-    @typing.overload
-    def __ne__(self, other: typing.Any) -> bool:
-        ...
-    def __repr__(self) -> str:
-        ...
-    def __setstate__(self, state: typing.SupportsInt | typing.SupportsIndex) -> None:
-        ...
-    def __str__(self) -> str:
-        ...
-    @property
-    def name(self) -> str:
-        ...
-    @property
-    def value(self) -> int:
-        ...
-class ErrorReference:
-    __hash__: typing.ClassVar[None] = None
-    reference_key: str
-    reference_value: str
-    def __eq__(self, arg0: ErrorReference) -> bool:
-        ...
-    def __init__(self) -> None:
-        ...
-    def __ne__(self, arg0: ErrorReference) -> bool:
-        ...
-class Info:
-    __hash__: typing.ClassVar[None] = None
-    info_description: str | None
-    info_level: InfoLevel
-    info_type: str
-    def __eq__(self, arg0: Info) -> bool:
-        ...
-    def __init__(self) -> None:
-        ...
-    def __ne__(self, arg0: Info) -> bool:
-        ...
-    @property
-    def info_references(self) -> list[InfoReference] | None:
-        ...
-    @info_references.setter
-    def info_references(self, arg0: collections.abc.Sequence[InfoReference] | None) -> None:
-        ...
-class InfoLevel:
-    """
-    Members:
-    
-      DEBUG
-    
-      INFO
-    """
-    DEBUG: typing.ClassVar[InfoLevel]  # value = <InfoLevel.DEBUG: 0>
-    INFO: typing.ClassVar[InfoLevel]  # value = <InfoLevel.INFO: 1>
-    __members__: typing.ClassVar[dict[str, InfoLevel]]  # value = {'DEBUG': <InfoLevel.DEBUG: 0>, 'INFO': <InfoLevel.INFO: 1>}
-    @typing.overload
-    def __eq__(self, other: InfoLevel) -> bool:
-        ...
-    @typing.overload
-    def __eq__(self, other: typing.Any) -> bool:
-        ...
-    def __getstate__(self) -> int:
-        ...
-    def __hash__(self) -> int:
-        ...
-    def __index__(self) -> int:
-        ...
-    def __init__(self, value: typing.SupportsInt | typing.SupportsIndex) -> None:
-        ...
-    def __int__(self) -> int:
-        ...
-    @typing.overload
-    def __ne__(self, other: InfoLevel) -> bool:
-        ...
-    @typing.overload
-    def __ne__(self, other: typing.Any) -> bool:
-        ...
-    def __repr__(self) -> str:
-        ...
-    def __setstate__(self, state: typing.SupportsInt | typing.SupportsIndex) -> None:
-        ...
-    def __str__(self) -> str:
-        ...
-    @property
-    def name(self) -> str:
-        ...
-    @property
-    def value(self) -> int:
-        ...
-class InfoReference:
-    __hash__: typing.ClassVar[None] = None
-    reference_key: str
-    reference_value: str
-    def __eq__(self, arg0: InfoReference) -> bool:
-        ...
-    def __init__(self) -> None:
-        ...
-    def __ne__(self, arg0: InfoReference) -> bool:
-        ...
-class OperatingMode:
-    """
-    Members:
-    
-      AUTOMATIC
-    
-      SEMIAUTOMATIC
-    
-      MANUAL
-    
-      SERVICE
-    
-      TEACHIN
-    """
-    AUTOMATIC: typing.ClassVar[OperatingMode]  # value = <OperatingMode.AUTOMATIC: 0>
-    MANUAL: typing.ClassVar[OperatingMode]  # value = <OperatingMode.MANUAL: 2>
-    SEMIAUTOMATIC: typing.ClassVar[OperatingMode]  # value = <OperatingMode.SEMIAUTOMATIC: 1>
-    SERVICE: typing.ClassVar[OperatingMode]  # value = <OperatingMode.SERVICE: 3>
-    TEACHIN: typing.ClassVar[OperatingMode]  # value = <OperatingMode.TEACHIN: 4>
-    __members__: typing.ClassVar[dict[str, OperatingMode]]  # value = {'AUTOMATIC': <OperatingMode.AUTOMATIC: 0>, 'SEMIAUTOMATIC': <OperatingMode.SEMIAUTOMATIC: 1>, 'MANUAL': <OperatingMode.MANUAL: 2>, 'SERVICE': <OperatingMode.SERVICE: 3>, 'TEACHIN': <OperatingMode.TEACHIN: 4>}
-    @typing.overload
-    def __eq__(self, other: OperatingMode) -> bool:
-        ...
-    @typing.overload
-    def __eq__(self, other: typing.Any) -> bool:
-        ...
-    def __getstate__(self) -> int:
-        ...
-    def __hash__(self) -> int:
-        ...
-    def __index__(self) -> int:
-        ...
-    def __init__(self, value: typing.SupportsInt | typing.SupportsIndex) -> None:
-        ...
-    def __int__(self) -> int:
-        ...
-    @typing.overload
-    def __ne__(self, other: OperatingMode) -> bool:
-        ...
-    @typing.overload
-    def __ne__(self, other: typing.Any) -> bool:
-        ...
-    def __repr__(self) -> str:
-        ...
-    def __setstate__(self, state: typing.SupportsInt | typing.SupportsIndex) -> None:
-        ...
-    def __str__(self) -> str:
-        ...
-    @property
-    def name(self) -> str:
-        ...
-    @property
-    def value(self) -> int:
-        ...
+import vda5050_core._core.types
+__all__: list[str] = ['Pose2D', 'StateManager', 'Transformation']
 class Pose2D:
+    theta: float
+    x: float
+    y: float
     def __init__(self) -> None:
-        ...
-    @property
-    def theta(self) -> float:
-        ...
-    @theta.setter
-    def theta(self, arg0: typing.SupportsFloat | typing.SupportsIndex) -> None:
-        ...
-    @property
-    def x(self) -> float:
-        ...
-    @x.setter
-    def x(self, arg0: typing.SupportsFloat | typing.SupportsIndex) -> None:
-        ...
-    @property
-    def y(self) -> float:
-        ...
-    @y.setter
-    def y(self, arg0: typing.SupportsFloat | typing.SupportsIndex) -> None:
-        ...
-class SafetyState:
-    __hash__: typing.ClassVar[None] = None
-    e_stop: EStop
-    field_violation: bool
-    def __eq__(self, arg0: SafetyState) -> bool:
-        ...
-    def __init__(self) -> None:
-        ...
-    def __ne__(self, arg0: SafetyState) -> bool:
         ...
 class StateManager:
-    def add_action_state(self, arg0: ActionState) -> None:
+    def add_action_state(self, arg0: vda5050_core._core.types.ActionState) -> None:
         ...
-    def add_error(self, arg0: Error) -> None:
+    def add_error(self, arg0: vda5050_core._core.types.Error) -> None:
         ...
-    def add_information(self, arg0: Info) -> None:
+    def add_information(self, arg0: vda5050_core._core.types.Info) -> None:
         ...
     def clear_action_states(self) -> None:
         ...
     def clear_errors(self) -> None:
         ...
-    def initialize_position(self, arg0: typing.SupportsFloat | typing.SupportsIndex, arg1: typing.SupportsFloat | typing.SupportsIndex, arg2: typing.SupportsFloat | typing.SupportsIndex, arg3: str) -> None:
+    def initialize_position(self, arg0: float, arg1: float, arg2: float, arg3: str) -> None:
         ...
     def remove_information(self) -> None:
         ...
-    def set_action_states(self, arg0: collections.abc.Sequence[ActionState]) -> None:
+    def set_action_states(self, arg0: list[vda5050_core._core.types.ActionState]) -> None:
         ...
-    def set_battery_state(self, arg0: BatteryState) -> None:
+    def set_battery_state(self, arg0: vda5050_core._core.types.BatteryState) -> None:
         ...
-    def set_distance_since_last_node(self, arg0: typing.SupportsFloat | typing.SupportsIndex) -> None:
+    def set_distance_since_last_node(self, arg0: float) -> None:
         ...
     def set_driving(self, arg0: bool) -> None:
         ...
-    def set_errors(self, arg0: collections.abc.Sequence[Error]) -> None:
+    def set_errors(self, arg0: list[vda5050_core._core.types.Error]) -> None:
         ...
-    def set_information(self, arg0: collections.abc.Sequence[Info]) -> None:
+    def set_information(self, arg0: list[vda5050_core._core.types.Info]) -> None:
         ...
     def set_new_base_request(self, arg0: bool) -> None:
         ...
-    def set_operating_mode(self, arg0: OperatingMode) -> None:
+    def set_operating_mode(self, arg0: vda5050_core._core.types.OperatingMode) -> None:
         ...
     def set_paused(self, arg0: bool) -> None:
         ...
-    def set_position(self, arg0: typing.SupportsFloat | typing.SupportsIndex, arg1: typing.SupportsFloat | typing.SupportsIndex, arg2: typing.SupportsFloat | typing.SupportsIndex, arg3: str) -> None:
+    def set_position(self, arg0: float, arg1: float, arg2: float, arg3: str) -> None:
         ...
-    def set_safety_state(self, arg0: SafetyState) -> None:
+    def set_safety_state(self, arg0: vda5050_core._core.types.SafetyState) -> None:
         ...
     def set_transformation(self, arg0: Transformation, arg1: str) -> None:
         ...
-    def set_velocity(self, arg0: Velocity) -> None:
+    def set_velocity(self, arg0: vda5050_core._core.types.Velocity) -> None:
         ...
 class Transformation:
     @staticmethod
@@ -481,30 +62,4 @@ class Transformation:
     def to_agv_pose(self, arg0: Pose2D) -> Pose2D:
         ...
     def to_world_pose(self, arg0: Pose2D) -> Pose2D:
-        ...
-class Velocity:
-    __hash__: typing.ClassVar[None] = None
-    def __eq__(self, arg0: Velocity) -> bool:
-        ...
-    def __init__(self) -> None:
-        ...
-    def __ne__(self, arg0: Velocity) -> bool:
-        ...
-    @property
-    def omega(self) -> float | None:
-        ...
-    @omega.setter
-    def omega(self, arg0: typing.SupportsFloat | typing.SupportsIndex | None) -> None:
-        ...
-    @property
-    def vx(self) -> float | None:
-        ...
-    @vx.setter
-    def vx(self, arg0: typing.SupportsFloat | typing.SupportsIndex | None) -> None:
-        ...
-    @property
-    def vy(self) -> float | None:
-        ...
-    @vy.setter
-    def vy(self, arg0: typing.SupportsFloat | typing.SupportsIndex | None) -> None:
         ...

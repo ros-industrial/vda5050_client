@@ -4,14 +4,18 @@ find_package(pybind11_json REQUIRED)
 
 pybind11_add_module(_core
   src/core.cpp
-  src/rmf_migration.cpp
+  src/types.cpp
   src/client.cpp
+  src/master.cpp
+  src/rmf_migration.cpp
+  src/transport.cpp
 )
 
 target_link_libraries(_core
   PRIVATE
     vda5050_core::logger
     vda5050_core::client
+    vda5050_core::master
     pybind11_json
 )
 

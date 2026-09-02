@@ -14,17 +14,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from vda5050_core.client import Pose2D
-
-
-def test_rmf_migration_imports():
-    assert Pose2D is not None
-
-
-def test_rmf_smoke_constructs_without_broker():
-    position = Pose2D()
-    position.x = 5.0
-    position.y = 3.0
-
-    assert position.x == 5.0
-    assert position.y == 3.0
+from ._core.types import *

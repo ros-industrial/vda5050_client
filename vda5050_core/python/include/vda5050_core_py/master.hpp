@@ -16,24 +16,17 @@
  * limitations under the License.
  */
 
+#ifndef VDA5050_CORE_PY__MASTER_HPP_
+#define VDA5050_CORE_PY__MASTER_HPP_
+
 #include <pybind11/pybind11.h>
-#ifdef PYBIND11_HAS_INTERNALS_WITH_SMART_HOLDER_SUPPORT
-#error "pybind11 >= 3.0 is not supported. Please use pybind11 < 3.0."
-#endif
 
-#include "vda5050_core_py/client.hpp"
-#include "vda5050_core_py/master.hpp"
-#include "vda5050_core_py/rmf_migration.hpp"
-#include "vda5050_core_py/transport.hpp"
-#include "vda5050_core_py/types.hpp"
+namespace py = pybind11;
 
-PYBIND11_MODULE(_core, m)
-{
-  m.doc() = "VDA5050 Core Python bindings";
+namespace vda5050_core_py {
 
-  vda5050_core_py::bind_types(m);
-  vda5050_core_py::bind_client(m);
-  vda5050_core_py::bind_transport(m);
-  vda5050_core_py::bind_master(m);
-  vda5050_core_py::bind_rmf_migration(m);
-}
+void bind_master(py::module_& m);
+
+}  // namespace vda5050_core_py
+
+#endif  // VDA5050_CORE_PY__MASTER_HPP_

@@ -14,17 +14,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from vda5050_core.client import Pose2D
+from unittest.mock import create_autospec
+
+import pytest
+from vda5050_core.transport import MqttClientInterface
 
 
-def test_rmf_migration_imports():
-    assert Pose2D is not None
+class MockMqttClientInterface(MqttClientInterface):
+    def __init__(self):
+        super().__init__()
+        self.mock = create_autospec(spec=MqttClientInterface)
+
+    def __getattribute__(self, name):
+        _mock = object.__getattribute__(self, "mock")
+        if name == "mock":
+            return _mock
+        return getattr(_mock, name)
 
 
-def test_rmf_smoke_constructs_without_broker():
-    position = Pose2D()
-    position.x = 5.0
-    position.y = 3.0
-
-    assert position.x == 5.0
-    assert position.y == 3.0
+@pytest.fixture
+def mock_mqtt_client():
+    return MockMqttClientInterface()

@@ -6,9 +6,10 @@
 Open-RMF style migration API
 """
 from __future__ import annotations
-import collections.abc
+import pybind11_stubgen.typing_ext
 import typing
 import vda5050_core._core.client
+import vda5050_core._core.types
 __all__: list[str] = ['ActivityIdentifier', 'Adapter', 'CommandExecution', 'Destination', 'FleetConfiguration', 'FleetUpdateHandle', 'RobotCallbacks', 'RobotConfiguration', 'RobotState', 'RobotUpdateHandle']
 class ActivityIdentifier:
     __hash__: typing.ClassVar[None] = None
@@ -49,13 +50,13 @@ class Destination:
     def name(self) -> str | None:
         ...
     @property
-    def position(self) -> typing.Annotated[list[float], "FixedSize(3)"]:
+    def position(self) -> typing.Annotated[list[float], pybind11_stubgen.typing_ext.FixedSize(3)]:
         ...
     @property
     def speed_limit(self) -> float | None:
         ...
     @property
-    def xy(self) -> typing.Annotated[list[float], "FixedSize(2)"]:
+    def xy(self) -> typing.Annotated[list[float], pybind11_stubgen.typing_ext.FixedSize(2)]:
         ...
     @property
     def yaw(self) -> float:
@@ -64,39 +65,34 @@ class FleetConfiguration:
     broker_uri: str
     client_id_prefix: str
     fleet_name: str
-    def __init__(self, fleet_name: str, broker_uri: str, client_id_prefix: str, update_interval: typing.SupportsInt | typing.SupportsIndex = 30) -> None:
+    update_interval: int
+    def __init__(self, fleet_name: str, broker_uri: str, client_id_prefix: str, update_interval: int = 30) -> None:
         ...
     def add_known_robot_configuration(self, arg0: str, arg1: RobotConfiguration) -> None:
         ...
-    def get_known_robot_configuration(self, arg0: str) -> vda5050_core._core.rmf_migration.RobotConfiguration | None:
+    def get_known_robot_configuration(self, arg0: str) -> RobotConfiguration | None:
         ...
     @property
     def known_robots(self) -> list[str]:
-        ...
-    @property
-    def update_interval(self) -> int:
-        ...
-    @update_interval.setter
-    def update_interval(self, arg1: typing.SupportsInt | typing.SupportsIndex) -> None:
         ...
 class FleetUpdateHandle:
     def add_robot(self, arg0: str, arg1: RobotState, arg2: RobotConfiguration, arg3: RobotCallbacks) -> RobotUpdateHandle:
         ...
 class RobotCallbacks:
-    localize: collections.abc.Callable[[Destination, CommandExecution], None]
-    def __init__(self, navigate: collections.abc.Callable[[Destination, CommandExecution], None], stop: collections.abc.Callable[[ActivityIdentifier], None], action_executor: collections.abc.Callable[[str, json, CommandExecution], None]) -> None:
+    localize: typing.Callable[[Destination, CommandExecution], None]
+    def __init__(self, navigate: typing.Callable[[Destination, CommandExecution], None], stop: typing.Callable[[ActivityIdentifier], None], action_executor: typing.Callable[[str, json, CommandExecution], None]) -> None:
         ...
     @property
-    def action_executor(self) -> collections.abc.Callable[[str, json, CommandExecution], None]:
+    def action_executor(self) -> typing.Callable[[str, json, CommandExecution], None]:
         ...
     @property
-    def navigate(self) -> collections.abc.Callable[[Destination, CommandExecution], None]:
+    def navigate(self) -> typing.Callable[[Destination, CommandExecution], None]:
         ...
     @property
-    def stop(self) -> collections.abc.Callable[[ActivityIdentifier], None]:
+    def stop(self) -> typing.Callable[[ActivityIdentifier], None]:
         ...
 class RobotConfiguration:
-    factsheet: ... | None
+    factsheet: vda5050_core._core.types.Factsheet | None
     interface_name: str
     manufacturer: str
     serial_number: str
@@ -104,20 +100,10 @@ class RobotConfiguration:
     def __init__(self, manufacturer: str, serial_number: str, interface_name: str = 'uagv', version: str = '2.0.0') -> None:
         ...
 class RobotState:
+    battery_state_of_charge: float
     map: str
-    def __init__(self, map: str, position: typing.Annotated[collections.abc.Sequence[typing.SupportsFloat | typing.SupportsIndex], "FixedSize(3)"], battery_soc: typing.SupportsFloat | typing.SupportsIndex) -> None:
-        ...
-    @property
-    def battery_state_of_charge(self) -> float:
-        ...
-    @battery_state_of_charge.setter
-    def battery_state_of_charge(self, arg1: typing.SupportsFloat | typing.SupportsIndex) -> None:
-        ...
-    @property
-    def position(self) -> typing.Annotated[list[float], "FixedSize(3)"]:
-        ...
-    @position.setter
-    def position(self, arg1: typing.Annotated[collections.abc.Sequence[typing.SupportsFloat | typing.SupportsIndex], "FixedSize(3)"]) -> None:
+    position: typing.Annotated[list[float], pybind11_stubgen.typing_ext.FixedSize(3)]
+    def __init__(self, map: str, position: typing.Annotated[list[float], pybind11_stubgen.typing_ext.FixedSize(3)], battery_soc: float) -> None:
         ...
 class RobotUpdateHandle:
     def more(self) -> vda5050_core._core.client.StateManager:

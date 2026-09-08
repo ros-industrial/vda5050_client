@@ -191,14 +191,18 @@ void PahoMqttClient::publish(
 void PahoMqttClient::subscribe(
   const std::string& topic, MessageHandler handler, int qos)
 {
-  try
   {
-    client_->subscribe(topic, qos)->wait();
     std::lock_guard<std::mutex> lock(handler_mutex_);
     handlers_[topic] = handler;
   }
+  try
+  {
+    client_->subscribe(topic, qos)->wait();
+  }
   catch (const mqtt::exception& e)
   {
+    std::lock_guard<std::mutex> lock(handler_mutex_);
+    handlers_.erase(topic);
     VDA5050_ERROR_STREAM("MQTT subscription failed: " << e.get_message());
   }
 }

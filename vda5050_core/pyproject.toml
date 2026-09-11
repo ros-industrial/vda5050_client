@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "vda5050_core"
-version = "0.1.0rc1"
+version = "0.1.0rc2"
 license = "Apache-2.0"
 description = "Tools for VDA5050 development workflows"
 authors = [
@@ -53,9 +53,9 @@ vda5050_core = "python/vda5050_core"
 
 [tool.uv]
 cache-keys = [
-  { file = "include/**/*.{h,c,hpp,cpp}" }, 
-  { file = "src/**/*.{h,c,hpp,cpp}" }, 
-  { file = "python/**/*.{h,c,hpp,cpp,txt}" }, 
+  { file = "include/**/*.{h,c,hpp,cpp}" },
+  { file = "src/**/*.{h,c,hpp,cpp}" },
+  { file = "python/**/*.{h,c,hpp,cpp,txt}" },
   { file = "CMakeLists.txt" },
 ]
 
